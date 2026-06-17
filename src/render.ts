@@ -26,6 +26,8 @@ export interface RenderCtx {
   guardrails: boolean;
   selectProject(i: number): void;
   setLayer(agent: Agent, li: number, ai: number): void;
+  addLayer(agent: Agent, kind: "terminal" | "browser", ai: number): void;
+  closeLayer(agent: Agent, li: number, ai: number): void;
   afterRender(): void;
 }
 
@@ -83,20 +85,79 @@ export function renderAll(c: RenderCtx) {
       }
     });
 
-    agent.dotsEl.innerHTML = "";
-    agent.layers.forEach((layer, li) => {
-      const dot = document.createElement("span");
-      dot.className = "dot" + (li === agent.active ? " active" : "");
-      dot.textContent = layer.kind === "browser" ? "◉" : "▣";
-      dot.addEventListener("mousedown", (ev) => {
-        ev.stopPropagation();
-        c.setLayer(agent, li, ai);
-      });
-      agent.dotsEl.appendChild(dot);
-    });
+    renderLayerTabs(c, agent, ai);
   });
 
   c.afterRender();
+}
+
+function renderLayerTabs(c: RenderCtx, agent: Agent, ai: number) {
+  agent.tabsEl.replaceChildren();
+  agent.layers.forEach((layer, li) => {
+    const tab = document.createElement("button");
+    tab.className = "ltab" + (li === agent.active ? " active" : "");
+    tab.appendChild(layerIcon(layer.kind));
+    const label = document.createElement("span");
+    label.className = "ltab-label";
+    label.textContent = layer.title;
+    tab.appendChild(label);
+    tab.addEventListener("mousedown", (ev) => {
+      ev.stopPropagation();
+      c.setLayer(agent, li, ai);
+    });
+    if (li === agent.active && agent.layers.length > 1) {
+      const x = document.createElement("span");
+      x.className = "ltab-x";
+      x.textContent = "×";
+      x.title = "このレイヤーを閉じる";
+      x.addEventListener("mousedown", (ev) => {
+        ev.stopPropagation();
+        c.closeLayer(agent, li, ai);
+      });
+      tab.appendChild(x);
+    }
+    agent.tabsEl.appendChild(tab);
+  });
+
+  for (const [kind, tip] of [
+    ["terminal", "ターミナル追加"],
+    ["browser", "ブラウザ追加"],
+  ] as const) {
+    const add = document.createElement("button");
+    add.className = "ltab-add";
+    add.title = tip;
+    add.append(document.createTextNode("＋"), layerIcon(kind));
+    add.addEventListener("mousedown", (ev) => {
+      ev.stopPropagation();
+      c.addLayer(agent, kind, ai);
+    });
+    agent.tabsEl.appendChild(add);
+  }
+}
+
+function svgEl(tag: string, attrs: Record<string, string | number>): SVGElement {
+  const el = document.createElementNS(SVG_NS, tag);
+  for (const k in attrs) el.setAttribute(k, String(attrs[k]));
+  return el;
+}
+
+/// Minimal monochrome line icons (inherit currentColor): terminal = `>_`,
+/// browser = globe. Recognizable at a glance, still understated.
+function layerIcon(kind: "terminal" | "browser"): SVGElement {
+  const svg = svgEl("svg", { class: "ltab-ico", viewBox: "0 0 16 16" });
+  if (kind === "browser") {
+    svg.append(
+      svgEl("circle", { cx: 8, cy: 8, r: 6 }),
+      svgEl("ellipse", { cx: 8, cy: 8, rx: 2.6, ry: 6 }),
+      svgEl("line", { x1: 2, y1: 8, x2: 14, y2: 8 })
+    );
+  } else {
+    svg.append(
+      svgEl("polyline", { points: "3,4 7,8 3,12" }),
+      svgEl("line", { x1: 8.5, y1: 12, x2: 13, y2: 12 })
+    );
+  }
+  return svg;
 }
 
 function renderStrip(c: RenderCtx) {

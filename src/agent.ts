@@ -29,6 +29,7 @@ export interface Agent {
   id: string;
   title: string;
   cwd: string | null;
+  agentCmd: string; // the CLI agent this window runs (e.g. "claude", "aider")
   manualTitle: boolean; // true once the user renames; stops dir-derived titles
   layers: Layer[];
   active: number; // index of front layer
@@ -36,9 +37,10 @@ export interface Agent {
   headerEl: HTMLElement;
   stackEl: HTMLElement;
   titleEl: HTMLElement;
+  agentSel: HTMLSelectElement;
   pathEl: HTMLInputElement;
   pickEl: HTMLButtonElement;
-  dotsEl: HTMLElement;
+  tabsEl: HTMLElement;
 }
 
 /// Last path segment, used to derive an agent's title from its working dir.
@@ -222,11 +224,12 @@ export function createAgent(index: number): Agent {
   titleEl.textContent = `agent ${index}`;
   titleEl.title = "ダブルクリックで名前変更";
 
-  const dotsEl = document.createElement("div");
-  dotsEl.className = "layer-dots";
+  const agentSel = document.createElement("select");
+  agentSel.className = "agent-sel";
+  agentSel.title = "このウィンドウで動かすエージェント";
 
   titleRow.appendChild(titleEl);
-  titleRow.appendChild(dotsEl);
+  titleRow.appendChild(agentSel);
 
   const pathRow = document.createElement("div");
   pathRow.className = "agent-path-row";
@@ -240,8 +243,13 @@ export function createAgent(index: number): Agent {
   pathEl.spellcheck = false;
   pathRow.append(pickEl, pathEl);
 
+  // Z-axis layer tabs, sitting directly above the terminal.
+  const tabsEl = document.createElement("div");
+  tabsEl.className = "layer-tabs";
+
   headerEl.appendChild(titleRow);
   headerEl.appendChild(pathRow);
+  headerEl.appendChild(tabsEl);
 
   const stackEl = document.createElement("div");
   stackEl.className = "stack";
@@ -253,6 +261,7 @@ export function createAgent(index: number): Agent {
     id: uid("agent"),
     title: `agent ${index}`,
     cwd: null,
+    agentCmd: "claude",
     manualTitle: false,
     layers: [],
     active: 0,
@@ -260,8 +269,9 @@ export function createAgent(index: number): Agent {
     headerEl,
     stackEl,
     titleEl,
+    agentSel,
     pathEl,
     pickEl,
-    dotsEl,
+    tabsEl,
   };
 }
