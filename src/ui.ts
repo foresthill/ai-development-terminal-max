@@ -59,8 +59,10 @@ export function askText(opts: {
 }
 
 import { GUARD_PRESETS } from "./guard";
+import { t, Lang } from "./i18n";
 
 export interface SettingsValues {
+  lang: Lang;
   agentCmd: string;
   permMode: "auto" | "normal" | "bypass";
   enabled: Set<string>;
@@ -76,28 +78,34 @@ export function openSettings(cur: SettingsValues): Promise<SettingsValues | null
     const box = document.createElement("div");
     box.className = "modal modal-wide";
     box.innerHTML = `
-      <div class="modal-title">設定</div>
-      <label class="set-row"><span>エージェント起動コマンド</span>
+      <div class="modal-title">${t("set.title")}</div>
+      <label class="set-row"><span>${t("set.lang")}</span>
+        <select class="modal-input" id="set-lang">
+          <option value="en">English</option><option value="ja">日本語</option>
+        </select></label>
+      <label class="set-row"><span>${t("set.agentCmd")}</span>
         <input class="modal-input" id="set-cmd" spellcheck="false"></label>
-      <label class="set-row"><span>パーミッション既定</span>
+      <label class="set-row"><span>${t("set.perm")}</span>
         <select class="modal-input" id="set-perm">
           <option value="auto">auto</option><option value="normal">normal</option>
           <option value="bypass">bypass ⚠</option>
         </select></label>
-      <div class="set-section">ガードレール deny-list（あなたのポリシー）</div>
+      <div class="set-section">${t("set.guardSection")}</div>
       <div id="set-presets"></div>
-      <label class="set-row col"><span>カスタム deny（1行1ルール）</span>
+      <label class="set-row col"><span>${t("set.customDeny")}</span>
         <textarea class="modal-input" id="set-custom" rows="3" spellcheck="false"
           placeholder="Bash(rm -rf *)"></textarea></label>
-      <div class="modal-row"><button id="set-cancel">キャンセル</button>
-        <button id="set-ok" class="primary">保存</button></div>`;
+      <div class="modal-row"><button id="set-cancel">${t("modal.cancel")}</button>
+        <button id="set-ok" class="primary">${t("modal.ok")}</button></div>`;
     back.append(box);
     document.body.append(back);
 
+    const langSel = box.querySelector<HTMLSelectElement>("#set-lang")!;
     const cmd = box.querySelector<HTMLInputElement>("#set-cmd")!;
     const perm = box.querySelector<HTMLSelectElement>("#set-perm")!;
     const custom = box.querySelector<HTMLTextAreaElement>("#set-custom")!;
     const presetsEl = box.querySelector<HTMLElement>("#set-presets")!;
+    langSel.value = cur.lang;
     cmd.value = cur.agentCmd;
     perm.value = cur.permMode;
     custom.value = cur.customDeny;
@@ -110,7 +118,7 @@ export function openSettings(cur: SettingsValues): Promise<SettingsValues | null
       cb.checked = cur.enabled.has(p.id);
       boxes[p.id] = cb;
       const span = document.createElement("span");
-      span.textContent = p.label;
+      span.textContent = t(p.label);
       row.append(cb, span);
       presetsEl.appendChild(row);
     }
@@ -130,6 +138,7 @@ export function openSettings(cur: SettingsValues): Promise<SettingsValues | null
       const enabled = new Set<string>();
       for (const id of Object.keys(boxes)) if (boxes[id].checked) enabled.add(id);
       done({
+        lang: langSel.value as Lang,
         agentCmd: cmd.value.trim() || "claude",
         permMode: perm.value as SettingsValues["permMode"],
         enabled,

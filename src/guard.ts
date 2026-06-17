@@ -4,23 +4,23 @@
 // https://code.claude.com/docs/en/permissions.md
 export interface GuardPreset {
   id: string;
-  label: string;
+  label: string; // i18n key, resolved via t() at render time
   rules: string[];
 }
 
 export const GUARD_PRESETS: GuardPreset[] = [
   {
     id: "push-main",
-    label: "main / master への push を禁止",
+    label: "guard.pushMain",
     rules: ["Bash(git push origin main)", "Bash(git push origin master)"],
   },
   {
     id: "force-push",
-    label: "force push を禁止",
+    label: "guard.forcePush",
     rules: ["Bash(git push -f *)", "Bash(git push --force *)", "Bash(git push --force-with-lease *)"],
   },
-  { id: "sudo", label: "sudo を禁止", rules: ["Bash(sudo *)"] },
-  { id: "net", label: "curl / wget を禁止（外部送信）", rules: ["Bash(curl *)", "Bash(wget *)"] },
+  { id: "sudo", label: "guard.sudo", rules: ["Bash(sudo *)"] },
+  { id: "net", label: "guard.net", rules: ["Bash(curl *)", "Bash(wget *)"] },
 ];
 
 /// Flatten the enabled presets plus any custom lines into the effective deny list.

@@ -3,6 +3,7 @@
 // so this module holds no state.
 import { Agent } from "./agent";
 import { Project, goldenSpiral, goldenSpiralPath } from "./project";
+import { t } from "./i18n";
 
 export type Mode = "overview" | "zoom";
 export type View = "project" | "macro";
@@ -33,9 +34,9 @@ export interface RenderCtx {
 
 export function renderAll(c: RenderCtx) {
   const total = c.projects.reduce((s, p) => s + p.agents.length, 0);
-  c.countEl.textContent = `${total} agents · ${c.projects.length} proj`;
+  c.countEl.textContent = `${total} ${t("unit.agents")} · ${c.projects.length} ${t("unit.proj")}`;
   c.permSelect.value = c.permMode;
-  c.btnGuard.textContent = `🛡 guard: ${c.guardrails ? "on" : "off"}`;
+  c.btnGuard.textContent = `🛡 ${t("guard.label")}: ${c.guardrails ? t("on") : t("off")}`;
   c.btnGuard.classList.toggle("on", c.guardrails);
   renderStrip(c);
 
@@ -62,7 +63,7 @@ export function renderAll(c: RenderCtx) {
     c.btnLayout.textContent = `▦ ${cols}×${rows}`;
   } else {
     c.grid.style.gridTemplateColumns = "";
-    c.btnLayout.textContent = "▦ fit";
+    c.btnLayout.textContent = `▦ ${t("layout.fit")}`;
   }
 
   agents.forEach((agent, ai) => {
@@ -111,7 +112,7 @@ function renderLayerTabs(c: RenderCtx, agent: Agent, ai: number) {
       const x = document.createElement("span");
       x.className = "ltab-x";
       x.textContent = "×";
-      x.title = "このレイヤーを閉じる";
+      x.title = t("tip.layerClose");
       x.addEventListener("mousedown", (ev) => {
         ev.stopPropagation();
         c.closeLayer(agent, li, ai);
@@ -121,13 +122,13 @@ function renderLayerTabs(c: RenderCtx, agent: Agent, ai: number) {
     agent.tabsEl.appendChild(tab);
   });
 
-  for (const [kind, tip] of [
-    ["terminal", "ターミナル追加"],
-    ["browser", "ブラウザ追加"],
+  for (const [kind, tipKey] of [
+    ["terminal", "tip.addTerm"],
+    ["browser", "tip.addBrowser"],
   ] as const) {
     const add = document.createElement("button");
     add.className = "ltab-add";
-    add.title = tip;
+    add.title = t(tipKey);
     add.append(document.createTextNode("＋"), layerIcon(kind));
     add.addEventListener("mousedown", (ev) => {
       ev.stopPropagation();

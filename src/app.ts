@@ -18,6 +18,7 @@ import { defaultShell, homeDir } from "./pty";
 import { isGitRepo, gitClone, createWorktree, writeGuardrails, currentBranch } from "./git";
 import { askText, toast, pickDirectory, openSettings } from "./ui";
 import { GUARD_PRESETS, effectiveDeny } from "./guard";
+import { t, getLang, setLang } from "./i18n";
 import { renderAll, RenderCtx, Mode, View, PermMode } from "./render";
 import { buildSnapshot, saveSnap, loadSnap } from "./persistence";
 
@@ -226,7 +227,7 @@ export class App {
       const v = agent.agentSel.value;
       if (v === "__custom__") {
         const cmd = await askText({
-          title: "カスタムのエージェント起動コマンド",
+          title: t("modal.customTitle"),
           placeholder: "aider --model gpt-5",
           value: agent.agentCmd,
         });
@@ -271,7 +272,7 @@ export class App {
   private async addAgentToActive() {
     const p = this.curProject;
     if (!p) {
-      toast("プロジェクトがありません。folder か clone で作成してください", "error");
+      toast(t("toast.noProject"), "error");
       return;
     }
     if (p.isGit) {
@@ -279,9 +280,9 @@ export class App {
       try {
         const wt = await createWorktree(p.root, branch);
         await this.addAgentWithCwd(p, wt);
-        toast(`worktree: ${branch}`);
+        toast(t("toast.worktree", branch));
       } catch (e) {
-        toast(`worktree作成失敗: ${e}`, "error");
+        toast(t("toast.worktreeFail", String(e)), "error");
       }
     } else {
       await this.addAgentWithCwd(p, p.root || this.home);
@@ -298,7 +299,7 @@ export class App {
           const wt = await createWorktree(p.root, branch);
           await this.addAgentWithCwd(p, wt, false);
         } catch (e) {
-          toast(`worktree作成失敗: ${e}`, "error");
+          toast(t("toast.worktreeFail", String(e)), "error");
           break;
         }
       } else {
@@ -317,7 +318,7 @@ export class App {
       await writeGuardrails(cwd, effectiveDeny(this.presets, this.customDeny));
       this.guardWritten.add(cwd);
     } catch (e) {
-      toast(`guard書込失敗: ${e}`, "error");
+      toast(t("toast.guardFail", String(e)), "error");
     }
   }
 
@@ -327,9 +328,9 @@ export class App {
       const dirs = new Set<string>();
       for (const p of this.projects) for (const a of p.agents) if (a.cwd) dirs.add(a.cwd);
       for (const d of dirs) await this.applyGuard(d);
-      toast(`guardrails ON — deny-list を書込（再起動した claude から有効）`);
+      toast(t("toast.guardOn"));
     } else {
-      toast("guardrails OFF — 既存ファイルは残します");
+      toast(t("toast.guardOff"));
     }
     this.render();
   }
@@ -395,7 +396,7 @@ export class App {
       path = await pickDirectory(this.home);
     } catch {
       path = await askText({
-        title: "プロジェクトを開く（フォルダ/リポのパス）",
+        title: t("modal.openTitle"),
         placeholder: "/Users/you/dev/myrepo",
         value: this.home + "/",
       });
@@ -413,11 +414,11 @@ export class App {
 
   private async cloneProject() {
     const url = await askText({
-      title: "git clone（リポジトリURL）",
+      title: t("modal.cloneTitle"),
       placeholder: "https://github.com/user/repo.git",
     });
     if (!url) return;
-    toast(`cloning ${url} …`);
+    toast(t("toast.cloning", url));
     try {
       const path = await gitClone(url);
       const p = createProject(basename(path) || "repo", path, true);
@@ -426,9 +427,9 @@ export class App {
       this.focused = 0;
       this.view = "project";
       await this.addAgentToActive();
-      toast(`cloned: ${basename(path)}`);
+      toast(t("toast.cloned", basename(path)));
     } catch (e) {
-      toast(`clone失敗: ${e}`, "error");
+      toast(t("toast.cloneFail", String(e)), "error");
     }
   }
 
@@ -442,12 +443,14 @@ export class App {
 
   private async openSettingsDialog() {
     const res = await openSettings({
+      lang: getLang(),
       agentCmd: this.agentCmd,
       permMode: this.permMode,
       enabled: new Set(this.presets),
       customDeny: this.customDeny,
     });
     if (!res) return;
+    if (res.lang !== getLang()) setLang(res.lang); // re-applies static labels
     this.agentCmd = res.agentCmd;
     this.permMode = res.permMode;
     this.presets = res.enabled;
@@ -457,9 +460,9 @@ export class App {
       const dirs = new Set<string>();
       for (const p of this.projects) for (const a of p.agents) if (a.cwd) dirs.add(a.cwd);
       for (const d of dirs) await this.applyGuard(d);
-      toast("設定を保存。deny-list を再書込（再起動した claude から有効）");
+      toast(t("toast.settingsSavedGuard"));
     } else {
-      toast("設定を保存");
+      toast(t("toast.settingsSaved"));
     }
     this.render();
   }
@@ -659,9 +662,7 @@ export class App {
           if (!front.started && front.term) {
             startLayer(front, front.term.cols, front.term.rows)
               .then(() => fitLayer(front))
-              .catch(() =>
-                front.term?.write("\r\n\x1b[31m[spawn failed: check the directory path]\x1b[0m\r\n")
-              );
+              .catch(() => front.term?.write(`\r\n\x1b[31m${t("spawn.fail")}\x1b[0m\r\n`));
           } else {
             fitLayer(front);
           }

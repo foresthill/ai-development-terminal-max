@@ -6,6 +6,7 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { spawnPty, PtyHandle } from "./pty";
+import { t } from "./i18n";
 
 export type LayerKind = "terminal" | "browser";
 
@@ -224,14 +225,14 @@ export function createAgent(index: number): Agent {
   const titleEl = document.createElement("div");
   titleEl.className = "agent-title";
   titleEl.textContent = `agent ${index}`;
-  titleEl.title = "ダブルクリックで名前変更";
+  titleEl.title = t("tip.title");
 
   const branchEl = document.createElement("span");
   branchEl.className = "agent-branch";
 
   const agentSel = document.createElement("select");
   agentSel.className = "agent-sel";
-  agentSel.title = "このウィンドウで動かすエージェント";
+  agentSel.title = t("tip.agentSel");
 
   titleRow.appendChild(titleEl);
   titleRow.appendChild(branchEl);
@@ -241,11 +242,11 @@ export function createAgent(index: number): Agent {
   pathRow.className = "agent-path-row";
   const pickEl = document.createElement("button");
   pickEl.className = "agent-pick";
-  pickEl.textContent = "📁";
-  pickEl.title = "フォルダを選択";
+  pickEl.textContent = t("agent.pick");
+  pickEl.title = t("tip.pick");
   const pathEl = document.createElement("input");
   pathEl.className = "agent-path";
-  pathEl.placeholder = "作業ディレクトリ（パス or 📁）";
+  pathEl.placeholder = t("agent.pathPlaceholder");
   pathEl.spellcheck = false;
   pathRow.append(pickEl, pathEl);
 
