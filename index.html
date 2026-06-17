@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Dev Terminal MAX</title>
+    <script type="module" src="/src/main.ts" defer></script>
+  </head>
+  <body>
+    <div id="root">
+      <header id="topbar">
+        <div class="bar bar-projects">
+          <div class="brand">AI&nbsp;DEV&nbsp;TERMINAL&nbsp;<span class="max">MAX</span></div>
+          <div id="project-strip" class="project-strip"></div>
+          <div class="proj-actions">
+            <button id="btn-open" title="既存フォルダ/リポをプロジェクトとして開く">📁 folder</button>
+            <button id="btn-clone" title="git clone して新規プロジェクト">⎇ clone</button>
+          </div>
+        </div>
+        <div class="bar bar-tools">
+          <button id="btn-add" title="Alt+T">+ agent</button>
+          <button id="btn-fill" title="fill to 9 (3×3 曼荼羅)">⊞ fill 9</button>
+          <button id="btn-zoom" title="Alt+Z">⤢ zoom</button>
+          <button id="btn-layout" title="グリッド: 個数固定(正方) ⇄ 横幅fit">▦ 3×3</button>
+          <button id="btn-macro" title="Alt+M 全プロジェクトを螺旋で俯瞰">✦ macro</button>
+          <label class="perm">
+            perm
+            <select id="perm-mode" title="claude のパーミッションモード">
+              <option value="auto">auto</option>
+              <option value="normal">normal</option>
+              <option value="bypass">bypass ⚠</option>
+            </select>
+          </label>
+          <button id="btn-guard" title="deny-list ガードレール（.claude/settings.local.json を各作業ディレクトリに書込。git excludeで非コミット）">🛡 guard: off</button>
+          <button id="btn-settings" title="設定（エージェントコマンド・パーミッション・deny-list）">⚙</button>
+          <span id="agent-count" class="count">0 agents</span>
+          <div class="hint">
+            Alt+T new · Alt+←/→ focus · Alt+↑/↓ depth · Alt+Z zoom · Alt+N term · Alt+B browser · Alt+P project · Alt+M macro
+          </div>
+        </div>
+      </header>
+      <main id="grid" class="mode-overview"></main>
+      <section id="macro" class="hidden"></section>
+    </div>
+  </body>
+</html>
