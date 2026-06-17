@@ -56,7 +56,7 @@ export function renderAll(c: RenderCtx) {
 
   const n = agents.length;
   if (c.layout === "square" && n > 0) {
-    const cols = Math.ceil(Math.sqrt(n));
+    const cols = bestCols(n, c.grid.clientWidth, c.grid.clientHeight);
     const rows = Math.ceil(n / cols);
     c.grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
     c.btnLayout.textContent = `▦ ${cols}×${rows}`;
@@ -70,6 +70,8 @@ export function renderAll(c: RenderCtx) {
     agent.cardEl.classList.toggle("zoomed", c.mode === "zoom" && ai === c.focused);
     agent.cardEl.classList.toggle("hidden", c.mode === "zoom" && ai !== c.focused);
     if (agent.titleEl.contentEditable !== "true") agent.titleEl.textContent = agent.title;
+    agent.branchEl.textContent = agent.branch ? `⎇ ${agent.branch}` : "";
+    agent.branchEl.style.display = agent.branch ? "" : "none";
 
     let behindRank = 0;
     agent.layers.forEach((layer, li) => {
@@ -158,6 +160,28 @@ function layerIcon(kind: "terminal" | "browser"): SVGElement {
     );
   }
   return svg;
+}
+
+// Choose a column count that fills the window with well-proportioned cells:
+// for each candidate, fit the largest target-aspect (≈1.6 landscape) cell and
+// keep the count that yields the biggest cell. Wider windows -> more columns.
+function bestCols(n: number, W: number, H: number): number {
+  if (!W || !H) return Math.ceil(Math.sqrt(n));
+  const target = 1.6;
+  let best = 1;
+  let bestScore = -Infinity;
+  for (let cols = 1; cols <= n; cols++) {
+    const rows = Math.ceil(n / cols);
+    const cw = W / cols;
+    const ch = H / rows;
+    const w = Math.min(cw, ch * target); // largest target-aspect cell that fits
+    const score = (w * w) / target; // its area
+    if (score > bestScore + 0.5) {
+      bestScore = score;
+      best = cols;
+    }
+  }
+  return best;
 }
 
 function renderStrip(c: RenderCtx) {
