@@ -413,6 +413,13 @@ body {
   color: #9ece6a;
   font-family: Menlo, monospace;
 }
+.agent-cpu {
+  flex: 0 0 auto;
+  font-size: 10px;
+  color: var(--muted);
+  font-family: Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+}
 .agent-sel {
   flex: 0 0 auto;
   max-width: 96px;

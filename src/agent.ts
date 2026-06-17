@@ -31,6 +31,7 @@ export interface Agent {
   title: string;
   cwd: string | null;
   branch: string; // git branch of cwd (worktree/repo), shown as a badge
+  cpu: number; // last sampled CPU% of the agent's process subtree
   agentCmd: string; // the CLI agent this window runs (e.g. "claude", "aider")
   manualTitle: boolean; // true once the user renames; stops dir-derived titles
   layers: Layer[];
@@ -40,6 +41,7 @@ export interface Agent {
   stackEl: HTMLElement;
   titleEl: HTMLElement;
   branchEl: HTMLElement;
+  cpuEl: HTMLElement;
   agentSel: HTMLSelectElement;
   pathEl: HTMLInputElement;
   pickEl: HTMLButtonElement;
@@ -230,12 +232,16 @@ export function createAgent(index: number): Agent {
   const branchEl = document.createElement("span");
   branchEl.className = "agent-branch";
 
+  const cpuEl = document.createElement("span");
+  cpuEl.className = "agent-cpu";
+
   const agentSel = document.createElement("select");
   agentSel.className = "agent-sel";
   agentSel.title = t("tip.agentSel");
 
   titleRow.appendChild(titleEl);
   titleRow.appendChild(branchEl);
+  titleRow.appendChild(cpuEl);
   titleRow.appendChild(agentSel);
 
   const pathRow = document.createElement("div");
@@ -269,6 +275,7 @@ export function createAgent(index: number): Agent {
     title: `agent ${index}`,
     cwd: null,
     branch: "",
+    cpu: 0,
     agentCmd: "claude",
     manualTitle: false,
     layers: [],
@@ -278,6 +285,7 @@ export function createAgent(index: number): Agent {
     stackEl,
     titleEl,
     branchEl,
+    cpuEl,
     agentSel,
     pathEl,
     pickEl,

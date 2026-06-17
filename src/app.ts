@@ -14,7 +14,7 @@ import {
   startTitleEdit,
 } from "./agent";
 import { Project, createProject } from "./project";
-import { defaultShell, homeDir } from "./pty";
+import { defaultShell, homeDir, cpuUsage } from "./pty";
 import { isGitRepo, gitClone, createWorktree, writeGuardrails, currentBranch } from "./git";
 import { askText, toast, pickDirectory, openSettings } from "./ui";
 import { GUARD_PRESETS, effectiveDeny } from "./guard";
@@ -106,6 +106,27 @@ export class App {
       for (let i = 0; i < 3; i++) await this.addAgentWithCwd(p, this.home, false);
     }
     this.render();
+    window.setInterval(() => this.pollCpu(), 2000);
+  }
+
+  /// Sample each agent's process-subtree CPU% and update its badge in place.
+  private async pollCpu() {
+    const items: { agent: Agent; pid: number }[] = [];
+    for (const p of this.projects)
+      for (const a of p.agents) {
+        const pid = a.layers[0]?.pty?.pid;
+        if (pid) items.push({ agent: a, pid });
+      }
+    if (!items.length) return;
+    try {
+      const cpus = await cpuUsage(items.map((x) => x.pid));
+      items.forEach((x, i) => {
+        x.agent.cpu = cpus[i] ?? 0;
+        x.agent.cpuEl.textContent = `⚡${Math.round(x.agent.cpu)}%`;
+      });
+    } catch {
+      // sysinfo unavailable — skip this tick.
+    }
   }
 
   private get curProject(): Project | undefined {

@@ -36,7 +36,7 @@ pub fn spawn_pty(
     cols: u16,
     rows: u16,
     on_output: Channel<String>,
-) -> Result<(), String> {
+) -> Result<u32, String> {
     let pty_system = native_pty_system();
     let pair = pty_system
         .openpty(PtySize {
@@ -61,6 +61,7 @@ pub fn spawn_pty(
         .slave
         .spawn_command(cmd)
         .map_err(|e| format!("spawn failed: {e}"))?;
+    let pid = child.process_id().unwrap_or(0);
 
     let mut reader = pair
         .master
@@ -96,7 +97,7 @@ pub fn spawn_pty(
             child,
         },
     );
-    Ok(())
+    Ok(pid)
 }
 
 /// Forward user keystrokes (raw UTF-8) to the PTY.

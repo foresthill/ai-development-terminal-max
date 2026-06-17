@@ -4,6 +4,7 @@ import { invoke, Channel } from "@tauri-apps/api/core";
 
 export interface PtyHandle {
   id: string;
+  pid: number;
   write(data: string): void;
   resize(cols: number, rows: number): void;
   kill(): void;
@@ -30,7 +31,7 @@ export async function spawnPty(opts: SpawnOptions): Promise<PtyHandle> {
   const channel = new Channel<string>();
   channel.onmessage = (b64) => opts.onData(b64ToBytes(b64));
 
-  await invoke("spawn_pty", {
+  const pid = await invoke<number>("spawn_pty", {
     id: opts.id,
     shell: opts.shell,
     args: opts.args ?? [],
@@ -42,6 +43,7 @@ export async function spawnPty(opts: SpawnOptions): Promise<PtyHandle> {
 
   return {
     id: opts.id,
+    pid,
     write: (data) => void invoke("write_pty", { id: opts.id, data }),
     resize: (cols, rows) => void invoke("resize_pty", { id: opts.id, cols, rows }),
     kill: () => void invoke("kill_pty", { id: opts.id }),
@@ -50,3 +52,4 @@ export async function spawnPty(opts: SpawnOptions): Promise<PtyHandle> {
 
 export const defaultShell = (): Promise<string> => invoke("default_shell");
 export const homeDir = (): Promise<string> => invoke("home_dir");
+export const cpuUsage = (pids: number[]): Promise<number[]> => invoke("cpu_usage", { pids });
