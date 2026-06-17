@@ -9,6 +9,7 @@ export interface LayerSnap { kind: "terminal" | "browser"; title: string; url?: 
 export interface AgentSnap {
   title: string;
   cwd: string | null;
+  agentCmd?: string;
   manualTitle: boolean;
   active: number;
   layers: LayerSnap[];
@@ -51,6 +52,7 @@ export function buildSnapshot(projects: Project[], s: Settings): WorkspaceSnap {
       agents: p.agents.map((a) => ({
         title: a.title,
         cwd: a.cwd,
+        agentCmd: a.agentCmd,
         manualTitle: a.manualTitle,
         active: a.active,
         layers: a.layers.map((l) => ({ kind: l.kind, title: l.title, url: l.iframe?.src })),

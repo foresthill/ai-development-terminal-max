@@ -27,6 +27,14 @@ const ymd = () => {
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}`;
 };
 
+// CLI agents selectable per window. Opinions/defaults, all editable via "custom…".
+const AGENT_PRESETS: { label: string; cmd: string }[] = [
+  { label: "claude", cmd: "claude" },
+  { label: "aider", cmd: "aider" },
+  { label: "codex", cmd: "codex" },
+  { label: "gemini", cmd: "gemini" },
+];
+
 export class App {
   private projects: Project[] = [];
   private ap = 0;
@@ -102,21 +110,27 @@ export class App {
     return this.curProject?.agents ?? [];
   }
 
-  // --- agent command (configurable) ----------------------------------------
+  // --- agent command (per-agent, configurable) -----------------------------
 
-  private buildAgentCmd(): string {
-    const base = this.agentCmd.trim() || "claude";
+  /// Apply claude-specific permission flags only when the command is claude.
+  private buildCmd(cmd: string): string {
+    const base = cmd.trim() || "claude";
     if (base.startsWith("claude")) {
       if (this.permMode === "auto") return `${base} --permission-mode auto`;
       if (this.permMode === "bypass") return `${base} --dangerously-skip-permissions`;
     }
     return base;
   }
-  private claudeLayer(cwd: string | null): Layer {
+  /// Short label for a command's binary (e.g. "aider --model x" -> "aider").
+  private agentLabel(cmd: string): string {
+    const base = cmd.trim().split(/\s+/)[0] || "agent";
+    return base.split("/").pop() || base;
+  }
+  private primaryLayer(cwd: string | null, cmd: string): Layer {
     return createTerminalLayer({
-      title: "claude",
+      title: this.agentLabel(cmd),
       shell: this.shell,
-      args: ["-l", "-c", `${this.buildAgentCmd()}; exec ${this.shell} -l`],
+      args: ["-l", "-c", `${this.buildCmd(cmd)}; exec ${this.shell} -l`],
       cwd,
     });
   }
@@ -124,12 +138,55 @@ export class App {
     return createTerminalLayer({ title: "shell", shell: this.shell, args: ["-l"], cwd });
   }
 
+  private fillAgentSelect(agent: Agent) {
+    const sel = agent.agentSel;
+    sel.replaceChildren();
+    let matched = false;
+    for (const p of AGENT_PRESETS) {
+      const o = document.createElement("option");
+      o.value = p.cmd;
+      o.textContent = p.label;
+      if (p.cmd === agent.agentCmd) {
+        o.selected = true;
+        matched = true;
+      }
+      sel.appendChild(o);
+    }
+    if (!matched) {
+      const o = document.createElement("option");
+      o.value = agent.agentCmd;
+      o.textContent = `⌥ ${this.agentLabel(agent.agentCmd)}`;
+      o.selected = true;
+      sel.appendChild(o);
+    }
+    const c = document.createElement("option");
+    c.value = "__custom__";
+    c.textContent = "custom…";
+    sel.appendChild(c);
+  }
+
+  /// Switch the agent's CLI and respawn its primary layer in place.
+  private setAgentCommand(agent: Agent, cmd: string) {
+    agent.agentCmd = cmd;
+    this.fillAgentSelect(agent);
+    const old = agent.layers[0];
+    const fresh = this.primaryLayer(agent.cwd, cmd);
+    disposeLayer(old);
+    agent.layers[0] = fresh;
+    agent.active = 0;
+    agent.stackEl.insertBefore(fresh.el, agent.stackEl.firstChild);
+    this.observeLayer(fresh);
+    this.render();
+  }
+
   // --- agent lifecycle ------------------------------------------------------
 
   private newAgent(project: Project, cwd: string | null): Agent {
     const agent = createAgent(this.agentSeq++);
     agent.cwd = cwd;
+    agent.agentCmd = this.agentCmd; // global default; per-agent override via the select
     agent.pathEl.value = cwd ?? "";
+    this.fillAgentSelect(agent);
     project.agents.push(agent);
 
     const idx = () => project.agents.indexOf(agent);
@@ -160,6 +217,21 @@ export class App {
       const dir = await pickDirectory(agent.cwd ?? this.home);
       if (dir) this.setAgentCwd(agent, dir);
     });
+    agent.agentSel.addEventListener("mousedown", (e) => e.stopPropagation());
+    agent.agentSel.addEventListener("change", async () => {
+      const v = agent.agentSel.value;
+      if (v === "__custom__") {
+        const cmd = await askText({
+          title: "カスタムのエージェント起動コマンド",
+          placeholder: "aider --model gpt-5",
+          value: agent.agentCmd,
+        });
+        if (!cmd) this.fillAgentSelect(agent); // revert dropdown
+        else this.setAgentCommand(agent, cmd);
+      } else {
+        this.setAgentCommand(agent, v);
+      }
+    });
     return agent;
   }
 
@@ -167,7 +239,7 @@ export class App {
     const agent = this.newAgent(project, cwd);
     agent.title = cwd && cwd !== this.home ? basename(cwd) : `agent ${this.agentSeq - 1}`;
     await this.applyGuard(cwd);
-    const layer = this.claudeLayer(cwd);
+    const layer = this.primaryLayer(cwd, agent.agentCmd);
     agent.layers.push(layer);
     this.observeLayer(layer);
     if (focus) {
@@ -251,7 +323,7 @@ export class App {
     if (!agent.manualTitle) agent.title = basename(path);
     await this.applyGuard(path);
     const old = agent.layers[0];
-    const fresh = this.claudeLayer(path);
+    const fresh = this.primaryLayer(path, agent.agentCmd);
     disposeLayer(old);
     agent.layers[0] = fresh;
     agent.active = 0;
@@ -260,8 +332,7 @@ export class App {
     this.render();
   }
 
-  private addLayer(kind: "terminal" | "browser") {
-    const agent = this.agents[this.focused];
+  private addLayerTo(agent: Agent | undefined, kind: "terminal" | "browser") {
     if (!agent) return;
     const layer =
       kind === "browser" ? createBrowserLayer("http://localhost:3000") : this.shellLayer(agent.cwd);
@@ -272,10 +343,9 @@ export class App {
     this.render();
   }
 
-  private closeLayer() {
-    const agent = this.agents[this.focused];
+  private closeLayerAt(agent: Agent | undefined, li: number) {
     if (!agent || agent.layers.length <= 1) return;
-    const [removed] = agent.layers.splice(agent.active, 1);
+    const [removed] = agent.layers.splice(li, 1);
     disposeLayer(removed);
     agent.active = Math.min(agent.active, agent.layers.length - 1);
     this.render();
@@ -417,9 +487,9 @@ export class App {
       KeyK: () => this.cycleDepth(-1),
       ArrowUp: () => this.cycleDepth(-1),
       KeyZ: () => this.toggleZoom(),
-      KeyN: () => this.addLayer("terminal"),
-      KeyB: () => this.addLayer("browser"),
-      KeyW: () => this.closeLayer(),
+      KeyN: () => this.addLayerTo(this.agents[this.focused], "terminal"),
+      KeyB: () => this.addLayerTo(this.agents[this.focused], "browser"),
+      KeyW: () => this.closeLayerAt(this.agents[this.focused], this.agents[this.focused]?.active ?? 0),
       KeyX: () => this.closeAgent(),
       KeyP: () => this.switchProject(1),
       KeyM: () => this.toggleMacro(),
@@ -427,11 +497,10 @@ export class App {
     let fn = handlers[e.code];
     if (!fn && /^Digit[1-9]$/.test(e.code)) {
       const n = parseInt(e.code.slice(5), 10) - 1;
+      // Alt+1-9 focuses only — stays in overview. Use Alt+Z to zoom the focused one.
       fn = () => {
         this.view = "project";
         this.focus(n);
-        if (n < this.agents.length) this.mode = "zoom";
-        this.render();
       };
     }
     if (fn) {
@@ -474,6 +543,14 @@ export class App {
         agent.active = li;
         this.focused = ai;
         this.render();
+      },
+      addLayer: (agent, kind, ai) => {
+        this.focused = ai;
+        this.addLayerTo(agent, kind);
+      },
+      closeLayer: (agent, li, ai) => {
+        this.focused = ai;
+        this.closeLayerAt(agent, li);
       },
       afterRender: () => {
         this.scheduleFit();
@@ -519,18 +596,20 @@ export class App {
         const agent = this.newAgent(p, as.cwd ?? null);
         agent.title = as.title ?? agent.title;
         agent.manualTitle = !!as.manualTitle;
+        agent.agentCmd = as.agentCmd || this.agentCmd;
+        this.fillAgentSelect(agent);
         for (let li = 0; li < (as.layers ?? []).length; li++) {
           const ls = as.layers[li];
           let layer: Layer;
           if (ls.kind === "browser") layer = createBrowserLayer(ls.url || "http://localhost:3000");
-          else if (li === 0 || ls.title === "claude") layer = this.claudeLayer(as.cwd ?? null);
+          else if (li === 0) layer = this.primaryLayer(as.cwd ?? null, agent.agentCmd);
           else layer = this.shellLayer(as.cwd ?? null);
           agent.layers.push(layer);
           agent.stackEl.appendChild(layer.el);
           if (layer.kind === "terminal") this.observeLayer(layer);
         }
         if (agent.layers.length === 0) {
-          const l = this.claudeLayer(as.cwd ?? null);
+          const l = this.primaryLayer(as.cwd ?? null, agent.agentCmd);
           agent.layers.push(l);
           agent.stackEl.appendChild(l.el);
           this.observeLayer(l);
