@@ -15,6 +15,7 @@ pub fn run() {
             pty::default_shell,
             pty::home_dir,
             git::is_git_repo,
+            git::current_branch,
             git::git_clone,
             git::create_worktree,
             git::write_guardrails,

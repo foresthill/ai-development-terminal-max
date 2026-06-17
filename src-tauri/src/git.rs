@@ -31,6 +31,13 @@ pub fn is_git_repo(path: String) -> bool {
         .unwrap_or(false)
 }
 
+/// Current branch of the repo at `dir` (e.g. "main", "feature/x"), or "" if not
+/// a git work tree. Used for the always-visible branch badge.
+#[tauri::command]
+pub fn current_branch(dir: String) -> String {
+    run_git(&["-C", &dir, "rev-parse", "--abbrev-ref", "HEAD"]).unwrap_or_default()
+}
+
 /// Clone `url` into ~/aidt-workspaces/<repo> and return the local path.
 #[tauri::command]
 pub fn git_clone(url: String) -> Result<String, String> {

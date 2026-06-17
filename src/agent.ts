@@ -29,6 +29,7 @@ export interface Agent {
   id: string;
   title: string;
   cwd: string | null;
+  branch: string; // git branch of cwd (worktree/repo), shown as a badge
   agentCmd: string; // the CLI agent this window runs (e.g. "claude", "aider")
   manualTitle: boolean; // true once the user renames; stops dir-derived titles
   layers: Layer[];
@@ -37,6 +38,7 @@ export interface Agent {
   headerEl: HTMLElement;
   stackEl: HTMLElement;
   titleEl: HTMLElement;
+  branchEl: HTMLElement;
   agentSel: HTMLSelectElement;
   pathEl: HTMLInputElement;
   pickEl: HTMLButtonElement;
@@ -224,11 +226,15 @@ export function createAgent(index: number): Agent {
   titleEl.textContent = `agent ${index}`;
   titleEl.title = "ダブルクリックで名前変更";
 
+  const branchEl = document.createElement("span");
+  branchEl.className = "agent-branch";
+
   const agentSel = document.createElement("select");
   agentSel.className = "agent-sel";
   agentSel.title = "このウィンドウで動かすエージェント";
 
   titleRow.appendChild(titleEl);
+  titleRow.appendChild(branchEl);
   titleRow.appendChild(agentSel);
 
   const pathRow = document.createElement("div");
@@ -261,6 +267,7 @@ export function createAgent(index: number): Agent {
     id: uid("agent"),
     title: `agent ${index}`,
     cwd: null,
+    branch: "",
     agentCmd: "claude",
     manualTitle: false,
     layers: [],
@@ -269,6 +276,7 @@ export function createAgent(index: number): Agent {
     headerEl,
     stackEl,
     titleEl,
+    branchEl,
     agentSel,
     pathEl,
     pickEl,

@@ -402,6 +402,17 @@ body {
   flex: 1;
   min-width: 0;
 }
+.agent-branch {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  color: #9ece6a;
+  font-family: Menlo, monospace;
+}
 .agent-sel {
   flex: 0 0 auto;
   max-width: 96px;

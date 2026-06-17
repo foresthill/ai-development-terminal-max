@@ -15,7 +15,7 @@ import {
 } from "./agent";
 import { Project, createProject } from "./project";
 import { defaultShell, homeDir } from "./pty";
-import { isGitRepo, gitClone, createWorktree, writeGuardrails } from "./git";
+import { isGitRepo, gitClone, createWorktree, writeGuardrails, currentBranch } from "./git";
 import { askText, toast, pickDirectory, openSettings } from "./ui";
 import { GUARD_PRESETS, effectiveDeny } from "./guard";
 import { renderAll, RenderCtx, Mode, View, PermMode } from "./render";
@@ -51,6 +51,7 @@ export class App {
   private shell = "/bin/zsh";
   private home = "";
   private agentSeq = 1;
+  private resizeTimer: number | undefined;
 
   private grid: HTMLElement;
   private macroEl: HTMLElement;
@@ -89,7 +90,10 @@ export class App {
     });
 
     window.addEventListener("keydown", (e) => this.onKey(e), true);
-    window.addEventListener("resize", () => this.scheduleFit());
+    window.addEventListener("resize", () => {
+      clearTimeout(this.resizeTimer);
+      this.resizeTimer = window.setTimeout(() => this.render(), 120);
+    });
   }
 
   async init() {
@@ -247,6 +251,21 @@ export class App {
       this.focused = project.agents.length - 1;
     }
     this.render();
+    this.refreshBranch(agent);
+  }
+
+  /// Look up and display the git branch of an agent's working directory.
+  private async refreshBranch(agent: Agent) {
+    if (!agent.cwd) return;
+    try {
+      const b = await currentBranch(agent.cwd);
+      if (b !== agent.branch) {
+        agent.branch = b;
+        this.render();
+      }
+    } catch {
+      // not a git dir — leave branch empty.
+    }
   }
 
   private async addAgentToActive() {
@@ -330,6 +349,7 @@ export class App {
     agent.stackEl.insertBefore(fresh.el, agent.stackEl.firstChild);
     this.observeLayer(fresh);
     this.render();
+    this.refreshBranch(agent);
   }
 
   private addLayerTo(agent: Agent | undefined, kind: "terminal" | "browser") {
@@ -596,8 +616,10 @@ export class App {
         const agent = this.newAgent(p, as.cwd ?? null);
         agent.title = as.title ?? agent.title;
         agent.manualTitle = !!as.manualTitle;
+        agent.branch = as.branch ?? "";
         agent.agentCmd = as.agentCmd || this.agentCmd;
         this.fillAgentSelect(agent);
+        this.refreshBranch(agent);
         for (let li = 0; li < (as.layers ?? []).length; li++) {
           const ls = as.layers[li];
           let layer: Layer;
