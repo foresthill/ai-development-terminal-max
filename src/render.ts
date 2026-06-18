@@ -38,10 +38,8 @@ export function renderAll(c: RenderCtx) {
   const total = c.projects.reduce((s, p) => s + p.agents.length, 0);
   c.countEl.textContent = `${total} ${t("unit.agents")} · ${c.projects.length} ${t("unit.proj")}`;
   c.permSelect.value = c.permMode;
-  c.btnGuard.textContent = `🛡 ${t("guard.label")}: ${c.guardrails ? t("on") : t("off")}`;
-  c.btnGuard.classList.toggle("on", c.guardrails);
-  c.btnNest.textContent = `🪆 ${t("nest.label")}: ${c.subagentNest ? t("on") : t("off")}`;
-  c.btnNest.classList.toggle("on", c.subagentNest);
+  setToggleBtn(c.btnGuard, `${t("guard.label")}: ${c.guardrails ? t("on") : t("off")}`, c.guardrails);
+  setToggleBtn(c.btnNest, `${t("nest.label")}: ${c.subagentNest ? t("on") : t("off")}`, c.subagentNest);
   renderStrip(c);
 
   if (c.view === "macro") {
@@ -194,6 +192,13 @@ function bestCols(n: number, W: number, H: number): number {
     }
   }
   return best;
+}
+
+/// Update a toggle button's text label (keeps its inline icon) and on-state.
+function setToggleBtn(btn: HTMLElement, label: string, on: boolean) {
+  const txt = btn.querySelector<HTMLElement>(".btn-txt");
+  if (txt) txt.textContent = label;
+  btn.classList.toggle("on", on);
 }
 
 function renderStrip(c: RenderCtx) {

@@ -108,6 +108,9 @@ body {
   font-size: 12px;
 }
 .bar-tools button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   background: var(--panel-2);
   color: var(--text);
   border: 1px solid var(--border);
@@ -116,6 +119,16 @@ body {
   font-size: 12px;
   cursor: pointer;
   white-space: nowrap;
+}
+.btn-ico {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  stroke-linecap: round;
 }
 .bar-tools button:hover {
   border-color: var(--accent);
