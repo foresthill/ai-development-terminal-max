@@ -4,6 +4,32 @@ import { Project } from "./project";
 import { PermMode } from "./render";
 
 const STORE_KEY = "aidt-workspace";
+const PROJECTS_KEY = "aidt-projects";
+
+/// Saved project bookmarks (label + path), like save slots: reopen later.
+export interface SavedProject {
+  label: string;
+  path: string;
+  isGit: boolean;
+}
+
+export function saveProjects(list: SavedProject[]) {
+  try {
+    localStorage.setItem(PROJECTS_KEY, JSON.stringify(list));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function loadProjects(): SavedProject[] {
+  try {
+    const raw = localStorage.getItem(PROJECTS_KEY);
+    const list = raw ? (JSON.parse(raw) as SavedProject[]) : [];
+    return Array.isArray(list) ? list.filter((p) => p && p.path) : [];
+  } catch {
+    return [];
+  }
+}
 
 export interface AgentPresetSnap {
   label: string;
