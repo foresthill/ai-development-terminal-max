@@ -597,6 +597,41 @@ body {
   height: 100%;
 }
 
+/* ---- subagent layer (ephemeral nested card) ---- */
+.layer-subagent {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at 50% 35%, #141d33, #0a0e1a);
+}
+.subagent-card {
+  text-align: center;
+  color: var(--text);
+}
+.subagent-icon {
+  font-size: 34px;
+  animation: subagent-pulse 1.4s ease-in-out infinite;
+}
+.subagent-name {
+  margin-top: 6px;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--accent);
+}
+.subagent-status {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--muted);
+}
+@keyframes subagent-pulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+.ltab-emoji {
+  font-size: 11px;
+  line-height: 1;
+}
+
 /* ---- browser layer ---- */
 .layer-browser {
   display: flex;

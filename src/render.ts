@@ -16,6 +16,7 @@ export interface RenderCtx {
   countEl: HTMLElement;
   btnLayout: HTMLElement;
   btnGuard: HTMLElement;
+  btnNest: HTMLElement;
   permSelect: HTMLSelectElement;
   projects: Project[];
   ap: number;
@@ -25,6 +26,7 @@ export interface RenderCtx {
   layout: "square" | "fit";
   permMode: PermMode;
   guardrails: boolean;
+  subagentNest: boolean;
   selectProject(i: number): void;
   setLayer(agent: Agent, li: number, ai: number): void;
   addLayer(agent: Agent, kind: "terminal" | "browser", ai: number): void;
@@ -38,6 +40,8 @@ export function renderAll(c: RenderCtx) {
   c.permSelect.value = c.permMode;
   c.btnGuard.textContent = `🛡 ${t("guard.label")}: ${c.guardrails ? t("on") : t("off")}`;
   c.btnGuard.classList.toggle("on", c.guardrails);
+  c.btnNest.textContent = `🪆 ${t("nest.label")}: ${c.subagentNest ? t("on") : t("off")}`;
+  c.btnNest.classList.toggle("on", c.subagentNest);
   renderStrip(c);
 
   if (c.view === "macro") {
@@ -99,7 +103,14 @@ function renderLayerTabs(c: RenderCtx, agent: Agent, ai: number) {
   agent.layers.forEach((layer, li) => {
     const tab = document.createElement("button");
     tab.className = "ltab" + (li === agent.active ? " active" : "");
-    tab.appendChild(layerIcon(layer.kind));
+    if (layer.kind === "subagent") {
+      const ic = document.createElement("span");
+      ic.className = "ltab-emoji";
+      ic.textContent = "🤖";
+      tab.appendChild(ic);
+    } else {
+      tab.appendChild(layerIcon(layer.kind));
+    }
     const label = document.createElement("span");
     label.className = "ltab-label";
     label.textContent = layer.title;

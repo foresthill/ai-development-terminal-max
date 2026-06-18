@@ -8,7 +8,7 @@ import { WebglAddon } from "@xterm/addon-webgl";
 import { spawnPty, PtyHandle } from "./pty";
 import { t } from "./i18n";
 
-export type LayerKind = "terminal" | "browser";
+export type LayerKind = "terminal" | "browser" | "subagent";
 
 export interface Layer {
   id: string;
@@ -24,6 +24,7 @@ export interface Layer {
   args?: string[];
   cwd?: string | null;
   iframe?: HTMLIFrameElement;
+  subId?: string; // subagent correlation id (agent_id from the hook payload)
 }
 
 export interface Agent {
@@ -149,6 +150,28 @@ export function createBrowserLayer(url: string): Layer {
     started: true,
     iframe,
   };
+}
+
+/// Ephemeral card for a running Claude Code subagent (popped on SubagentStart,
+/// removed on SubagentStop). Holds no terminal — its live output isn't available
+/// to the host; it shows the subagent type + a running indicator.
+export function createSubagentLayer(agentType: string, subId: string): Layer {
+  const el = document.createElement("div");
+  el.className = "layer layer-subagent";
+  const inner = document.createElement("div");
+  inner.className = "subagent-card";
+  const icon = document.createElement("div");
+  icon.className = "subagent-icon";
+  icon.textContent = "🤖";
+  const name = document.createElement("div");
+  name.className = "subagent-name";
+  name.textContent = agentType;
+  const status = document.createElement("div");
+  status.className = "subagent-status";
+  status.textContent = t("subagent.running");
+  inner.append(icon, name, status);
+  el.appendChild(inner);
+  return { id: uid("sub"), kind: "subagent", title: agentType, el, started: true, subId };
 }
 
 /// Lazily spawn the PTY the first time a terminal layer becomes visible/sized.

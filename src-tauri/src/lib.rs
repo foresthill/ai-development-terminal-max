@@ -1,5 +1,6 @@
 mod git;
 mod pty;
+mod subagent;
 mod sys;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -9,6 +10,10 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(pty::PtyRegistry::default())
         .manage(sys::SysState::default())
+        .setup(|app| {
+            subagent::start_watch(app.handle().clone());
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             pty::spawn_pty,
             pty::write_pty,
@@ -20,7 +25,7 @@ pub fn run() {
             git::current_branch,
             git::git_clone,
             git::create_worktree,
-            git::write_guardrails,
+            git::write_aidt_settings,
             sys::cpu_usage,
         ])
         .run(tauri::generate_context!())

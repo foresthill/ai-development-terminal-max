@@ -14,8 +14,10 @@ import {
   startTitleEdit,
 } from "./agent";
 import { Project, createProject } from "./project";
+import { handleSubagentEvent, clearSubagentLayers } from "./subagent";
 import { defaultShell, homeDir, cpuUsage } from "./pty";
-import { isGitRepo, gitClone, createWorktree, writeGuardrails, currentBranch } from "./git";
+import { isGitRepo, gitClone, createWorktree, writeAidtSettings, currentBranch } from "./git";
+import { listen } from "@tauri-apps/api/event";
 import { askText, toast, pickDirectory, openSettings } from "./ui";
 import { GUARD_PRESETS, effectiveDeny } from "./guard";
 import { t, getLang, setLang } from "./i18n";
@@ -49,11 +51,11 @@ export class App {
   private layout: "square" | "fit" = "square";
   private permMode: PermMode = "auto";
   private guardrails = false;
+  private subagentNest = false;
   private agentCmd = "claude";
   private agentPresets: AgentPreset[] = [...DEFAULT_AGENT_PRESETS];
   private presets = new Set<string>(GUARD_PRESETS.map((p) => p.id));
   private customDeny = "";
-  private guardWritten = new Set<string>();
   private shell = "/bin/zsh";
   private home = "";
   private agentSeq = 1;
@@ -65,6 +67,7 @@ export class App {
   private countEl: HTMLElement;
   private btnLayout: HTMLElement;
   private btnGuard: HTMLElement;
+  private btnNest: HTMLElement;
   private permSelect: HTMLSelectElement;
   private resizeObs: ResizeObserver;
 
@@ -75,6 +78,7 @@ export class App {
     this.countEl = root.querySelector("#agent-count")!;
     this.btnLayout = root.querySelector("#btn-layout")!;
     this.btnGuard = root.querySelector("#btn-guard")!;
+    this.btnNest = root.querySelector("#btn-nest")!;
     this.permSelect = root.querySelector("#perm-mode")!;
     this.resizeObs = new ResizeObserver(() => this.scheduleFit());
 
@@ -85,6 +89,7 @@ export class App {
     root.querySelector("#btn-open")!.addEventListener("click", () => this.openFolderProject());
     root.querySelector("#btn-clone")!.addEventListener("click", () => this.cloneProject());
     root.querySelector("#btn-guard")!.addEventListener("click", () => this.toggleGuardrails());
+    root.querySelector("#btn-nest")!.addEventListener("click", () => this.toggleSubagentNest());
     root.querySelector("#btn-settings")!.addEventListener("click", () => this.openSettingsDialog());
     this.btnLayout.addEventListener("click", () => {
       this.layout = this.layout === "square" ? "fit" : "square";
@@ -112,6 +117,9 @@ export class App {
     }
     this.render();
     window.setInterval(() => this.pollCpu(), 2000);
+    listen<Record<string, unknown>>("subagent", (e) => {
+      if (this.subagentNest) handleSubagentEvent(e.payload, this.projects, () => this.render());
+    });
   }
 
   /// Sample each agent's process-subtree CPU% and update its badge in place.
@@ -269,7 +277,7 @@ export class App {
   private async addAgentWithCwd(project: Project, cwd: string | null, focus = true) {
     const agent = this.newAgent(project, cwd);
     agent.title = cwd && cwd !== this.home ? basename(cwd) : `agent ${this.agentSeq - 1}`;
-    await this.applyGuard(cwd);
+    if (this.guardrails || this.subagentNest) await this.applyAidtSettings(cwd);
     const layer = this.primaryLayer(cwd, agent.agentCmd);
     agent.layers.push(layer);
     this.observeLayer(layer);
@@ -337,27 +345,37 @@ export class App {
 
   // --- guardrails -----------------------------------------------------------
 
-  private async applyGuard(cwd: string | null) {
-    // Skip home (would touch ~/.claude, the user's own config) and re-writes.
-    if (!this.guardrails || !cwd || cwd === this.home || this.guardWritten.has(cwd)) return;
+  /// Write our `.claude/settings.local.json` (deny-list + subagent hooks) into a
+  /// cwd reflecting the current toggles. Skips the home dir (user's own config).
+  /// When both toggles are off, the Rust side removes our file.
+  private async applyAidtSettings(cwd: string | null) {
+    if (!cwd || cwd === this.home) return;
+    const deny = this.guardrails ? effectiveDeny(this.presets, this.customDeny) : [];
     try {
-      await writeGuardrails(cwd, effectiveDeny(this.presets, this.customDeny));
-      this.guardWritten.add(cwd);
+      await writeAidtSettings(cwd, deny, this.subagentNest);
     } catch (e) {
       toast(t("toast.guardFail", String(e)), "error");
     }
   }
 
+  private async applyToAllCwds() {
+    const dirs = new Set<string>();
+    for (const p of this.projects) for (const a of p.agents) if (a.cwd) dirs.add(a.cwd);
+    for (const d of dirs) await this.applyAidtSettings(d);
+  }
+
   private async toggleGuardrails() {
     this.guardrails = !this.guardrails;
-    if (this.guardrails) {
-      const dirs = new Set<string>();
-      for (const p of this.projects) for (const a of p.agents) if (a.cwd) dirs.add(a.cwd);
-      for (const d of dirs) await this.applyGuard(d);
-      toast(t("toast.guardOn"));
-    } else {
-      toast(t("toast.guardOff"));
-    }
+    await this.applyToAllCwds();
+    toast(this.guardrails ? t("toast.guardOn") : t("toast.guardOff"));
+    this.render();
+  }
+
+  private async toggleSubagentNest() {
+    this.subagentNest = !this.subagentNest;
+    if (!this.subagentNest) clearSubagentLayers(this.projects, () => this.render());
+    await this.applyToAllCwds();
+    toast(this.subagentNest ? t("toast.nestOn") : t("toast.nestOff"));
     this.render();
   }
 
@@ -367,7 +385,7 @@ export class App {
     agent.cwd = path;
     agent.pathEl.value = path;
     if (!agent.manualTitle) agent.title = basename(path);
-    await this.applyGuard(path);
+    if (this.guardrails || this.subagentNest) await this.applyAidtSettings(path);
     const old = agent.layers[0];
     const fresh = this.primaryLayer(path, agent.agentCmd);
     disposeLayer(old);
@@ -485,10 +503,7 @@ export class App {
     this.agentPresets = res.agentPresets.length ? res.agentPresets : [...DEFAULT_AGENT_PRESETS];
     for (const p of this.projects) for (const a of p.agents) this.fillAgentSelect(a);
     if (this.guardrails) {
-      this.guardWritten.clear(); // rewrite our files with the new deny-list
-      const dirs = new Set<string>();
-      for (const p of this.projects) for (const a of p.agents) if (a.cwd) dirs.add(a.cwd);
-      for (const d of dirs) await this.applyGuard(d);
+      await this.applyToAllCwds(); // rewrite our files with the new deny-list
       toast(t("toast.settingsSavedGuard"));
     } else {
       toast(t("toast.settingsSaved"));
@@ -576,6 +591,7 @@ export class App {
       countEl: this.countEl,
       btnLayout: this.btnLayout,
       btnGuard: this.btnGuard,
+      btnNest: this.btnNest,
       permSelect: this.permSelect,
       projects: this.projects,
       ap: this.ap,
@@ -585,6 +601,7 @@ export class App {
       layout: this.layout,
       permMode: this.permMode,
       guardrails: this.guardrails,
+      subagentNest: this.subagentNest,
       selectProject: (i) => {
         this.ap = i;
         this.focused = 0;
@@ -620,6 +637,7 @@ export class App {
           layout: this.layout,
           permMode: this.permMode,
           guardrails: this.guardrails,
+          subagentNest: this.subagentNest,
           ap: this.ap,
           agentCmd: this.agentCmd,
           presets: [...this.presets],
@@ -638,6 +656,7 @@ export class App {
       ? snap.permMode
       : "auto";
     this.guardrails = !!snap.guardrails;
+    this.subagentNest = !!snap.subagentNest;
     this.agentCmd = snap.agentCmd || "claude";
     this.customDeny = snap.customDeny ?? "";
     if (snap.presets) this.presets = new Set(snap.presets);
