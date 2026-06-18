@@ -247,6 +247,11 @@ export class App {
       e.stopPropagation();
       startTitleEdit(agent, () => this.render());
     });
+    agent.closeEl.addEventListener("mousedown", (e) => e.stopPropagation());
+    agent.closeEl.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.closeAgentObj(agent);
+    });
     agent.pathEl.addEventListener("keydown", (e) => {
       e.stopPropagation();
       if (e.key === "Enter") agent.pathEl.blur();
@@ -421,15 +426,20 @@ export class App {
     this.render();
   }
 
-  private closeAgent() {
-    const p = this.curProject;
-    const agent = this.agents[this.focused];
-    if (!p || !agent) return;
-    agent.layers.forEach(disposeLayer);
-    p.agents.splice(this.focused, 1);
-    this.focused = Math.max(0, Math.min(this.focused, p.agents.length - 1));
-    if (p.agents.length === 0) this.mode = "overview";
-    this.render();
+  private closeAgentObj(agent: Agent | undefined) {
+    if (!agent) return;
+    for (const p of this.projects) {
+      const i = p.agents.indexOf(agent);
+      if (i < 0) continue;
+      agent.layers.forEach(disposeLayer);
+      p.agents.splice(i, 1);
+      if (p === this.curProject) {
+        this.focused = Math.max(0, Math.min(this.focused, p.agents.length - 1));
+      }
+      if (this.agents.length === 0) this.mode = "overview";
+      this.render();
+      return;
+    }
   }
 
   private observeLayer(layer: Layer) {
@@ -591,7 +601,7 @@ export class App {
       KeyN: () => this.addLayerTo(this.agents[this.focused], "terminal"),
       KeyB: () => this.addLayerTo(this.agents[this.focused], "browser"),
       KeyW: () => this.closeLayerAt(this.agents[this.focused], this.agents[this.focused]?.active ?? 0),
-      KeyX: () => this.closeAgent(),
+      KeyX: () => this.closeAgentObj(this.agents[this.focused]),
       KeyP: () => this.switchProject(1),
       KeyM: () => this.toggleMacro(),
     };

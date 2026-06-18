@@ -44,6 +44,7 @@ export interface Agent {
   branchEl: HTMLElement;
   cpuEl: HTMLElement;
   agentSel: HTMLSelectElement;
+  closeEl: HTMLButtonElement;
   pathEl: HTMLInputElement;
   pickEl: HTMLButtonElement;
   tabsEl: HTMLElement;
@@ -262,10 +263,16 @@ export function createAgent(index: number): Agent {
   agentSel.className = "agent-sel";
   agentSel.title = t("tip.agentSel");
 
+  const closeEl = document.createElement("button");
+  closeEl.className = "agent-close";
+  closeEl.textContent = "×";
+  closeEl.title = t("tip.closeAgent");
+
   titleRow.appendChild(titleEl);
   titleRow.appendChild(branchEl);
   titleRow.appendChild(cpuEl);
   titleRow.appendChild(agentSel);
+  titleRow.appendChild(closeEl);
 
   const pathRow = document.createElement("div");
   pathRow.className = "agent-path-row";
@@ -310,6 +317,7 @@ export function createAgent(index: number): Agent {
     branchEl,
     cpuEl,
     agentSel,
+    closeEl,
     pathEl,
     pickEl,
     tabsEl,
