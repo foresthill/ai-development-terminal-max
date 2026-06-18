@@ -92,20 +92,30 @@ body {
   border-color: var(--accent);
   color: var(--accent);
 }
+/* match the toolbar buttons: one pill, label + borderless select inside */
 .perm {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 5px;
-  font-size: 11px;
-  color: var(--muted);
-}
-.perm select {
+  gap: 6px;
   background: var(--panel-2);
-  color: var(--text);
+  color: var(--muted);
   border: 1px solid var(--border);
   border-radius: 6px;
-  padding: 3px 6px;
+  padding: 4px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.perm:hover {
+  border-color: var(--accent);
+}
+.perm select {
+  background: transparent;
+  color: var(--text);
+  border: none;
+  outline: none;
   font-size: 12px;
+  padding: 0;
+  cursor: pointer;
 }
 .bar-tools button {
   display: inline-flex;
