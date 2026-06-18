@@ -1,5 +1,6 @@
 mod git;
 mod pty;
+mod sys;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -7,6 +8,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(pty::PtyRegistry::default())
+        .manage(sys::SysState::default())
         .invoke_handler(tauri::generate_handler![
             pty::spawn_pty,
             pty::write_pty,
@@ -15,9 +17,11 @@ pub fn run() {
             pty::default_shell,
             pty::home_dir,
             git::is_git_repo,
+            git::current_branch,
             git::git_clone,
             git::create_worktree,
             git::write_guardrails,
+            sys::cpu_usage,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

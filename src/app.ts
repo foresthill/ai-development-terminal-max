@@ -14,10 +14,11 @@ import {
   startTitleEdit,
 } from "./agent";
 import { Project, createProject } from "./project";
-import { defaultShell, homeDir } from "./pty";
-import { isGitRepo, gitClone, createWorktree, writeGuardrails } from "./git";
+import { defaultShell, homeDir, cpuUsage } from "./pty";
+import { isGitRepo, gitClone, createWorktree, writeGuardrails, currentBranch } from "./git";
 import { askText, toast, pickDirectory, openSettings } from "./ui";
 import { GUARD_PRESETS, effectiveDeny } from "./guard";
+import { t, getLang, setLang } from "./i18n";
 import { renderAll, RenderCtx, Mode, View, PermMode } from "./render";
 import { buildSnapshot, saveSnap, loadSnap } from "./persistence";
 
@@ -26,6 +27,14 @@ const ymd = () => {
   const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}`;
 };
+
+// CLI agents selectable per window. Opinions/defaults, all editable via "custom…".
+const AGENT_PRESETS: { label: string; cmd: string }[] = [
+  { label: "claude", cmd: "claude" },
+  { label: "aider", cmd: "aider" },
+  { label: "codex", cmd: "codex" },
+  { label: "gemini", cmd: "gemini" },
+];
 
 export class App {
   private projects: Project[] = [];
@@ -43,6 +52,7 @@ export class App {
   private shell = "/bin/zsh";
   private home = "";
   private agentSeq = 1;
+  private resizeTimer: number | undefined;
 
   private grid: HTMLElement;
   private macroEl: HTMLElement;
@@ -81,7 +91,10 @@ export class App {
     });
 
     window.addEventListener("keydown", (e) => this.onKey(e), true);
-    window.addEventListener("resize", () => this.scheduleFit());
+    window.addEventListener("resize", () => {
+      clearTimeout(this.resizeTimer);
+      this.resizeTimer = window.setTimeout(() => this.render(), 120);
+    });
   }
 
   async init() {
@@ -93,6 +106,27 @@ export class App {
       for (let i = 0; i < 3; i++) await this.addAgentWithCwd(p, this.home, false);
     }
     this.render();
+    window.setInterval(() => this.pollCpu(), 2000);
+  }
+
+  /// Sample each agent's process-subtree CPU% and update its badge in place.
+  private async pollCpu() {
+    const items: { agent: Agent; pid: number }[] = [];
+    for (const p of this.projects)
+      for (const a of p.agents) {
+        const pid = a.layers[0]?.pty?.pid;
+        if (pid) items.push({ agent: a, pid });
+      }
+    if (!items.length) return;
+    try {
+      const cpus = await cpuUsage(items.map((x) => x.pid));
+      items.forEach((x, i) => {
+        x.agent.cpu = cpus[i] ?? 0;
+        x.agent.cpuEl.textContent = `⚡${Math.round(x.agent.cpu)}%`;
+      });
+    } catch {
+      // sysinfo unavailable — skip this tick.
+    }
   }
 
   private get curProject(): Project | undefined {
@@ -102,21 +136,27 @@ export class App {
     return this.curProject?.agents ?? [];
   }
 
-  // --- agent command (configurable) ----------------------------------------
+  // --- agent command (per-agent, configurable) -----------------------------
 
-  private buildAgentCmd(): string {
-    const base = this.agentCmd.trim() || "claude";
+  /// Apply claude-specific permission flags only when the command is claude.
+  private buildCmd(cmd: string): string {
+    const base = cmd.trim() || "claude";
     if (base.startsWith("claude")) {
       if (this.permMode === "auto") return `${base} --permission-mode auto`;
       if (this.permMode === "bypass") return `${base} --dangerously-skip-permissions`;
     }
     return base;
   }
-  private claudeLayer(cwd: string | null): Layer {
+  /// Short label for a command's binary (e.g. "aider --model x" -> "aider").
+  private agentLabel(cmd: string): string {
+    const base = cmd.trim().split(/\s+/)[0] || "agent";
+    return base.split("/").pop() || base;
+  }
+  private primaryLayer(cwd: string | null, cmd: string): Layer {
     return createTerminalLayer({
-      title: "claude",
+      title: this.agentLabel(cmd),
       shell: this.shell,
-      args: ["-l", "-c", `${this.buildAgentCmd()}; exec ${this.shell} -l`],
+      args: ["-l", "-c", `${this.buildCmd(cmd)}; exec ${this.shell} -l`],
       cwd,
     });
   }
@@ -124,12 +164,55 @@ export class App {
     return createTerminalLayer({ title: "shell", shell: this.shell, args: ["-l"], cwd });
   }
 
+  private fillAgentSelect(agent: Agent) {
+    const sel = agent.agentSel;
+    sel.replaceChildren();
+    let matched = false;
+    for (const p of AGENT_PRESETS) {
+      const o = document.createElement("option");
+      o.value = p.cmd;
+      o.textContent = p.label;
+      if (p.cmd === agent.agentCmd) {
+        o.selected = true;
+        matched = true;
+      }
+      sel.appendChild(o);
+    }
+    if (!matched) {
+      const o = document.createElement("option");
+      o.value = agent.agentCmd;
+      o.textContent = `⌥ ${this.agentLabel(agent.agentCmd)}`;
+      o.selected = true;
+      sel.appendChild(o);
+    }
+    const c = document.createElement("option");
+    c.value = "__custom__";
+    c.textContent = "custom…";
+    sel.appendChild(c);
+  }
+
+  /// Switch the agent's CLI and respawn its primary layer in place.
+  private setAgentCommand(agent: Agent, cmd: string) {
+    agent.agentCmd = cmd;
+    this.fillAgentSelect(agent);
+    const old = agent.layers[0];
+    const fresh = this.primaryLayer(agent.cwd, cmd);
+    disposeLayer(old);
+    agent.layers[0] = fresh;
+    agent.active = 0;
+    agent.stackEl.insertBefore(fresh.el, agent.stackEl.firstChild);
+    this.observeLayer(fresh);
+    this.render();
+  }
+
   // --- agent lifecycle ------------------------------------------------------
 
   private newAgent(project: Project, cwd: string | null): Agent {
     const agent = createAgent(this.agentSeq++);
     agent.cwd = cwd;
+    agent.agentCmd = this.agentCmd; // global default; per-agent override via the select
     agent.pathEl.value = cwd ?? "";
+    this.fillAgentSelect(agent);
     project.agents.push(agent);
 
     const idx = () => project.agents.indexOf(agent);
@@ -160,6 +243,21 @@ export class App {
       const dir = await pickDirectory(agent.cwd ?? this.home);
       if (dir) this.setAgentCwd(agent, dir);
     });
+    agent.agentSel.addEventListener("mousedown", (e) => e.stopPropagation());
+    agent.agentSel.addEventListener("change", async () => {
+      const v = agent.agentSel.value;
+      if (v === "__custom__") {
+        const cmd = await askText({
+          title: t("modal.customTitle"),
+          placeholder: "aider --model gpt-5",
+          value: agent.agentCmd,
+        });
+        if (!cmd) this.fillAgentSelect(agent); // revert dropdown
+        else this.setAgentCommand(agent, cmd);
+      } else {
+        this.setAgentCommand(agent, v);
+      }
+    });
     return agent;
   }
 
@@ -167,7 +265,7 @@ export class App {
     const agent = this.newAgent(project, cwd);
     agent.title = cwd && cwd !== this.home ? basename(cwd) : `agent ${this.agentSeq - 1}`;
     await this.applyGuard(cwd);
-    const layer = this.claudeLayer(cwd);
+    const layer = this.primaryLayer(cwd, agent.agentCmd);
     agent.layers.push(layer);
     this.observeLayer(layer);
     if (focus) {
@@ -175,12 +273,27 @@ export class App {
       this.focused = project.agents.length - 1;
     }
     this.render();
+    this.refreshBranch(agent);
+  }
+
+  /// Look up and display the git branch of an agent's working directory.
+  private async refreshBranch(agent: Agent) {
+    if (!agent.cwd) return;
+    try {
+      const b = await currentBranch(agent.cwd);
+      if (b !== agent.branch) {
+        agent.branch = b;
+        this.render();
+      }
+    } catch {
+      // not a git dir — leave branch empty.
+    }
   }
 
   private async addAgentToActive() {
     const p = this.curProject;
     if (!p) {
-      toast("プロジェクトがありません。folder か clone で作成してください", "error");
+      toast(t("toast.noProject"), "error");
       return;
     }
     if (p.isGit) {
@@ -188,9 +301,9 @@ export class App {
       try {
         const wt = await createWorktree(p.root, branch);
         await this.addAgentWithCwd(p, wt);
-        toast(`worktree: ${branch}`);
+        toast(t("toast.worktree", branch));
       } catch (e) {
-        toast(`worktree作成失敗: ${e}`, "error");
+        toast(t("toast.worktreeFail", String(e)), "error");
       }
     } else {
       await this.addAgentWithCwd(p, p.root || this.home);
@@ -207,7 +320,7 @@ export class App {
           const wt = await createWorktree(p.root, branch);
           await this.addAgentWithCwd(p, wt, false);
         } catch (e) {
-          toast(`worktree作成失敗: ${e}`, "error");
+          toast(t("toast.worktreeFail", String(e)), "error");
           break;
         }
       } else {
@@ -226,7 +339,7 @@ export class App {
       await writeGuardrails(cwd, effectiveDeny(this.presets, this.customDeny));
       this.guardWritten.add(cwd);
     } catch (e) {
-      toast(`guard書込失敗: ${e}`, "error");
+      toast(t("toast.guardFail", String(e)), "error");
     }
   }
 
@@ -236,9 +349,9 @@ export class App {
       const dirs = new Set<string>();
       for (const p of this.projects) for (const a of p.agents) if (a.cwd) dirs.add(a.cwd);
       for (const d of dirs) await this.applyGuard(d);
-      toast(`guardrails ON — deny-list を書込（再起動した claude から有効）`);
+      toast(t("toast.guardOn"));
     } else {
-      toast("guardrails OFF — 既存ファイルは残します");
+      toast(t("toast.guardOff"));
     }
     this.render();
   }
@@ -251,17 +364,17 @@ export class App {
     if (!agent.manualTitle) agent.title = basename(path);
     await this.applyGuard(path);
     const old = agent.layers[0];
-    const fresh = this.claudeLayer(path);
+    const fresh = this.primaryLayer(path, agent.agentCmd);
     disposeLayer(old);
     agent.layers[0] = fresh;
     agent.active = 0;
     agent.stackEl.insertBefore(fresh.el, agent.stackEl.firstChild);
     this.observeLayer(fresh);
     this.render();
+    this.refreshBranch(agent);
   }
 
-  private addLayer(kind: "terminal" | "browser") {
-    const agent = this.agents[this.focused];
+  private addLayerTo(agent: Agent | undefined, kind: "terminal" | "browser") {
     if (!agent) return;
     const layer =
       kind === "browser" ? createBrowserLayer("http://localhost:3000") : this.shellLayer(agent.cwd);
@@ -272,10 +385,9 @@ export class App {
     this.render();
   }
 
-  private closeLayer() {
-    const agent = this.agents[this.focused];
+  private closeLayerAt(agent: Agent | undefined, li: number) {
     if (!agent || agent.layers.length <= 1) return;
-    const [removed] = agent.layers.splice(agent.active, 1);
+    const [removed] = agent.layers.splice(li, 1);
     disposeLayer(removed);
     agent.active = Math.min(agent.active, agent.layers.length - 1);
     this.render();
@@ -305,7 +417,7 @@ export class App {
       path = await pickDirectory(this.home);
     } catch {
       path = await askText({
-        title: "プロジェクトを開く（フォルダ/リポのパス）",
+        title: t("modal.openTitle"),
         placeholder: "/Users/you/dev/myrepo",
         value: this.home + "/",
       });
@@ -323,11 +435,11 @@ export class App {
 
   private async cloneProject() {
     const url = await askText({
-      title: "git clone（リポジトリURL）",
+      title: t("modal.cloneTitle"),
       placeholder: "https://github.com/user/repo.git",
     });
     if (!url) return;
-    toast(`cloning ${url} …`);
+    toast(t("toast.cloning", url));
     try {
       const path = await gitClone(url);
       const p = createProject(basename(path) || "repo", path, true);
@@ -336,9 +448,9 @@ export class App {
       this.focused = 0;
       this.view = "project";
       await this.addAgentToActive();
-      toast(`cloned: ${basename(path)}`);
+      toast(t("toast.cloned", basename(path)));
     } catch (e) {
-      toast(`clone失敗: ${e}`, "error");
+      toast(t("toast.cloneFail", String(e)), "error");
     }
   }
 
@@ -352,12 +464,14 @@ export class App {
 
   private async openSettingsDialog() {
     const res = await openSettings({
+      lang: getLang(),
       agentCmd: this.agentCmd,
       permMode: this.permMode,
       enabled: new Set(this.presets),
       customDeny: this.customDeny,
     });
     if (!res) return;
+    if (res.lang !== getLang()) setLang(res.lang); // re-applies static labels
     this.agentCmd = res.agentCmd;
     this.permMode = res.permMode;
     this.presets = res.enabled;
@@ -367,9 +481,9 @@ export class App {
       const dirs = new Set<string>();
       for (const p of this.projects) for (const a of p.agents) if (a.cwd) dirs.add(a.cwd);
       for (const d of dirs) await this.applyGuard(d);
-      toast("設定を保存。deny-list を再書込（再起動した claude から有効）");
+      toast(t("toast.settingsSavedGuard"));
     } else {
-      toast("設定を保存");
+      toast(t("toast.settingsSaved"));
     }
     this.render();
   }
@@ -417,9 +531,9 @@ export class App {
       KeyK: () => this.cycleDepth(-1),
       ArrowUp: () => this.cycleDepth(-1),
       KeyZ: () => this.toggleZoom(),
-      KeyN: () => this.addLayer("terminal"),
-      KeyB: () => this.addLayer("browser"),
-      KeyW: () => this.closeLayer(),
+      KeyN: () => this.addLayerTo(this.agents[this.focused], "terminal"),
+      KeyB: () => this.addLayerTo(this.agents[this.focused], "browser"),
+      KeyW: () => this.closeLayerAt(this.agents[this.focused], this.agents[this.focused]?.active ?? 0),
       KeyX: () => this.closeAgent(),
       KeyP: () => this.switchProject(1),
       KeyM: () => this.toggleMacro(),
@@ -427,11 +541,10 @@ export class App {
     let fn = handlers[e.code];
     if (!fn && /^Digit[1-9]$/.test(e.code)) {
       const n = parseInt(e.code.slice(5), 10) - 1;
+      // Alt+1-9 focuses only — stays in overview. Use Alt+Z to zoom the focused one.
       fn = () => {
         this.view = "project";
         this.focus(n);
-        if (n < this.agents.length) this.mode = "zoom";
-        this.render();
       };
     }
     if (fn) {
@@ -474,6 +587,14 @@ export class App {
         agent.active = li;
         this.focused = ai;
         this.render();
+      },
+      addLayer: (agent, kind, ai) => {
+        this.focused = ai;
+        this.addLayerTo(agent, kind);
+      },
+      closeLayer: (agent, li, ai) => {
+        this.focused = ai;
+        this.closeLayerAt(agent, li);
       },
       afterRender: () => {
         this.scheduleFit();
@@ -519,18 +640,22 @@ export class App {
         const agent = this.newAgent(p, as.cwd ?? null);
         agent.title = as.title ?? agent.title;
         agent.manualTitle = !!as.manualTitle;
+        agent.branch = as.branch ?? "";
+        agent.agentCmd = as.agentCmd || this.agentCmd;
+        this.fillAgentSelect(agent);
+        this.refreshBranch(agent);
         for (let li = 0; li < (as.layers ?? []).length; li++) {
           const ls = as.layers[li];
           let layer: Layer;
           if (ls.kind === "browser") layer = createBrowserLayer(ls.url || "http://localhost:3000");
-          else if (li === 0 || ls.title === "claude") layer = this.claudeLayer(as.cwd ?? null);
+          else if (li === 0) layer = this.primaryLayer(as.cwd ?? null, agent.agentCmd);
           else layer = this.shellLayer(as.cwd ?? null);
           agent.layers.push(layer);
           agent.stackEl.appendChild(layer.el);
           if (layer.kind === "terminal") this.observeLayer(layer);
         }
         if (agent.layers.length === 0) {
-          const l = this.claudeLayer(as.cwd ?? null);
+          const l = this.primaryLayer(as.cwd ?? null, agent.agentCmd);
           agent.layers.push(l);
           agent.stackEl.appendChild(l.el);
           this.observeLayer(l);
@@ -558,9 +683,7 @@ export class App {
           if (!front.started && front.term) {
             startLayer(front, front.term.cols, front.term.rows)
               .then(() => fitLayer(front))
-              .catch(() =>
-                front.term?.write("\r\n\x1b[31m[spawn failed: check the directory path]\x1b[0m\r\n")
-              );
+              .catch(() => front.term?.write(`\r\n\x1b[31m${t("spawn.fail")}\x1b[0m\r\n`));
           } else {
             fitLayer(front);
           }

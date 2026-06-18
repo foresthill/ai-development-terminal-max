@@ -27,12 +27,13 @@ arranges all projects on a golden-angle (phyllotaxis) spiral.
 
 ## File-size rule override
 
-The global rule caps files at 500 lines. **`src/app.ts` may run up to ~650
-lines.** It is the single orchestrator; rendering, persistence, guard policy, the
-domain models, and all UI have already been extracted. The remaining code is
-cohesive lifecycle/state/keyboard wiring whose pieces share too much state to
-split further without callback indirection that hurts readability. Prefer
-extracting *new* concerns into their own modules over growing app.ts past ~650.
+The global rule caps files at 500 lines. **`src/app.ts` may run up to ~720
+lines.** It is the single orchestrator; rendering, persistence I/O, guard policy,
+the domain models, and all UI have already been extracted. The remaining code is
+cohesive lifecycle/state/keyboard/settings wiring whose pieces share too much
+state to split further without callback indirection that hurts readability.
+Prefer extracting *new* concerns into their own modules over growing app.ts past
+~720; if it must grow more, extract the persistence rebuild or settings glue next.
 
 ## Conventions
 

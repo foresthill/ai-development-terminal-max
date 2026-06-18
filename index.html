@@ -13,30 +13,28 @@
           <div class="brand">AI&nbsp;DEV&nbsp;TERMINAL&nbsp;<span class="max">MAX</span></div>
           <div id="project-strip" class="project-strip"></div>
           <div class="proj-actions">
-            <button id="btn-open" title="既存フォルダ/リポをプロジェクトとして開く">📁 folder</button>
-            <button id="btn-clone" title="git clone して新規プロジェクト">⎇ clone</button>
+            <button id="btn-open" data-i18n="btn.folder" data-i18n-title="tip.folder">📁 folder</button>
+            <button id="btn-clone" data-i18n="btn.clone" data-i18n-title="tip.clone">⎇ clone</button>
+            <button id="btn-settings" data-i18n="btn.settings" data-i18n-title="tip.settings">⚙ Settings</button>
           </div>
         </div>
         <div class="bar bar-tools">
-          <button id="btn-add" title="Alt+T">+ agent</button>
-          <button id="btn-fill" title="fill to 9 (3×3 曼荼羅)">⊞ fill 9</button>
-          <button id="btn-zoom" title="Alt+Z">⤢ zoom</button>
-          <button id="btn-layout" title="グリッド: 個数固定(正方) ⇄ 横幅fit">▦ 3×3</button>
-          <button id="btn-macro" title="Alt+M 全プロジェクトを螺旋で俯瞰">✦ macro</button>
+          <button id="btn-add" data-i18n="btn.add" data-i18n-title="tip.add">+ agent</button>
+          <button id="btn-fill" data-i18n="btn.fill" data-i18n-title="tip.fill">⊞ fill 9</button>
+          <button id="btn-zoom" data-i18n="btn.zoom" data-i18n-title="tip.zoom">⤢ zoom</button>
+          <button id="btn-layout" data-i18n-title="tip.layout">▦ 3×3</button>
+          <button id="btn-macro" data-i18n="btn.macro" data-i18n-title="tip.macro">✦ macro</button>
           <label class="perm">
-            perm
-            <select id="perm-mode" title="claude のパーミッションモード">
+            <span data-i18n="lbl.perm">perm</span>
+            <select id="perm-mode" data-i18n-title="tip.perm">
               <option value="auto">auto</option>
               <option value="normal">normal</option>
               <option value="bypass">bypass ⚠</option>
             </select>
           </label>
-          <button id="btn-guard" title="deny-list ガードレール（.claude/settings.local.json を各作業ディレクトリに書込。git excludeで非コミット）">🛡 guard: off</button>
-          <button id="btn-settings" title="設定（エージェントコマンド・パーミッション・deny-list）">⚙</button>
+          <button id="btn-guard" data-i18n-title="tip.guard">🛡 guard: off</button>
           <span id="agent-count" class="count">0 agents</span>
-          <div class="hint">
-            Alt+T new · Alt+←/→ focus · Alt+↑/↓ depth · Alt+Z zoom · Alt+N term · Alt+B browser · Alt+P project · Alt+M macro
-          </div>
+          <div class="hint" data-i18n="hint"></div>
         </div>
       </header>
       <main id="grid" class="mode-overview"></main>

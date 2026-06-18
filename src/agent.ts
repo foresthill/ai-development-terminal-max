@@ -6,6 +6,7 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { spawnPty, PtyHandle } from "./pty";
+import { t } from "./i18n";
 
 export type LayerKind = "terminal" | "browser";
 
@@ -29,6 +30,9 @@ export interface Agent {
   id: string;
   title: string;
   cwd: string | null;
+  branch: string; // git branch of cwd (worktree/repo), shown as a badge
+  cpu: number; // last sampled CPU% of the agent's process subtree
+  agentCmd: string; // the CLI agent this window runs (e.g. "claude", "aider")
   manualTitle: boolean; // true once the user renames; stops dir-derived titles
   layers: Layer[];
   active: number; // index of front layer
@@ -36,9 +40,12 @@ export interface Agent {
   headerEl: HTMLElement;
   stackEl: HTMLElement;
   titleEl: HTMLElement;
+  branchEl: HTMLElement;
+  cpuEl: HTMLElement;
+  agentSel: HTMLSelectElement;
   pathEl: HTMLInputElement;
   pickEl: HTMLButtonElement;
-  dotsEl: HTMLElement;
+  tabsEl: HTMLElement;
 }
 
 /// Last path segment, used to derive an agent's title from its working dir.
@@ -220,28 +227,42 @@ export function createAgent(index: number): Agent {
   const titleEl = document.createElement("div");
   titleEl.className = "agent-title";
   titleEl.textContent = `agent ${index}`;
-  titleEl.title = "ダブルクリックで名前変更";
+  titleEl.title = t("tip.title");
 
-  const dotsEl = document.createElement("div");
-  dotsEl.className = "layer-dots";
+  const branchEl = document.createElement("span");
+  branchEl.className = "agent-branch";
+
+  const cpuEl = document.createElement("span");
+  cpuEl.className = "agent-cpu";
+
+  const agentSel = document.createElement("select");
+  agentSel.className = "agent-sel";
+  agentSel.title = t("tip.agentSel");
 
   titleRow.appendChild(titleEl);
-  titleRow.appendChild(dotsEl);
+  titleRow.appendChild(branchEl);
+  titleRow.appendChild(cpuEl);
+  titleRow.appendChild(agentSel);
 
   const pathRow = document.createElement("div");
   pathRow.className = "agent-path-row";
   const pickEl = document.createElement("button");
   pickEl.className = "agent-pick";
-  pickEl.textContent = "📁";
-  pickEl.title = "フォルダを選択";
+  pickEl.textContent = t("agent.pick");
+  pickEl.title = t("tip.pick");
   const pathEl = document.createElement("input");
   pathEl.className = "agent-path";
-  pathEl.placeholder = "作業ディレクトリ（パス or 📁）";
+  pathEl.placeholder = t("agent.pathPlaceholder");
   pathEl.spellcheck = false;
   pathRow.append(pickEl, pathEl);
 
+  // Z-axis layer tabs, sitting directly above the terminal.
+  const tabsEl = document.createElement("div");
+  tabsEl.className = "layer-tabs";
+
   headerEl.appendChild(titleRow);
   headerEl.appendChild(pathRow);
+  headerEl.appendChild(tabsEl);
 
   const stackEl = document.createElement("div");
   stackEl.className = "stack";
@@ -253,6 +274,9 @@ export function createAgent(index: number): Agent {
     id: uid("agent"),
     title: `agent ${index}`,
     cwd: null,
+    branch: "",
+    cpu: 0,
+    agentCmd: "claude",
     manualTitle: false,
     layers: [],
     active: 0,
@@ -260,8 +284,11 @@ export function createAgent(index: number): Agent {
     headerEl,
     stackEl,
     titleEl,
+    branchEl,
+    cpuEl,
+    agentSel,
     pathEl,
     pickEl,
-    dotsEl,
+    tabsEl,
   };
 }

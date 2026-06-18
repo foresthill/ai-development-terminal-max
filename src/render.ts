@@ -3,6 +3,7 @@
 // so this module holds no state.
 import { Agent } from "./agent";
 import { Project, goldenSpiral, goldenSpiralPath } from "./project";
+import { t } from "./i18n";
 
 export type Mode = "overview" | "zoom";
 export type View = "project" | "macro";
@@ -26,14 +27,16 @@ export interface RenderCtx {
   guardrails: boolean;
   selectProject(i: number): void;
   setLayer(agent: Agent, li: number, ai: number): void;
+  addLayer(agent: Agent, kind: "terminal" | "browser", ai: number): void;
+  closeLayer(agent: Agent, li: number, ai: number): void;
   afterRender(): void;
 }
 
 export function renderAll(c: RenderCtx) {
   const total = c.projects.reduce((s, p) => s + p.agents.length, 0);
-  c.countEl.textContent = `${total} agents · ${c.projects.length} proj`;
+  c.countEl.textContent = `${total} ${t("unit.agents")} · ${c.projects.length} ${t("unit.proj")}`;
   c.permSelect.value = c.permMode;
-  c.btnGuard.textContent = `🛡 guard: ${c.guardrails ? "on" : "off"}`;
+  c.btnGuard.textContent = `🛡 ${t("guard.label")}: ${c.guardrails ? t("on") : t("off")}`;
   c.btnGuard.classList.toggle("on", c.guardrails);
   renderStrip(c);
 
@@ -54,13 +57,13 @@ export function renderAll(c: RenderCtx) {
 
   const n = agents.length;
   if (c.layout === "square" && n > 0) {
-    const cols = Math.ceil(Math.sqrt(n));
+    const cols = bestCols(n, c.grid.clientWidth, c.grid.clientHeight);
     const rows = Math.ceil(n / cols);
     c.grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
     c.btnLayout.textContent = `▦ ${cols}×${rows}`;
   } else {
     c.grid.style.gridTemplateColumns = "";
-    c.btnLayout.textContent = "▦ fit";
+    c.btnLayout.textContent = `▦ ${t("layout.fit")}`;
   }
 
   agents.forEach((agent, ai) => {
@@ -68,6 +71,8 @@ export function renderAll(c: RenderCtx) {
     agent.cardEl.classList.toggle("zoomed", c.mode === "zoom" && ai === c.focused);
     agent.cardEl.classList.toggle("hidden", c.mode === "zoom" && ai !== c.focused);
     if (agent.titleEl.contentEditable !== "true") agent.titleEl.textContent = agent.title;
+    agent.branchEl.textContent = agent.branch ? `⎇ ${agent.branch}` : "";
+    agent.branchEl.style.display = agent.branch ? "" : "none";
 
     let behindRank = 0;
     agent.layers.forEach((layer, li) => {
@@ -83,20 +88,101 @@ export function renderAll(c: RenderCtx) {
       }
     });
 
-    agent.dotsEl.innerHTML = "";
-    agent.layers.forEach((layer, li) => {
-      const dot = document.createElement("span");
-      dot.className = "dot" + (li === agent.active ? " active" : "");
-      dot.textContent = layer.kind === "browser" ? "◉" : "▣";
-      dot.addEventListener("mousedown", (ev) => {
-        ev.stopPropagation();
-        c.setLayer(agent, li, ai);
-      });
-      agent.dotsEl.appendChild(dot);
-    });
+    renderLayerTabs(c, agent, ai);
   });
 
   c.afterRender();
+}
+
+function renderLayerTabs(c: RenderCtx, agent: Agent, ai: number) {
+  agent.tabsEl.replaceChildren();
+  agent.layers.forEach((layer, li) => {
+    const tab = document.createElement("button");
+    tab.className = "ltab" + (li === agent.active ? " active" : "");
+    tab.appendChild(layerIcon(layer.kind));
+    const label = document.createElement("span");
+    label.className = "ltab-label";
+    label.textContent = layer.title;
+    tab.appendChild(label);
+    tab.addEventListener("mousedown", (ev) => {
+      ev.stopPropagation();
+      c.setLayer(agent, li, ai);
+    });
+    if (li === agent.active && agent.layers.length > 1) {
+      const x = document.createElement("span");
+      x.className = "ltab-x";
+      x.textContent = "×";
+      x.title = t("tip.layerClose");
+      x.addEventListener("mousedown", (ev) => {
+        ev.stopPropagation();
+        c.closeLayer(agent, li, ai);
+      });
+      tab.appendChild(x);
+    }
+    agent.tabsEl.appendChild(tab);
+  });
+
+  for (const [kind, tipKey] of [
+    ["terminal", "tip.addTerm"],
+    ["browser", "tip.addBrowser"],
+  ] as const) {
+    const add = document.createElement("button");
+    add.className = "ltab-add";
+    add.title = t(tipKey);
+    add.append(document.createTextNode("＋"), layerIcon(kind));
+    add.addEventListener("mousedown", (ev) => {
+      ev.stopPropagation();
+      c.addLayer(agent, kind, ai);
+    });
+    agent.tabsEl.appendChild(add);
+  }
+}
+
+function svgEl(tag: string, attrs: Record<string, string | number>): SVGElement {
+  const el = document.createElementNS(SVG_NS, tag);
+  for (const k in attrs) el.setAttribute(k, String(attrs[k]));
+  return el;
+}
+
+/// Minimal monochrome line icons (inherit currentColor): terminal = `>_`,
+/// browser = globe. Recognizable at a glance, still understated.
+function layerIcon(kind: "terminal" | "browser"): SVGElement {
+  const svg = svgEl("svg", { class: "ltab-ico", viewBox: "0 0 16 16" });
+  if (kind === "browser") {
+    svg.append(
+      svgEl("circle", { cx: 8, cy: 8, r: 6 }),
+      svgEl("ellipse", { cx: 8, cy: 8, rx: 2.6, ry: 6 }),
+      svgEl("line", { x1: 2, y1: 8, x2: 14, y2: 8 })
+    );
+  } else {
+    svg.append(
+      svgEl("polyline", { points: "3,4 7,8 3,12" }),
+      svgEl("line", { x1: 8.5, y1: 12, x2: 13, y2: 12 })
+    );
+  }
+  return svg;
+}
+
+// Choose a column count that fills the window with well-proportioned cells:
+// for each candidate, fit the largest target-aspect (≈1.6 landscape) cell and
+// keep the count that yields the biggest cell. Wider windows -> more columns.
+function bestCols(n: number, W: number, H: number): number {
+  if (!W || !H) return Math.ceil(Math.sqrt(n));
+  const target = 1.6;
+  let best = 1;
+  let bestScore = -Infinity;
+  for (let cols = 1; cols <= n; cols++) {
+    const rows = Math.ceil(n / cols);
+    const cw = W / cols;
+    const ch = H / rows;
+    const w = Math.min(cw, ch * target); // largest target-aspect cell that fits
+    const score = (w * w) / target; // its area
+    if (score > bestScore + 0.5) {
+      bestScore = score;
+      best = cols;
+    }
+  }
+  return best;
 }
 
 function renderStrip(c: RenderCtx) {
