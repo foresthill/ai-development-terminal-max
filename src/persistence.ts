@@ -25,6 +25,7 @@ export interface WorkspaceSnap {
   layout: "square" | "fit";
   permMode: PermMode;
   guardrails?: boolean;
+  subagentNest?: boolean;
   ap: number;
   agentCmd?: string;
   presets?: string[];
@@ -37,6 +38,7 @@ export interface Settings {
   layout: "square" | "fit";
   permMode: PermMode;
   guardrails: boolean;
+  subagentNest: boolean;
   ap: number;
   agentCmd: string;
   presets: string[];
@@ -49,6 +51,7 @@ export function buildSnapshot(projects: Project[], s: Settings): WorkspaceSnap {
     layout: s.layout,
     permMode: s.permMode,
     guardrails: s.guardrails,
+    subagentNest: s.subagentNest,
     ap: s.ap,
     agentCmd: s.agentCmd,
     presets: s.presets,
@@ -65,7 +68,13 @@ export function buildSnapshot(projects: Project[], s: Settings): WorkspaceSnap {
         agentCmd: a.agentCmd,
         manualTitle: a.manualTitle,
         active: a.active,
-        layers: a.layers.map((l) => ({ kind: l.kind, title: l.title, url: l.iframe?.src })),
+        layers: a.layers
+          .filter((l) => l.kind !== "subagent") // ephemeral — never persisted
+          .map((l) => ({
+            kind: l.kind as "terminal" | "browser",
+            title: l.title,
+            url: l.iframe?.src,
+          })),
       })),
     })),
   };

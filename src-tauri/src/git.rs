@@ -84,26 +84,39 @@ pub fn create_worktree(repo_path: String, branch: String) -> Result<String, Stri
     Ok(wt_str)
 }
 
-/// Opt-in guardrails: write a `.claude/settings.local.json` deny-list into `dir`
-/// (blocks pushes to main/master, force-push, sudo, curl/wget). Because we create
-/// the file ourselves, also add it to the repo's local git exclude so it is never
-/// committed. Deny syntax per https://code.claude.com/docs/en/permissions.md
+/// Opt-in policy file: write `.claude/settings.local.json` into `dir` with a
+/// deny-list (guardrails) and/or SubagentStart/Stop hooks (nested subagent UI).
+/// Tagged `_aidt` so we update only our own file, never the user's. When both are
+/// empty our file is removed. The file is added to the repo's local git exclude.
+/// Deny syntax: https://code.claude.com/docs/en/permissions.md
 #[tauri::command]
-pub fn write_guardrails(dir: String, deny: Vec<String>) -> Result<(), String> {
+pub fn write_aidt_settings(dir: String, deny: Vec<String>, subagent_hooks: bool) -> Result<(), String> {
     let claude_dir = Path::new(&dir).join(".claude");
-    std::fs::create_dir_all(&claude_dir).map_err(|e| format!("mkdir failed: {e}"))?;
-
-    // Tag our file so we may update it later without ever clobbering a file the
-    // user wrote themselves.
-    let json = serde_json::json!({ "_aidt": true, "permissions": { "deny": deny } });
-    let content = serde_json::to_string_pretty(&json).map_err(|e| format!("json failed: {e}"))? + "\n";
-
     let file = claude_dir.join("settings.local.json");
+
+    // Only ever touch a missing file or one we previously wrote.
     if let Ok(existing) = std::fs::read_to_string(&file) {
         if !existing.contains("\"_aidt\"") {
-            return Ok(()); // user's own file — leave it untouched
+            return Ok(()); // user's own file — leave untouched
         }
     }
+
+    if deny.is_empty() && !subagent_hooks {
+        let _ = std::fs::remove_file(&file); // nothing to enforce: clean up ours
+        return Ok(());
+    }
+
+    std::fs::create_dir_all(&claude_dir).map_err(|e| format!("mkdir failed: {e}"))?;
+    let mut root = serde_json::json!({ "_aidt": true });
+    if !deny.is_empty() {
+        root["permissions"] = serde_json::json!({ "deny": deny });
+    }
+    if subagent_hooks {
+        let cmd = "mkdir -p \"$HOME/.aidt\"; cat >> \"$HOME/.aidt/subagent-events.jsonl\"; printf '\\n' >> \"$HOME/.aidt/subagent-events.jsonl\"";
+        let entry = serde_json::json!([{ "hooks": [{ "type": "command", "command": cmd }] }]);
+        root["hooks"] = serde_json::json!({ "SubagentStart": entry, "SubagentStop": entry });
+    }
+    let content = serde_json::to_string_pretty(&root).map_err(|e| format!("json failed: {e}"))? + "\n";
     std::fs::write(&file, content).map_err(|e| format!("write failed: {e}"))?;
 
     // Keep our local-only file out of version control.
