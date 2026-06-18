@@ -67,6 +67,20 @@ export interface SettingsValues {
   permMode: "auto" | "normal" | "bypass";
   enabled: Set<string>;
   customDeny: string;
+  agentPresets: { label: string; cmd: string }[];
+}
+
+function parsePresets(text: string): { label: string; cmd: string }[] {
+  return text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const i = line.indexOf("=");
+      if (i < 0) return { label: line, cmd: line };
+      return { label: line.slice(0, i).trim() || line, cmd: line.slice(i + 1).trim() };
+    })
+    .filter((p) => p.cmd);
 }
 
 /// Settings dialog: agent command, permission default, and the guardrail
@@ -85,6 +99,9 @@ export function openSettings(cur: SettingsValues): Promise<SettingsValues | null
         </select></label>
       <label class="set-row"><span>${t("set.agentCmd")}</span>
         <input class="modal-input" id="set-cmd" spellcheck="false"></label>
+      <label class="set-row col"><span>${t("set.presets")}</span>
+        <textarea class="modal-input" id="set-agents" rows="4" spellcheck="false"
+          placeholder="claude = claude"></textarea></label>
       <label class="set-row"><span>${t("set.perm")}</span>
         <select class="modal-input" id="set-perm">
           <option value="auto">auto</option><option value="normal">normal</option>
@@ -102,11 +119,13 @@ export function openSettings(cur: SettingsValues): Promise<SettingsValues | null
 
     const langSel = box.querySelector<HTMLSelectElement>("#set-lang")!;
     const cmd = box.querySelector<HTMLInputElement>("#set-cmd")!;
+    const agents = box.querySelector<HTMLTextAreaElement>("#set-agents")!;
     const perm = box.querySelector<HTMLSelectElement>("#set-perm")!;
     const custom = box.querySelector<HTMLTextAreaElement>("#set-custom")!;
     const presetsEl = box.querySelector<HTMLElement>("#set-presets")!;
     langSel.value = cur.lang;
     cmd.value = cur.agentCmd;
+    agents.value = cur.agentPresets.map((p) => `${p.label} = ${p.cmd}`).join("\n");
     perm.value = cur.permMode;
     custom.value = cur.customDeny;
     const boxes: Record<string, HTMLInputElement> = {};
@@ -143,6 +162,7 @@ export function openSettings(cur: SettingsValues): Promise<SettingsValues | null
         permMode: perm.value as SettingsValues["permMode"],
         enabled,
         customDeny: custom.value,
+        agentPresets: parsePresets(agents.value),
       });
     });
     back.addEventListener("click", (e) => {

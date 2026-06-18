@@ -5,6 +5,11 @@ import { PermMode } from "./render";
 
 const STORE_KEY = "aidt-workspace";
 
+export interface AgentPresetSnap {
+  label: string;
+  cmd: string;
+}
+
 export interface LayerSnap { kind: "terminal" | "browser"; title: string; url?: string }
 export interface AgentSnap {
   title: string;
@@ -24,6 +29,7 @@ export interface WorkspaceSnap {
   agentCmd?: string;
   presets?: string[];
   customDeny?: string;
+  agentPresets?: AgentPresetSnap[];
   projects: ProjectSnap[];
 }
 
@@ -35,6 +41,7 @@ export interface Settings {
   agentCmd: string;
   presets: string[];
   customDeny: string;
+  agentPresets: AgentPresetSnap[];
 }
 
 export function buildSnapshot(projects: Project[], s: Settings): WorkspaceSnap {
@@ -46,6 +53,7 @@ export function buildSnapshot(projects: Project[], s: Settings): WorkspaceSnap {
     agentCmd: s.agentCmd,
     presets: s.presets,
     customDeny: s.customDeny,
+    agentPresets: s.agentPresets,
     projects: projects.map((p) => ({
       name: p.name,
       root: p.root,

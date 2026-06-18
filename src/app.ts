@@ -28,8 +28,12 @@ const ymd = () => {
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}`;
 };
 
-// CLI agents selectable per window. Opinions/defaults, all editable via "custom…".
-const AGENT_PRESETS: { label: string; cmd: string }[] = [
+// Default CLI agents selectable per window. Editable in Settings; persisted.
+export interface AgentPreset {
+  label: string;
+  cmd: string;
+}
+const DEFAULT_AGENT_PRESETS: AgentPreset[] = [
   { label: "claude", cmd: "claude" },
   { label: "aider", cmd: "aider" },
   { label: "codex", cmd: "codex" },
@@ -46,6 +50,7 @@ export class App {
   private permMode: PermMode = "auto";
   private guardrails = false;
   private agentCmd = "claude";
+  private agentPresets: AgentPreset[] = [...DEFAULT_AGENT_PRESETS];
   private presets = new Set<string>(GUARD_PRESETS.map((p) => p.id));
   private customDeny = "";
   private guardWritten = new Set<string>();
@@ -168,7 +173,7 @@ export class App {
     const sel = agent.agentSel;
     sel.replaceChildren();
     let matched = false;
-    for (const p of AGENT_PRESETS) {
+    for (const p of this.agentPresets) {
       const o = document.createElement("option");
       o.value = p.cmd;
       o.textContent = p.label;
@@ -469,6 +474,7 @@ export class App {
       permMode: this.permMode,
       enabled: new Set(this.presets),
       customDeny: this.customDeny,
+      agentPresets: this.agentPresets,
     });
     if (!res) return;
     if (res.lang !== getLang()) setLang(res.lang); // re-applies static labels
@@ -476,6 +482,8 @@ export class App {
     this.permMode = res.permMode;
     this.presets = res.enabled;
     this.customDeny = res.customDeny;
+    this.agentPresets = res.agentPresets.length ? res.agentPresets : [...DEFAULT_AGENT_PRESETS];
+    for (const p of this.projects) for (const a of p.agents) this.fillAgentSelect(a);
     if (this.guardrails) {
       this.guardWritten.clear(); // rewrite our files with the new deny-list
       const dirs = new Set<string>();
@@ -616,6 +624,7 @@ export class App {
           agentCmd: this.agentCmd,
           presets: [...this.presets],
           customDeny: this.customDeny,
+          agentPresets: this.agentPresets,
         })
       );
     }, 400);
@@ -632,6 +641,7 @@ export class App {
     this.agentCmd = snap.agentCmd || "claude";
     this.customDeny = snap.customDeny ?? "";
     if (snap.presets) this.presets = new Set(snap.presets);
+    if (snap.agentPresets?.length) this.agentPresets = snap.agentPresets;
 
     for (const ps of snap.projects) {
       const p = createProject(ps.name ?? "project", ps.root ?? "", !!ps.isGit);
