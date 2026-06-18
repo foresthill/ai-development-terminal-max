@@ -52,4 +52,9 @@ export async function spawnPty(opts: SpawnOptions): Promise<PtyHandle> {
 
 export const defaultShell = (): Promise<string> => invoke("default_shell");
 export const homeDir = (): Promise<string> => invoke("home_dir");
-export const cpuUsage = (pids: number[]): Promise<number[]> => invoke("cpu_usage", { pids });
+export interface AgentStat {
+  cpu: number;
+  cwd: string;
+}
+export const agentStats = (pids: number[]): Promise<AgentStat[]> =>
+  invoke("agent_stats", { pids });

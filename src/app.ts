@@ -15,7 +15,7 @@ import {
 } from "./agent";
 import { Project, createProject } from "./project";
 import { handleSubagentEvent, clearSubagentLayers } from "./subagent";
-import { defaultShell, homeDir, cpuUsage } from "./pty";
+import { defaultShell, homeDir, agentStats } from "./pty";
 import { isGitRepo, gitClone, createWorktree, writeAidtSettings, currentBranch } from "./git";
 import { listen } from "@tauri-apps/api/event";
 import { askText, toast, pickDirectory, openSettings } from "./ui";
@@ -121,14 +121,15 @@ export class App {
     this.saved = loadProjects();
     this.restore(); // start empty if nothing saved — the empty state guides setup
     this.render();
-    window.setInterval(() => this.pollCpu(), 2000);
+    window.setInterval(() => this.pollStats(), 2000);
     listen<Record<string, unknown>>("subagent", (e) => {
       if (this.subagentNest) handleSubagentEvent(e.payload, this.projects, () => this.render());
     });
   }
 
-  /// Sample each agent's process-subtree CPU% and update its badge in place.
-  private async pollCpu() {
+  /// Sample each agent's CPU% (process subtree) and live cwd; update badge and,
+  /// display-only, follow `cd` in the path field + branch (no respawn).
+  private async pollStats() {
     const items: { agent: Agent; pid: number }[] = [];
     for (const p of this.projects)
       for (const a of p.agents) {
@@ -137,10 +138,18 @@ export class App {
       }
     if (!items.length) return;
     try {
-      const cpus = await cpuUsage(items.map((x) => x.pid));
+      const stats = await agentStats(items.map((x) => x.pid));
       items.forEach((x, i) => {
-        x.agent.cpu = cpus[i] ?? 0;
-        x.agent.cpuEl.textContent = `⚡${Math.round(x.agent.cpu)}%`;
+        const s = stats[i];
+        if (!s) return;
+        x.agent.cpu = s.cpu;
+        x.agent.cpuEl.textContent = `⚡${Math.round(s.cpu)}%`;
+        // follow `cd` (display only) unless the user is editing the path field
+        if (s.cwd && s.cwd !== x.agent.cwd && document.activeElement !== x.agent.pathEl) {
+          x.agent.cwd = s.cwd;
+          x.agent.pathEl.value = s.cwd;
+          this.refreshBranch(x.agent);
+        }
       });
     } catch {
       // sysinfo unavailable — skip this tick.

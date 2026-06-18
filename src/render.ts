@@ -71,7 +71,14 @@ export function renderAll(c: RenderCtx) {
   c.grid.classList.toggle("mode-overview", c.mode === "overview");
 
   const agents = c.projects[c.ap]?.agents ?? [];
-  c.grid.replaceChildren(...agents.map((a) => a.cardEl));
+  // Only re-attach cards when the set/order actually changed. Re-attaching on
+  // every render (e.g. on focus) would detach the title mid-gesture and break
+  // its double-click-to-rename.
+  const cards = agents.map((a) => a.cardEl);
+  const cur = c.grid.children;
+  let sameCards = cur.length === cards.length;
+  for (let i = 0; sameCards && i < cards.length; i++) if (cur[i] !== cards[i]) sameCards = false;
+  if (!sameCards) c.grid.replaceChildren(...cards);
 
   const n = agents.length;
   if (c.layout === "square" && n > 0) {

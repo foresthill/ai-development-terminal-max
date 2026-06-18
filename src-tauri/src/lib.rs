@@ -26,7 +26,7 @@ pub fn run() {
             git::git_clone,
             git::create_worktree,
             git::write_aidt_settings,
-            sys::cpu_usage,
+            sys::agent_stats,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
