@@ -3,6 +3,7 @@
 // so this module holds no state.
 import { Agent } from "./agent";
 import { Project, goldenSpiral, goldenSpiralPath } from "./project";
+import { SavedProject } from "./persistence";
 import { t } from "./i18n";
 
 export type Mode = "overview" | "zoom";
@@ -27,10 +28,16 @@ export interface RenderCtx {
   permMode: PermMode;
   guardrails: boolean;
   subagentNest: boolean;
+  saved: SavedProject[];
   selectProject(i: number): void;
   setLayer(agent: Agent, li: number, ai: number): void;
   addLayer(agent: Agent, kind: "terminal" | "browser", ai: number): void;
   closeLayer(agent: Agent, li: number, ai: number): void;
+  openFolder(): void;
+  clone(): void;
+  openSaved(sp: SavedProject): void;
+  removeSaved(path: string): void;
+  renameSaved(path: string): void;
   afterRender(): void;
 }
 
@@ -41,6 +48,15 @@ export function renderAll(c: RenderCtx) {
   setToggleBtn(c.btnGuard, `${t("guard.label")}: ${c.guardrails ? t("on") : t("off")}`, c.guardrails);
   setToggleBtn(c.btnNest, `${t("nest.label")}: ${c.subagentNest ? t("on") : t("off")}`, c.subagentNest);
   renderStrip(c);
+
+  if (c.projects.length === 0) {
+    c.macroEl.classList.add("hidden");
+    c.grid.classList.remove("hidden");
+    renderEmpty(c);
+    c.afterRender();
+    return;
+  }
+  c.grid.classList.remove("grid-empty");
 
   if (c.view === "macro") {
     c.grid.classList.add("hidden");
@@ -192,6 +208,67 @@ function bestCols(n: number, W: number, H: number): number {
     }
   }
   return best;
+}
+
+/// First-run / no-projects state: guide the user to open a folder, clone, or
+/// reopen a saved project (label + path). Rendered into the grid area.
+function renderEmpty(c: RenderCtx) {
+  c.grid.classList.add("grid-empty");
+  c.grid.style.gridTemplateColumns = "";
+
+  const panel = document.createElement("div");
+  panel.className = "empty-panel";
+
+  const title = document.createElement("div");
+  title.className = "empty-title";
+  title.textContent = t("empty.title");
+
+  const actions = document.createElement("div");
+  actions.className = "empty-actions";
+  const folder = document.createElement("button");
+  folder.textContent = t("btn.folder");
+  folder.onclick = () => c.openFolder();
+  const clone = document.createElement("button");
+  clone.textContent = t("btn.clone");
+  clone.onclick = () => c.clone();
+  actions.append(folder, clone);
+  panel.append(title, actions);
+
+  if (c.saved.length) {
+    const sub = document.createElement("div");
+    sub.className = "empty-sub";
+    sub.textContent = t("empty.saved");
+    panel.appendChild(sub);
+    const list = document.createElement("div");
+    list.className = "saved-list";
+    for (const sp of c.saved) {
+      const row = document.createElement("div");
+      row.className = "saved-row";
+      const open = document.createElement("button");
+      open.className = "saved-open";
+      open.textContent = `${sp.isGit ? "⎇" : "•"} ${sp.label}`;
+      open.title = sp.path;
+      open.onclick = () => c.openSaved(sp);
+      const path = document.createElement("span");
+      path.className = "saved-path";
+      path.textContent = sp.path;
+      const ren = document.createElement("button");
+      ren.className = "saved-act";
+      ren.textContent = "✎";
+      ren.title = t("saved.rename");
+      ren.onclick = () => c.renameSaved(sp.path);
+      const del = document.createElement("button");
+      del.className = "saved-act";
+      del.textContent = "×";
+      del.title = t("saved.remove");
+      del.onclick = () => c.removeSaved(sp.path);
+      row.append(open, path, ren, del);
+      list.appendChild(row);
+    }
+    panel.appendChild(list);
+  }
+
+  c.grid.replaceChildren(panel);
 }
 
 /// Update a toggle button's text label (keeps its inline icon) and on-state.

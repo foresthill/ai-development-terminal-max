@@ -22,7 +22,14 @@ import { askText, toast, pickDirectory, openSettings } from "./ui";
 import { GUARD_PRESETS, effectiveDeny } from "./guard";
 import { t, getLang, setLang } from "./i18n";
 import { renderAll, RenderCtx, Mode, View, PermMode } from "./render";
-import { buildSnapshot, saveSnap, loadSnap } from "./persistence";
+import {
+  buildSnapshot,
+  saveSnap,
+  loadSnap,
+  saveProjects,
+  loadProjects,
+  SavedProject,
+} from "./persistence";
 
 const ymd = () => {
   const d = new Date();
@@ -54,6 +61,7 @@ export class App {
   private subagentNest = false;
   private agentCmd = "claude";
   private agentPresets: AgentPreset[] = [...DEFAULT_AGENT_PRESETS];
+  private saved: SavedProject[] = [];
   private presets = new Set<string>(GUARD_PRESETS.map((p) => p.id));
   private customDeny = "";
   private shell = "/bin/zsh";
@@ -110,11 +118,8 @@ export class App {
   async init() {
     this.shell = await defaultShell();
     this.home = await homeDir();
-    if (!this.restore()) {
-      const p = createProject("local", this.home, false);
-      this.projects.push(p);
-      for (let i = 0; i < 3; i++) await this.addAgentWithCwd(p, this.home, false);
-    }
+    this.saved = loadProjects();
+    this.restore(); // start empty if nothing saved — the empty state guides setup
     this.render();
     window.setInterval(() => this.pollCpu(), 2000);
     listen<Record<string, unknown>>("subagent", (e) => {
@@ -447,13 +452,7 @@ export class App {
     }
     if (!path) return;
     const git = await isGitRepo(path);
-    const p = createProject(basename(path) || path, path, git);
-    this.projects.push(p);
-    this.ap = this.projects.length - 1;
-    this.focused = 0;
-    this.view = "project";
-    if (p.isGit) await this.addAgentToActive();
-    else await this.addAgentWithCwd(p, path);
+    await this.openProject(basename(path) || path, path, git);
   }
 
   private async cloneProject() {
@@ -465,16 +464,51 @@ export class App {
     toast(t("toast.cloning", url));
     try {
       const path = await gitClone(url);
-      const p = createProject(basename(path) || "repo", path, true);
-      this.projects.push(p);
-      this.ap = this.projects.length - 1;
-      this.focused = 0;
-      this.view = "project";
-      await this.addAgentToActive();
+      await this.openProject(basename(path) || "repo", path, true);
       toast(t("toast.cloned", basename(path)));
     } catch (e) {
       toast(t("toast.cloneFail", String(e)), "error");
     }
+  }
+
+  /// Create + activate a project, record it as a saved bookmark, add first agent.
+  private async openProject(label: string, path: string, isGit: boolean) {
+    const p = createProject(label, path, isGit);
+    this.projects.push(p);
+    this.ap = this.projects.length - 1;
+    this.focused = 0;
+    this.view = "project";
+    this.recordSaved(label, path, isGit);
+    if (isGit) await this.addAgentToActive();
+    else await this.addAgentWithCwd(p, path);
+  }
+
+  private recordSaved(label: string, path: string, isGit: boolean) {
+    if (!this.saved.some((s) => s.path === path)) {
+      this.saved.push({ label, path, isGit });
+      saveProjects(this.saved);
+    }
+  }
+
+  private openSavedProject(sp: SavedProject) {
+    void this.openProject(sp.label, sp.path, sp.isGit);
+  }
+
+  private removeSavedProject(path: string) {
+    this.saved = this.saved.filter((s) => s.path !== path);
+    saveProjects(this.saved);
+    this.render();
+  }
+
+  private async renameSavedProject(path: string) {
+    const sp = this.saved.find((s) => s.path === path);
+    if (!sp) return;
+    const v = await askText({ title: t("saved.renameTitle"), value: sp.label });
+    if (!v) return;
+    sp.label = v;
+    for (const p of this.projects) if (p.root === path) p.name = v;
+    saveProjects(this.saved);
+    this.render();
   }
 
   private switchProject(delta: number) {
@@ -602,6 +636,12 @@ export class App {
       permMode: this.permMode,
       guardrails: this.guardrails,
       subagentNest: this.subagentNest,
+      saved: this.saved,
+      openFolder: () => void this.openFolderProject(),
+      clone: () => void this.cloneProject(),
+      openSaved: (sp) => this.openSavedProject(sp),
+      removeSaved: (path) => this.removeSavedProject(path),
+      renameSaved: (path) => void this.renameSavedProject(path),
       selectProject: (i) => {
         this.ap = i;
         this.focused = 0;
