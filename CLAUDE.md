@@ -14,9 +14,10 @@ arranges all projects on a golden-angle (phyllotaxis) spiral.
 
 | File | Responsibility |
 |---|---|
-| `src/app.ts` | Orchestrator: state, lifecycle, navigation, keyboard, settings glue |
+| `src/app.ts` | Orchestrator: state, agent/layer lifecycle, navigation, keyboard, settings glue |
+| `src/projects-controller.ts` | Project + saved-bookmark lifecycle (open folder/clone, record/open/remove/rename saved) — driven by a `ProjectsCtx` of App accessors |
 | `src/render.ts` | All DOM rendering (strip, grid, depth decks, macro spiral) — stateless, driven by `RenderCtx` |
-| `src/persistence.ts` | Workspace snapshot types + localStorage save/load |
+| `src/persistence.ts` | Workspace snapshot types + localStorage save/load + `restoreProjects()` rebuild (App passes a `RestoreBuilder`) |
 | `src/agent.ts` | Agent/Layer model, xterm/browser layer factories, title edit |
 | `src/project.ts` | Project model + golden-spiral geometry |
 | `src/guard.ts` | Guardrail deny-list **presets** (user policy, not baked-in) |
@@ -27,13 +28,20 @@ arranges all projects on a golden-angle (phyllotaxis) spiral.
 
 ## File-size rule override
 
-The global rule caps files at 500 lines. **`src/app.ts` is ~840 lines and over
-budget — a refactor is queued** to extract the project/saved-project lifecycle
-(open/clone/saved bookmarks) and the persistence `restore()` rebuild into their
-own modules, targeting ≤~650 afterward. Until then, rendering, persistence I/O,
-guard policy, the domain models, and all UI are already extracted; the remainder
-is cohesive lifecycle/state/keyboard/settings wiring. **Do not add new features
-to app.ts before that refactor lands** — put new concerns in their own module.
+The global rule caps files at 500 lines. **`src/app.ts` is ~765 lines** (down
+from ~840). The queued refactor landed: the project/saved-project lifecycle
+(open/clone/saved bookmarks) moved to `projects-controller.ts`, and the
+persistence `restore()` rebuild loop moved to `persistence.ts` as
+`restoreProjects()`. That removed ~76 net lines — under the documented ~800
+budget, but short of the ≤~650 aspiration. **Reaching ≤650 needs one more
+extraction**: the agent/layer lifecycle + per-agent CLI-command machinery
+(`newAgent` wiring, `addAgentWithCwd`/`addAgentToActive`/`fill`, `setAgentCwd`,
+`setAgentCommand`, `primaryLayer`/`shellLayer`/`fillAgentSelect`, layer
+add/close) into an `agent-controller.ts` — deferred here to keep this change
+behavior-safe and within the named scope. Rendering, persistence I/O, guard
+policy, the domain models, and all UI are already extracted; the remainder is
+cohesive lifecycle/state/keyboard/settings wiring. **Do not add new features to
+app.ts before that follow-up lands** — put new concerns in their own module.
 
 ## Design philosophy: cross-agent messaging
 

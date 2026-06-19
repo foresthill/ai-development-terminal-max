@@ -1,6 +1,7 @@
 // Workspace snapshot <-> localStorage. Holds no app logic; the App rebuilds live
 // objects from a loaded snapshot.
-import { Project } from "./project";
+import { Project, createProject } from "./project";
+import { Agent, Layer } from "./agent";
 import { PermMode } from "./render";
 
 const STORE_KEY = "aidt-workspace";
@@ -121,4 +122,59 @@ export function loadSnap(): WorkspaceSnap | null {
   } catch {
     return null;
   }
+}
+
+/// App-provided factories the rebuild needs but cannot construct itself (they
+/// close over App state: shell, agent wiring, layout observers).
+export interface RestoreBuilder {
+  newAgent(project: Project, cwd: string | null): Agent;
+  primaryLayer(cwd: string | null, cmd: string): Layer;
+  shellLayer(cwd: string | null): Layer;
+  createBrowserLayer(url: string): Layer;
+  observeLayer(layer: Layer): void;
+  fillAgentSelect(agent: Agent): void;
+  refreshBranch(agent: Agent): void;
+}
+
+/// Rebuild live Project/Agent/Layer objects from a snapshot into `projects`
+/// (mutated in place) using App-provided builders. Returns the clamped active-
+/// project index. Settings application (layout/permMode/toggles) stays in App;
+/// this owns only the structural rebuild loop.
+export function restoreProjects(
+  snap: WorkspaceSnap,
+  projects: Project[],
+  defaultAgentCmd: string,
+  b: RestoreBuilder
+): number {
+  for (const ps of snap.projects) {
+    const p = createProject(ps.name ?? "project", ps.root ?? "", !!ps.isGit);
+    projects.push(p);
+    for (const as of ps.agents ?? []) {
+      const agent = b.newAgent(p, as.cwd ?? null);
+      agent.title = as.title ?? agent.title;
+      agent.manualTitle = !!as.manualTitle;
+      agent.branch = as.branch ?? "";
+      agent.agentCmd = as.agentCmd || defaultAgentCmd;
+      b.fillAgentSelect(agent);
+      b.refreshBranch(agent);
+      for (let li = 0; li < (as.layers ?? []).length; li++) {
+        const ls = as.layers[li];
+        let layer: Layer;
+        if (ls.kind === "browser") layer = b.createBrowserLayer(ls.url || "http://localhost:3000");
+        else if (li === 0) layer = b.primaryLayer(as.cwd ?? null, agent.agentCmd);
+        else layer = b.shellLayer(as.cwd ?? null);
+        agent.layers.push(layer);
+        agent.stackEl.appendChild(layer.el);
+        if (layer.kind === "terminal") b.observeLayer(layer);
+      }
+      if (agent.layers.length === 0) {
+        const l = b.primaryLayer(as.cwd ?? null, agent.agentCmd);
+        agent.layers.push(l);
+        agent.stackEl.appendChild(l.el);
+        b.observeLayer(l);
+      }
+      agent.active = Math.min(Math.max(0, as.active ?? 0), agent.layers.length - 1);
+    }
+  }
+  return Math.min(Math.max(0, snap.ap ?? 0), projects.length - 1);
 }
