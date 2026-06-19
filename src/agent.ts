@@ -121,32 +121,85 @@ export function createBrowserLayer(url: string): Layer {
 
   const bar = document.createElement("div");
   bar.className = "url-bar";
+
+  const mkBtn = (glyph: string, title: string) => {
+    const b = document.createElement("button");
+    b.className = "url-btn";
+    b.textContent = glyph;
+    b.title = title;
+    b.addEventListener("mousedown", (e) => e.stopPropagation());
+    return b;
+  };
+  const back = mkBtn("‹", "back");
+  const fwd = mkBtn("›", "forward");
+  const reload = mkBtn("⟳", "reload");
+
+  const titleInput = document.createElement("input");
+  titleInput.className = "browser-title";
+  titleInput.placeholder = "title";
+  titleInput.spellcheck = false;
+
   const input = document.createElement("input");
+  input.className = "browser-url";
   input.value = url;
   input.spellcheck = false;
+
   const iframe = document.createElement("iframe");
-  iframe.src = url;
   iframe.setAttribute("sandbox", "allow-scripts allow-same-origin allow-forms");
 
-  const go = () => {
-    let v = input.value.trim();
-    if (v && !/^https?:\/\//.test(v)) v = "http://" + v;
+  // Parent-side history of bar/`go` navigations. (In-page link clicks on
+  // cross-origin pages can't be observed, so they aren't tracked here.)
+  const hist: string[] = [];
+  let hi = -1;
+  const updateNav = () => {
+    back.disabled = hi <= 0;
+    fwd.disabled = hi >= hist.length - 1;
+  };
+  const show = (v: string) => {
     iframe.src = v;
     input.value = v;
+    updateNav();
   };
+  const go = (raw: string, push: boolean) => {
+    let v = raw.trim();
+    if (!v) return;
+    if (!/^https?:\/\//.test(v)) v = "http://" + v;
+    if (push) {
+      hist.splice(hi + 1);
+      hist.push(v);
+      hi = hist.length - 1;
+    }
+    show(v);
+  };
+
+  back.addEventListener("click", () => {
+    if (hi > 0) {
+      hi--;
+      show(hist[hi]);
+    }
+  });
+  fwd.addEventListener("click", () => {
+    if (hi < hist.length - 1) {
+      hi++;
+      show(hist[hi]);
+    }
+  });
+  reload.addEventListener("click", () => {
+    iframe.src = iframe.src; // reassign reloads even cross-origin
+  });
   input.addEventListener("keydown", (e) => {
+    e.stopPropagation();
     if (e.key === "Enter") {
       e.preventDefault();
-      go();
+      go(input.value, true);
     }
-    e.stopPropagation(); // don't trigger app-level nav chords while typing a URL
   });
 
-  bar.appendChild(input);
+  bar.append(back, fwd, reload, titleInput, input);
   el.appendChild(bar);
   el.appendChild(iframe);
 
-  return {
+  const layer: Layer = {
     id: uid("web"),
     kind: "browser",
     title: "browser",
@@ -154,6 +207,15 @@ export function createBrowserLayer(url: string): Layer {
     started: true,
     iframe,
   };
+
+  // Editable tab label. (Updates layer.title; the tab re-renders on next render.)
+  titleInput.addEventListener("keydown", (e) => e.stopPropagation());
+  titleInput.addEventListener("input", () => {
+    layer.title = titleInput.value.trim() || "browser";
+  });
+
+  go(url, true); // initial navigation (seeds history)
+  return layer;
 }
 
 /// Ephemeral card for a running Claude Code subagent (popped on SubagentStart,

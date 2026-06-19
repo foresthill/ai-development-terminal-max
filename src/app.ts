@@ -13,10 +13,10 @@ import {
   basename,
   startTitleEdit,
 } from "./agent";
-import { Project, createProject } from "./project";
+import { Project } from "./project";
 import { handleSubagentEvent, clearSubagentLayers } from "./subagent";
 import { defaultShell, homeDir, agentStats } from "./pty";
-import { isGitRepo, gitClone, createWorktree, writeAidtSettings, currentBranch } from "./git";
+import { createWorktree, writeAidtSettings, currentBranch } from "./git";
 import { listen } from "@tauri-apps/api/event";
 import { askText, toast, pickDirectory, openSettings } from "./ui";
 import { GUARD_PRESETS, effectiveDeny } from "./guard";
@@ -26,10 +26,11 @@ import {
   buildSnapshot,
   saveSnap,
   loadSnap,
-  saveProjects,
   loadProjects,
+  restoreProjects,
   SavedProject,
 } from "./persistence";
+import { ProjectsController } from "./projects-controller";
 
 const ymd = () => {
   const d = new Date();
@@ -68,6 +69,19 @@ export class App {
   private home = "";
   private agentSeq = 1;
   private resizeTimer: number | undefined;
+  private projectsCtrl = new ProjectsController({
+    projects: () => this.projects,
+    saved: () => this.saved,
+    home: () => this.home,
+    activate: (p) => {
+      this.ap = this.projects.indexOf(p);
+      this.focused = 0;
+      this.view = "project";
+    },
+    render: () => this.render(),
+    addAgentToActive: () => this.addAgentToActive(),
+    addAgentWithCwd: (project, cwd, focus) => this.addAgentWithCwd(project, cwd, focus),
+  });
 
   private grid: HTMLElement;
   private macroEl: HTMLElement;
@@ -107,8 +121,8 @@ export class App {
       if (e.key === "Enter") this.doSend();
       else if (e.key === "Escape") this.toggleSendBar(false);
     });
-    root.querySelector("#btn-open")!.addEventListener("click", () => this.openFolderProject());
-    root.querySelector("#btn-clone")!.addEventListener("click", () => this.cloneProject());
+    root.querySelector("#btn-open")!.addEventListener("click", () => this.projectsCtrl.openFolderProject());
+    root.querySelector("#btn-clone")!.addEventListener("click", () => this.projectsCtrl.cloneProject());
     root.querySelector("#btn-guard")!.addEventListener("click", () => this.toggleGuardrails());
     root.querySelector("#btn-nest")!.addEventListener("click", () => this.toggleSubagentNest());
     root.querySelector("#btn-settings")!.addEventListener("click", () => this.openSettingsDialog());
@@ -476,79 +490,7 @@ export class App {
     if (host) this.resizeObs.observe(host);
   }
 
-  // --- project lifecycle ----------------------------------------------------
-
-  private async openFolderProject() {
-    let path: string | null;
-    try {
-      path = await pickDirectory(this.home);
-    } catch {
-      path = await askText({
-        title: t("modal.openTitle"),
-        placeholder: "/Users/you/dev/myrepo",
-        value: this.home + "/",
-      });
-    }
-    if (!path) return;
-    const git = await isGitRepo(path);
-    await this.openProject(basename(path) || path, path, git);
-  }
-
-  private async cloneProject() {
-    const url = await askText({
-      title: t("modal.cloneTitle"),
-      placeholder: "https://github.com/user/repo.git",
-    });
-    if (!url) return;
-    toast(t("toast.cloning", url));
-    try {
-      const path = await gitClone(url);
-      await this.openProject(basename(path) || "repo", path, true);
-      toast(t("toast.cloned", basename(path)));
-    } catch (e) {
-      toast(t("toast.cloneFail", String(e)), "error");
-    }
-  }
-
-  /// Create + activate a project, record it as a saved bookmark, add first agent.
-  private async openProject(label: string, path: string, isGit: boolean) {
-    const p = createProject(label, path, isGit);
-    this.projects.push(p);
-    this.ap = this.projects.length - 1;
-    this.focused = 0;
-    this.view = "project";
-    this.recordSaved(label, path, isGit);
-    if (isGit) await this.addAgentToActive();
-    else await this.addAgentWithCwd(p, path);
-  }
-
-  private recordSaved(label: string, path: string, isGit: boolean) {
-    if (!this.saved.some((s) => s.path === path)) {
-      this.saved.push({ label, path, isGit });
-      saveProjects(this.saved);
-    }
-  }
-
-  private openSavedProject(sp: SavedProject) {
-    void this.openProject(sp.label, sp.path, sp.isGit);
-  }
-
-  private removeSavedProject(path: string) {
-    this.saved = this.saved.filter((s) => s.path !== path);
-    saveProjects(this.saved);
-    this.render();
-  }
-
-  private async renameSavedProject(path: string) {
-    const sp = this.saved.find((s) => s.path === path);
-    if (!sp) return;
-    const v = await askText({ title: t("saved.renameTitle"), value: sp.label });
-    if (!v) return;
-    sp.label = v;
-    for (const p of this.projects) if (p.root === path) p.name = v;
-    saveProjects(this.saved);
-    this.render();
-  }
+  // --- project lifecycle (open/clone/saved bookmarks → projects-controller) --
 
   private switchProject(delta: number) {
     if (this.projects.length === 0) return;
@@ -717,11 +659,11 @@ export class App {
       guardrails: this.guardrails,
       subagentNest: this.subagentNest,
       saved: this.saved,
-      openFolder: () => void this.openFolderProject(),
-      clone: () => void this.cloneProject(),
-      openSaved: (sp) => this.openSavedProject(sp),
-      removeSaved: (path) => this.removeSavedProject(path),
-      renameSaved: (path) => void this.renameSavedProject(path),
+      openFolder: () => void this.projectsCtrl.openFolderProject(),
+      clone: () => void this.projectsCtrl.cloneProject(),
+      openSaved: (sp) => this.projectsCtrl.openSavedProject(sp),
+      removeSaved: (path) => this.projectsCtrl.removeSavedProject(path),
+      renameSaved: (path) => void this.projectsCtrl.renameSavedProject(path),
       selectProject: (i) => {
         this.ap = i;
         this.focused = 0;
@@ -782,37 +724,15 @@ export class App {
     if (snap.presets) this.presets = new Set(snap.presets);
     if (snap.agentPresets?.length) this.agentPresets = snap.agentPresets;
 
-    for (const ps of snap.projects) {
-      const p = createProject(ps.name ?? "project", ps.root ?? "", !!ps.isGit);
-      this.projects.push(p);
-      for (const as of ps.agents ?? []) {
-        const agent = this.newAgent(p, as.cwd ?? null);
-        agent.title = as.title ?? agent.title;
-        agent.manualTitle = !!as.manualTitle;
-        agent.branch = as.branch ?? "";
-        agent.agentCmd = as.agentCmd || this.agentCmd;
-        this.fillAgentSelect(agent);
-        this.refreshBranch(agent);
-        for (let li = 0; li < (as.layers ?? []).length; li++) {
-          const ls = as.layers[li];
-          let layer: Layer;
-          if (ls.kind === "browser") layer = createBrowserLayer(ls.url || "http://localhost:3000");
-          else if (li === 0) layer = this.primaryLayer(as.cwd ?? null, agent.agentCmd);
-          else layer = this.shellLayer(as.cwd ?? null);
-          agent.layers.push(layer);
-          agent.stackEl.appendChild(layer.el);
-          if (layer.kind === "terminal") this.observeLayer(layer);
-        }
-        if (agent.layers.length === 0) {
-          const l = this.primaryLayer(as.cwd ?? null, agent.agentCmd);
-          agent.layers.push(l);
-          agent.stackEl.appendChild(l.el);
-          this.observeLayer(l);
-        }
-        agent.active = Math.min(Math.max(0, as.active ?? 0), agent.layers.length - 1);
-      }
-    }
-    this.ap = Math.min(Math.max(0, snap.ap ?? 0), this.projects.length - 1);
+    this.ap = restoreProjects(snap, this.projects, this.agentCmd, {
+      newAgent: (p, cwd) => this.newAgent(p, cwd),
+      primaryLayer: (cwd, cmd) => this.primaryLayer(cwd, cmd),
+      shellLayer: (cwd) => this.shellLayer(cwd),
+      createBrowserLayer,
+      observeLayer: (l) => this.observeLayer(l),
+      fillAgentSelect: (a) => this.fillAgentSelect(a),
+      refreshBranch: (a) => void this.refreshBranch(a),
+    });
     return true;
   }
 
