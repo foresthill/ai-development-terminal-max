@@ -59,7 +59,104 @@ export function askText(opts: {
 }
 
 import { GUARD_PRESETS } from "./guard";
-import { t, Lang } from "./i18n";
+import { t, Lang, getLang } from "./i18n";
+
+const HELP_JA = `
+<h4>概念（3つの軸）</h4>
+<ul>
+  <li><b>Project（プロジェクト）</b>＝リポ/フォルダ1つ。上部タブ＝開いているプロジェクト。<code>📁/⎇</code>で追加、<code>Alt+P</code>・タブ・<code>✦macro</code>で切替。</li>
+  <li><b>Agent（ウィンドウ）</b>＝プロジェクト内の git worktree で動く<b>メインエージェント1個</b>（claude/codex/…）。グリッドに横並びで<b>並列稼働</b>。</li>
+  <li><b>Subagent</b>＝claude が Task で生む子。そのウィンドウ内に<b>🪆入れ子カード</b>で表示（nest ON時）。別ウィンドウではない。</li>
+  <li><b>Layer（奥行き）</b>＝1ウィンドウのZ軸スタック（端末/ブラウザ）。タブで切替。</li>
+</ul>
+<h4>キーボード（leader = Alt / Option）</h4>
+<ul>
+  <li><code>Alt+T</code> 追加 ・ <code>Alt+←/→</code> エージェント移動 ・ <code>Alt+↑/↓</code> 奥行き</li>
+  <li><code>Alt+Z</code> 拡大 ・ <code>Alt+1–9</code> 番号でフォーカス ・ <code>Alt+P</code> プロジェクト切替 ・ <code>Alt+M</code> 俯瞰</li>
+  <li><code>Alt+N</code> 端末追加 ・ <code>Alt+B</code> ブラウザ追加 ・ <code>Alt+W</code> レイヤー閉 ・ <code>Alt+X</code> エージェント閉</li>
+  <li><code>Alt+Enter</code> 送信バー</li>
+</ul>
+<h4>ツールバー</h4>
+<ul>
+  <li><b>+ エージェント / ⊞ fill</b>：メインエージェント（worktree）を追加 ・ <b>▶ 全起動</b>：未起動を一括起動</li>
+  <li><b>⤢ 拡大 / ▦ グリッド / ✦ 俯瞰</b>：表示切替 ・ <b>↗ 送信</b>：別エージェントへ1行注入</li>
+  <li><b>perm</b>：claudeのパーミッション ・ <b>🛡 guard</b>：deny-list ・ <b>🪆 nest</b>：サブエージェント検知</li>
+  <li><b>📁/⎇</b>：プロジェクト追加 ・ <b>💾 セーブ</b>：名前付き保存/読込 ・ <b>⚙ 設定</b></li>
+</ul>
+<h4>各ウィンドウ</h4>
+<ul>
+  <li><b>▶</b> エージェント起動（<code>--continue</code>で会話再開） ・ <b>×</b> 閉じる ・ プルダウンでエージェント種別</li>
+  <li>バッジ <b>⚡CPU% · RAM</b>、<b>⎇ブランチ</b> ・ タイトルはダブルクリックで改名 ・ 📁でcwd選択</li>
+</ul>
+<h4>永続化と再開</h4>
+<ul>
+  <li>ワークスペース（パス/レイアウト等）は自動保存・起動時に復元。</li>
+  <li><b>前回動いていたウィンドウだけ</b>復元時に自動再開、他はshellのまま（▶で起動）。</li>
+  <li><b>💾 セーブ</b>で状態を名前付きスロットに保存・切替。</li>
+  <li>履歴はclaude本体が逐次保存するので、クラッシュ後も再開できます。</li>
+</ul>`;
+
+const HELP_EN = `
+<h4>Concepts (three axes)</h4>
+<ul>
+  <li><b>Project</b> = one repo/folder. Top tabs = open projects. Add with <code>📁/⎇</code>; switch with <code>Alt+P</code> / tabs / <code>✦ macro</code>.</li>
+  <li><b>Agent (window)</b> = one <b>main agent</b> (claude/codex/…) in a git worktree of the project. The grid runs them <b>in parallel</b>.</li>
+  <li><b>Subagent</b> = a child a claude spawns via the Task tool; shown as a <b>🪆 nested card</b> inside that window (nest ON). Not a separate window.</li>
+  <li><b>Layer</b> = a window's Z-axis stack (terminal/browser); switch via tabs.</li>
+</ul>
+<h4>Keyboard (leader = Alt / Option)</h4>
+<ul>
+  <li><code>Alt+T</code> new ・ <code>Alt+←/→</code> move focus ・ <code>Alt+↑/↓</code> depth</li>
+  <li><code>Alt+Z</code> zoom ・ <code>Alt+1–9</code> focus by number ・ <code>Alt+P</code> switch project ・ <code>Alt+M</code> macro</li>
+  <li><code>Alt+N</code> terminal ・ <code>Alt+B</code> browser ・ <code>Alt+W</code> close layer ・ <code>Alt+X</code> close agent</li>
+  <li><code>Alt+Enter</code> send bar</li>
+</ul>
+<h4>Toolbar</h4>
+<ul>
+  <li><b>+ agent / ⊞ fill</b>: add main agents (worktrees) ・ <b>▶ all</b>: launch all idle windows</li>
+  <li><b>⤢ zoom / ▦ grid / ✦ macro</b>: views ・ <b>↗ send</b>: inject a line into another agent</li>
+  <li><b>perm</b>: claude permission ・ <b>🛡 guard</b>: deny-list ・ <b>🪆 nest</b>: subagent detection</li>
+  <li><b>📁/⎇</b>: add project ・ <b>💾 saves</b>: named save/load ・ <b>⚙ settings</b></li>
+</ul>
+<h4>Per window</h4>
+<ul>
+  <li><b>▶</b> launch the agent (<code>--continue</code> resumes) ・ <b>×</b> close ・ dropdown picks the agent</li>
+  <li>badges <b>⚡CPU% · RAM</b>, <b>⎇ branch</b> ・ double-click the title to rename ・ 📁 picks cwd</li>
+</ul>
+<h4>Persistence & resume</h4>
+<ul>
+  <li>Workspace (paths/layout/…) auto-saves and restores on launch.</li>
+  <li>On restore, <b>only windows that were running</b> auto-resume; others stay shells (▶ to run).</li>
+  <li><b>💾 saves</b>: keep named slots and switch between them.</li>
+  <li>claude writes its transcript continuously, so conversations survive a crash.</li>
+</ul>`;
+
+/// In-app help: concepts, shortcuts, toolbar, persistence. Follows the language.
+export function openHelp() {
+  const back = document.createElement("div");
+  back.className = "modal-back";
+  const box = document.createElement("div");
+  box.className = "modal modal-wide modal-help";
+  box.innerHTML = `
+    <div class="modal-title">${t("help.title")}</div>
+    <div class="help-body">${getLang() === "ja" ? HELP_JA : HELP_EN}</div>
+    <div class="modal-row"><button id="help-close" class="primary">${t("modal.ok")}</button></div>`;
+  back.append(box);
+  document.body.append(back);
+  const close = () => {
+    back.remove();
+    document.removeEventListener("keydown", onKey, true);
+  };
+  const onKey = (e: KeyboardEvent) => {
+    e.stopPropagation();
+    if (e.key === "Escape") close();
+  };
+  document.addEventListener("keydown", onKey, true);
+  box.querySelector("#help-close")!.addEventListener("click", close);
+  back.addEventListener("click", (e) => {
+    if (e.target === back) close();
+  });
+}
 
 export interface SettingsValues {
   lang: Lang;

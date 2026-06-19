@@ -18,7 +18,7 @@ import { handleSubagentEvent, clearSubagentLayers } from "./subagent";
 import { defaultShell, homeDir, agentStats } from "./pty";
 import { createWorktree, writeAidtSettings, currentBranch } from "./git";
 import { listen } from "@tauri-apps/api/event";
-import { askText, toast, pickDirectory, openSettings, openSavesDialog } from "./ui";
+import { askText, toast, pickDirectory, openSettings, openSavesDialog, openHelp } from "./ui";
 import { GUARD_PRESETS, effectiveDeny } from "./guard";
 import { t, getLang, setLang } from "./i18n";
 import { renderAll, RenderCtx, Mode, View, PermMode } from "./render";
@@ -135,6 +135,7 @@ export class App {
     root.querySelector("#btn-guard")!.addEventListener("click", () => this.toggleGuardrails());
     root.querySelector("#btn-nest")!.addEventListener("click", () => this.toggleSubagentNest());
     root.querySelector("#btn-saves")!.addEventListener("click", () => this.openSaves());
+    root.querySelector("#btn-help")!.addEventListener("click", () => openHelp());
     root.querySelector("#btn-settings")!.addEventListener("click", () => this.openSettingsDialog());
     this.btnLayout.addEventListener("click", () => {
       this.layout = this.layout === "square" ? "fit" : "square";
