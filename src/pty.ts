@@ -54,6 +54,7 @@ export const defaultShell = (): Promise<string> => invoke("default_shell");
 export const homeDir = (): Promise<string> => invoke("home_dir");
 export interface AgentStat {
   cpu: number;
+  mem: number; // bytes
   cwd: string;
 }
 export const agentStats = (pids: number[]): Promise<AgentStat[]> =>
