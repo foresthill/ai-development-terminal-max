@@ -6,6 +6,47 @@ import { PermMode } from "./render";
 
 const STORE_KEY = "aidt-workspace";
 const PROJECTS_KEY = "aidt-projects";
+const SAVES_KEY = "aidt-saves";
+
+/// Named save slots (game-save style): a full workspace snapshot under a name.
+export interface NamedSave {
+  name: string;
+  snap: WorkspaceSnap;
+}
+
+export function loadSaves(): NamedSave[] {
+  try {
+    const raw = localStorage.getItem(SAVES_KEY);
+    const list = raw ? (JSON.parse(raw) as NamedSave[]) : [];
+    return Array.isArray(list) ? list.filter((s) => s && s.name && s.snap) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeSaves(list: NamedSave[]) {
+  try {
+    localStorage.setItem(SAVES_KEY, JSON.stringify(list));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function upsertSave(name: string, snap: WorkspaceSnap) {
+  const list = loadSaves();
+  const i = list.findIndex((s) => s.name === name);
+  if (i >= 0) list[i] = { name, snap };
+  else list.push({ name, snap });
+  writeSaves(list);
+}
+
+export function removeSave(name: string) {
+  writeSaves(loadSaves().filter((s) => s.name !== name));
+}
+
+export function getSave(name: string): WorkspaceSnap | null {
+  return loadSaves().find((s) => s.name === name)?.snap ?? null;
+}
 
 /// Saved project bookmarks (label + path), like save slots: reopen later.
 export interface SavedProject {

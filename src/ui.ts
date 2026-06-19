@@ -172,6 +172,95 @@ export function openSettings(cur: SettingsValues): Promise<SettingsValues | null
   });
 }
 
+export interface SavesController {
+  list(): string[];
+  saveAs(name: string): void;
+  load(name: string): void;
+  remove(name: string): void;
+}
+
+/// Named save-slots dialog: save the current workspace under a name, or load /
+/// delete an existing slot. Stays open across save/delete; closes on load.
+export function openSavesDialog(c: SavesController) {
+  const back = document.createElement("div");
+  back.className = "modal-back";
+  const box = document.createElement("div");
+  box.className = "modal modal-wide";
+  box.innerHTML = `
+    <div class="modal-title">${t("saves.title")}</div>
+    <div class="set-row"><input class="modal-input" id="save-name" spellcheck="false"
+        placeholder="${t("saves.placeholder")}"><button class="primary" id="save-go">${t("saves.saveAs")}</button></div>
+    <div class="set-section">${t("saves.slots")}</div>
+    <div id="save-list"></div>
+    <div class="modal-row"><button id="save-close">${t("saves.close")}</button></div>`;
+  back.append(box);
+  document.body.append(back);
+
+  const nameInput = box.querySelector<HTMLInputElement>("#save-name")!;
+  const listEl = box.querySelector<HTMLElement>("#save-list")!;
+  const close = () => {
+    back.remove();
+    document.removeEventListener("keydown", onKey, true);
+  };
+  const onKey = (e: KeyboardEvent) => {
+    e.stopPropagation();
+    if (e.key === "Escape") close();
+  };
+  document.addEventListener("keydown", onKey, true);
+
+  const refresh = () => {
+    listEl.replaceChildren();
+    const names = c.list();
+    if (!names.length) {
+      const empty = document.createElement("div");
+      empty.className = "saves-empty";
+      empty.textContent = t("saves.empty");
+      listEl.appendChild(empty);
+      return;
+    }
+    for (const name of names) {
+      const row = document.createElement("div");
+      row.className = "saved-row";
+      const open = document.createElement("button");
+      open.className = "saved-open";
+      open.textContent = `💾 ${name}`;
+      open.addEventListener("click", () => {
+        c.load(name);
+        close();
+      });
+      const del = document.createElement("button");
+      del.className = "saved-act";
+      del.textContent = "×";
+      del.title = t("saves.remove");
+      del.addEventListener("click", () => {
+        c.remove(name);
+        refresh();
+      });
+      row.append(open, del);
+      listEl.appendChild(row);
+    }
+  };
+  refresh();
+
+  const doSave = () => {
+    const n = nameInput.value.trim();
+    if (!n) return;
+    c.saveAs(n);
+    nameInput.value = "";
+    refresh();
+  };
+  box.querySelector("#save-go")!.addEventListener("click", doSave);
+  nameInput.addEventListener("keydown", (e) => {
+    e.stopPropagation();
+    if (e.key === "Enter") doSave();
+  });
+  box.querySelector("#save-close")!.addEventListener("click", close);
+  back.addEventListener("click", (e) => {
+    if (e.target === back) close();
+  });
+  setTimeout(() => nameInput.focus(), 0);
+}
+
 export function toast(message: string, kind: "info" | "error" = "info") {
   const el = document.createElement("div");
   el.className = `toast toast-${kind}`;
