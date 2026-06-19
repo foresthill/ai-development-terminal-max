@@ -43,6 +43,9 @@ const ymd = () => {
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}`;
 };
 
+const fmtMem = (bytes: number): string =>
+  bytes >= 1e9 ? `${(bytes / 1e9).toFixed(1)}G` : `${Math.round(bytes / 1e6)}M`;
+
 // Default CLI agents selectable per window. Editable in Settings; persisted.
 export interface AgentPreset {
   label: string;
@@ -176,7 +179,7 @@ export class App {
         const s = stats[i];
         if (!s) return;
         x.agent.cpu = s.cpu;
-        x.agent.cpuEl.textContent = `⚡${Math.round(s.cpu)}%`;
+        x.agent.cpuEl.textContent = `⚡${Math.round(s.cpu)}% · ${fmtMem(s.mem)}`;
         // follow `cd` (display only) unless the user is editing the path field
         if (s.cwd && s.cwd !== x.agent.cwd && document.activeElement !== x.agent.pathEl) {
           x.agent.cwd = s.cwd;

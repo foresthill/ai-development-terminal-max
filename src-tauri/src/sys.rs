@@ -20,6 +20,7 @@ impl Default for SysState {
 #[derive(serde::Serialize)]
 pub struct AgentStat {
     cpu: f32,
+    mem: u64, // bytes, summed over the process subtree
     cwd: String,
 }
 
@@ -29,7 +30,10 @@ pub fn agent_stats(state: tauri::State<'_, SysState>, pids: Vec<u32>) -> Vec<Age
     sys.refresh_processes_specifics(
         ProcessesToUpdate::All,
         true,
-        ProcessRefreshKind::nothing().with_cpu().with_cwd(UpdateKind::Always),
+        ProcessRefreshKind::nothing()
+            .with_cpu()
+            .with_memory()
+            .with_cwd(UpdateKind::Always),
     );
 
     // parent -> children index for subtree CPU walks
@@ -43,10 +47,12 @@ pub fn agent_stats(state: tauri::State<'_, SysState>, pids: Vec<u32>) -> Vec<Age
     pids.iter()
         .map(|&root| {
             let mut cpu = 0.0f32;
+            let mut mem = 0u64;
             let mut stack = vec![root];
             while let Some(p) = stack.pop() {
                 if let Some(proc_) = sys.process(Pid::from_u32(p)) {
                     cpu += proc_.cpu_usage();
+                    mem += proc_.memory();
                 }
                 if let Some(kids) = children.get(&p) {
                     stack.extend(kids);
@@ -57,7 +63,7 @@ pub fn agent_stats(state: tauri::State<'_, SysState>, pids: Vec<u32>) -> Vec<Age
                 .and_then(|p| p.cwd())
                 .map(|p| p.to_string_lossy().to_string())
                 .unwrap_or_default();
-            AgentStat { cpu, cwd }
+            AgentStat { cpu, mem, cwd }
         })
         .collect()
 }
