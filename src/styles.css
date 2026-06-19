@@ -816,11 +816,45 @@ body {
   background: #0d1018;
 }
 .url-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   padding: 4px;
   border-bottom: 1px solid var(--border);
 }
-.url-bar input {
-  width: 100%;
+.url-btn {
+  flex: 0 0 auto;
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 2px 7px;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+.url-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.url-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.browser-title {
+  flex: 0 0 auto;
+  width: 84px;
+  background: #05070d;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--muted);
+  padding: 4px 6px;
+  font-size: 11px;
+  outline: none;
+}
+.browser-url {
+  flex: 1;
+  min-width: 0;
   background: #05070d;
   border: 1px solid var(--border);
   border-radius: 5px;
@@ -829,8 +863,10 @@ body {
   font-size: 12px;
   outline: none;
 }
-.url-bar input:focus {
+.browser-title:focus,
+.browser-url:focus {
   border-color: var(--accent);
+  color: var(--text);
 }
 .layer-browser iframe {
   flex: 1;
