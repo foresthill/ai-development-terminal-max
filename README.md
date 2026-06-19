@@ -29,6 +29,8 @@ PTY output streams Rust→TS over a per-session Tauri `Channel` (base64).
 - **Overview / Zoom** — all agents in a grid / focused agent fullscreen.
 - **Macro** — all projects spread on a golden-angle (phyllotaxis) spiral.
 
+**Switching projects:** the grid shows one project's agents at a time. The tabs in the top strip are your open projects — click one, or press `Alt+P` to cycle. With only one project open, `Alt+P` does nothing (nothing to switch to) — open another with **📁 folder** / **⎇ clone** first. Use **✦ macro** to see all projects at once.
+
 ## Develop
 
 ```bash
