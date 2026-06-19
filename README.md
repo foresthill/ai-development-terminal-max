@@ -65,7 +65,11 @@ Mouse: click a card to focus, double-click to zoom. Header dots switch layers. D
 - **⚙ settings** — agent command, default permission mode, and the deny-list (preset toggles + custom lines).
 - **✦ macro** — the golden-spiral project overview.
 
-The workspace (projects, agents, cwd, titles, layers, layout, perm, guard, settings) auto-saves to localStorage and restores on launch.
+## Persistence & resume
+
+- **Workspace auto-save/restore.** Projects, agents, their cwd (paths), titles, layers, layout, perm/guard/nest, agent presets all auto-save to localStorage and restore on launch — close and reopen the app and your paths/layout come back.
+- **Saved project bookmarks** (`aidt-projects`): every folder you open / repo you clone is saved as a bookmark (path + editable label, save-data style), reopenable from the empty state — ✎ rename, × remove.
+- **Conversation resume.** Agents launch `claude --continue`, so reopening (or respawning) a window **resumes that worktree's most recent conversation** (starts fresh if there is none). Close a window (× / `Alt+X`) and reopen later to pick up where you left off. Resume is per-directory; each worktree keeps its own thread. (Non-claude agents launch as-is.)
 
 ## Permissions & guardrails
 
