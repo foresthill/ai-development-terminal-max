@@ -541,7 +541,10 @@ export class App {
   // --- project lifecycle (open/clone/saved bookmarks → projects-controller) --
 
   private switchProject(delta: number) {
-    if (this.projects.length === 0) return;
+    if (this.projects.length <= 1) {
+      toast(t("toast.onlyOneProject"));
+      return;
+    }
     this.ap = (this.ap + delta + this.projects.length) % this.projects.length;
     this.focused = 0;
     this.view = "project";
