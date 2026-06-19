@@ -180,10 +180,13 @@ export class App {
 
   /// Apply claude-specific permission flags only when the command is claude.
   private buildCmd(cmd: string): string {
-    const base = cmd.trim() || "claude";
+    let base = cmd.trim() || "claude";
     if (base.startsWith("claude")) {
-      if (this.permMode === "auto") return `${base} --permission-mode auto`;
-      if (this.permMode === "bypass") return `${base} --dangerously-skip-permissions`;
+      // Resume this directory's most recent conversation (starts fresh if none).
+      // Each agent is its own worktree, so resume is naturally per-window.
+      base += " --continue";
+      if (this.permMode === "auto") base += " --permission-mode auto";
+      else if (this.permMode === "bypass") base += " --dangerously-skip-permissions";
     }
     return base;
   }
