@@ -43,6 +43,7 @@ export interface AgentSnap {
   cwd: string | null;
   branch?: string;
   agentCmd?: string;
+  running?: boolean; // was the agent command actually launched here?
   manualTitle: boolean;
   active: number;
   layers: LayerSnap[];
@@ -93,6 +94,7 @@ export function buildSnapshot(projects: Project[], s: Settings): WorkspaceSnap {
         cwd: a.cwd,
         branch: a.branch,
         agentCmd: a.agentCmd,
+        running: a.running,
         manualTitle: a.manualTitle,
         active: a.active,
         layers: a.layers
@@ -128,7 +130,7 @@ export function loadSnap(): WorkspaceSnap | null {
 /// close over App state: shell, agent wiring, layout observers).
 export interface RestoreBuilder {
   newAgent(project: Project, cwd: string | null): Agent;
-  primaryLayer(cwd: string | null, cmd: string): Layer;
+  primaryLayer(cwd: string | null, cmd: string, autoRun: boolean): Layer;
   shellLayer(cwd: string | null): Layer;
   createBrowserLayer(url: string): Layer;
   observeLayer(layer: Layer): void;
@@ -155,20 +157,21 @@ export function restoreProjects(
       agent.manualTitle = !!as.manualTitle;
       agent.branch = as.branch ?? "";
       agent.agentCmd = as.agentCmd || defaultAgentCmd;
+      agent.running = !!as.running; // only resume agents that were actually running
       b.fillAgentSelect(agent);
       b.refreshBranch(agent);
       for (let li = 0; li < (as.layers ?? []).length; li++) {
         const ls = as.layers[li];
         let layer: Layer;
         if (ls.kind === "browser") layer = b.createBrowserLayer(ls.url || "http://localhost:3000");
-        else if (li === 0) layer = b.primaryLayer(as.cwd ?? null, agent.agentCmd);
+        else if (li === 0) layer = b.primaryLayer(as.cwd ?? null, agent.agentCmd, agent.running);
         else layer = b.shellLayer(as.cwd ?? null);
         agent.layers.push(layer);
         agent.stackEl.appendChild(layer.el);
         if (layer.kind === "terminal") b.observeLayer(layer);
       }
       if (agent.layers.length === 0) {
-        const l = b.primaryLayer(as.cwd ?? null, agent.agentCmd);
+        const l = b.primaryLayer(as.cwd ?? null, agent.agentCmd, agent.running);
         agent.layers.push(l);
         agent.stackEl.appendChild(l.el);
         b.observeLayer(l);

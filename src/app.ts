@@ -231,7 +231,10 @@ export class App {
       front?.kind === "terminal" && front.pty
         ? front
         : agent.layers.find((l) => l.kind === "terminal" && l.pty);
-    layer?.pty?.write(this.buildCmd(agent.agentCmd) + "\r");
+    if (!layer?.pty) return;
+    layer.pty.write(this.buildCmd(agent.agentCmd) + "\r");
+    agent.running = true; // remember so a restore resumes this one
+    this.persist();
   }
   private shellLayer(cwd: string | null): Layer {
     return createTerminalLayer({ title: "shell", shell: this.shell, args: ["-l"], cwd });
@@ -267,6 +270,7 @@ export class App {
   /// Switch the agent's CLI and respawn its primary layer in place.
   private setAgentCommand(agent: Agent, cmd: string) {
     agent.agentCmd = cmd;
+    agent.running = true;
     this.fillAgentSelect(agent);
     const old = agent.layers[0];
     const fresh = this.primaryLayer(agent.cwd, cmd);
@@ -350,6 +354,7 @@ export class App {
     if (this.guardrails || this.subagentNest) await this.applyAidtSettings(cwd);
     // Auto-run the agent only for a single focused add; bulk (fill, focus=false)
     // comes up as a shell to avoid launching many heavy claudes at once (▶ to run).
+    agent.running = focus;
     const layer = this.primaryLayer(cwd, agent.agentCmd, focus);
     agent.layers.push(layer);
     this.observeLayer(layer);
@@ -456,6 +461,7 @@ export class App {
   private async setAgentCwd(agent: Agent, path: string) {
     agent.cwd = path;
     agent.pathEl.value = path;
+    agent.running = true; // respawns and runs the agent in the new dir
     if (!agent.manualTitle) agent.title = basename(path);
     if (this.guardrails || this.subagentNest) await this.applyAidtSettings(path);
     const old = agent.layers[0];
@@ -745,7 +751,7 @@ export class App {
 
     this.ap = restoreProjects(snap, this.projects, this.agentCmd, {
       newAgent: (p, cwd) => this.newAgent(p, cwd),
-      primaryLayer: (cwd, cmd) => this.primaryLayer(cwd, cmd, false), // restore = shells; ▶ to run
+      primaryLayer: (cwd, cmd, autoRun) => this.primaryLayer(cwd, cmd, autoRun), // resume only if was running
       shellLayer: (cwd) => this.shellLayer(cwd),
       createBrowserLayer,
       observeLayer: (l) => this.observeLayer(l),

@@ -35,6 +35,7 @@ export interface Agent {
   branch: string; // git branch of cwd (worktree/repo), shown as a badge
   cpu: number; // last sampled CPU% of the agent's process subtree
   agentCmd: string; // the CLI agent this window runs (e.g. "claude", "aider")
+  running: boolean; // true once the agent command was launched here (for resume)
   manualTitle: boolean; // true once the user renames; stops dir-derived titles
   layers: Layer[];
   active: number; // index of front layer
@@ -385,6 +386,7 @@ export function createAgent(index: number): Agent {
     branch: "",
     cpu: 0,
     agentCmd: "claude",
+    running: false,
     manualTitle: false,
     layers: [],
     active: 0,
