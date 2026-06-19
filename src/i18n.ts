@@ -6,6 +6,7 @@ export type Lang = "en" | "ja";
 const en: Record<string, string> = {
   "btn.add": "＋ agent",
   "btn.fill": "⊞ fill 9",
+  "btn.runAll": "▶ all",
   "btn.zoom": "⤢ zoom",
   "btn.macro": "✦ macro",
   "btn.send": "↗ send",
@@ -43,6 +44,8 @@ const en: Record<string, string> = {
   "hint": "Alt+T new · Alt+←/→ focus · Alt+↑/↓ depth · Alt+Z zoom · Alt+N term · Alt+B browser · Alt+P project · Alt+M macro",
   "tip.add": "Alt+T",
   "tip.fill": "fill to 9 (3×3)",
+  "tip.runAll": "launch all windows (each runs its selected agent)",
+  "toast.launchedAll": "launched {0}",
   "tip.zoom": "Alt+Z",
   "tip.layout": "grid: balanced (square) ⇄ width-fit",
   "tip.macro": "Alt+M — overview all projects on a spiral",
@@ -102,6 +105,7 @@ const en: Record<string, string> = {
 const ja: Record<string, string> = {
   "btn.add": "＋ エージェント",
   "btn.fill": "⊞ 9体",
+  "btn.runAll": "▶ 全起動",
   "btn.zoom": "⤢ 拡大",
   "btn.macro": "✦ 俯瞰",
   "btn.send": "↗ 送信",
@@ -139,6 +143,8 @@ const ja: Record<string, string> = {
   "hint": "Alt+T 追加 · Alt+←/→ 移動 · Alt+↑/↓ 奥行き · Alt+Z 拡大 · Alt+N 端末 · Alt+B ブラウザ · Alt+P プロジェクト · Alt+M 俯瞰",
   "tip.add": "Alt+T",
   "tip.fill": "9体（3×3）にする",
+  "tip.runAll": "全ウィンドウを起動（各自の選択エージェントで）",
+  "toast.launchedAll": "{0}体を起動",
   "tip.zoom": "Alt+Z",
   "tip.layout": "グリッド: 個数固定(正方) ⇄ 横幅fit",
   "tip.macro": "Alt+M 全プロジェクトを螺旋で俯瞰",
