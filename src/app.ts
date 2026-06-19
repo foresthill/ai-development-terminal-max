@@ -117,6 +117,7 @@ export class App {
 
     root.querySelector("#btn-add")!.addEventListener("click", () => this.addAgentToActive());
     root.querySelector("#btn-fill")!.addEventListener("click", () => this.fill());
+    root.querySelector("#btn-run-all")!.addEventListener("click", () => this.launchAll());
     root.querySelector("#btn-zoom")!.addEventListener("click", () => this.toggleZoom());
     root.querySelector("#btn-macro")!.addEventListener("click", () => this.toggleMacro());
     root.querySelector("#btn-send")!.addEventListener("click", () => this.toggleSendBar());
@@ -244,6 +245,19 @@ export class App {
     layer.pty.write(this.buildCmd(agent.agentCmd) + "\r");
     agent.running = true; // remember so a restore resumes this one
     this.persist();
+  }
+
+  /// Launch every not-yet-running window in the active project, each with its
+  /// own selected agent (claude/codex/gemini/…). For machine-power users.
+  private launchAll() {
+    let n = 0;
+    for (const a of this.agents) {
+      if (!a.running) {
+        this.launchAgent(a);
+        n++;
+      }
+    }
+    toast(t("toast.launchedAll", n));
   }
   private shellLayer(cwd: string | null): Layer {
     return createTerminalLayer({ title: "shell", shell: this.shell, args: ["-l"], cwd });
