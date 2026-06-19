@@ -209,7 +209,7 @@ export class App {
     const base = cmd.trim().split(/\s+/)[0] || "agent";
     return base.split("/").pop() || base;
   }
-  private primaryLayer(cwd: string | null, cmd: string): Layer {
+  private primaryLayer(cwd: string | null, cmd: string, autoRun = true): Layer {
     // Interactive login shell (sources .zshrc → correct PATH), then type the
     // agent command — robust against "command not found" and leaves you at a
     // working shell when the agent exits.
@@ -218,8 +218,20 @@ export class App {
       shell: this.shell,
       args: ["-l"],
       cwd,
-      autoRun: this.buildCmd(cmd),
+      autoRun: autoRun ? this.buildCmd(cmd) : undefined,
     });
+  }
+
+  /// Launch the agent's command in its front terminal on demand (▶). Used for
+  /// restored / filled windows that come up as plain shells (avoids a startup
+  /// stampede of many heavy claude processes).
+  private launchAgent(agent: Agent) {
+    const front = agent.layers[agent.active];
+    const layer =
+      front?.kind === "terminal" && front.pty
+        ? front
+        : agent.layers.find((l) => l.kind === "terminal" && l.pty);
+    layer?.pty?.write(this.buildCmd(agent.agentCmd) + "\r");
   }
   private shellLayer(cwd: string | null): Layer {
     return createTerminalLayer({ title: "shell", shell: this.shell, args: ["-l"], cwd });
@@ -290,6 +302,11 @@ export class App {
       e.stopPropagation();
       startTitleEdit(agent, () => this.render());
     });
+    agent.runEl.addEventListener("mousedown", (e) => e.stopPropagation());
+    agent.runEl.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.launchAgent(agent);
+    });
     agent.closeEl.addEventListener("mousedown", (e) => e.stopPropagation());
     agent.closeEl.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -331,7 +348,9 @@ export class App {
     const agent = this.newAgent(project, cwd);
     agent.title = cwd && cwd !== this.home ? basename(cwd) : `agent ${this.agentSeq - 1}`;
     if (this.guardrails || this.subagentNest) await this.applyAidtSettings(cwd);
-    const layer = this.primaryLayer(cwd, agent.agentCmd);
+    // Auto-run the agent only for a single focused add; bulk (fill, focus=false)
+    // comes up as a shell to avoid launching many heavy claudes at once (▶ to run).
+    const layer = this.primaryLayer(cwd, agent.agentCmd, focus);
     agent.layers.push(layer);
     this.observeLayer(layer);
     if (focus) {
@@ -726,7 +745,7 @@ export class App {
 
     this.ap = restoreProjects(snap, this.projects, this.agentCmd, {
       newAgent: (p, cwd) => this.newAgent(p, cwd),
-      primaryLayer: (cwd, cmd) => this.primaryLayer(cwd, cmd),
+      primaryLayer: (cwd, cmd) => this.primaryLayer(cwd, cmd, false), // restore = shells; ▶ to run
       shellLayer: (cwd) => this.shellLayer(cwd),
       createBrowserLayer,
       observeLayer: (l) => this.observeLayer(l),

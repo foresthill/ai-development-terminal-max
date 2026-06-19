@@ -597,6 +597,21 @@ body {
   color: var(--accent);
   border-color: var(--accent);
 }
+.agent-run {
+  flex: 0 0 auto;
+  background: transparent;
+  color: #9ece6a;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 9px;
+  line-height: 1;
+  padding: 2px 5px;
+  cursor: pointer;
+}
+.agent-run:hover {
+  border-color: #9ece6a;
+  background: rgba(158, 206, 106, 0.12);
+}
 .agent-close {
   flex: 0 0 auto;
   background: transparent;
