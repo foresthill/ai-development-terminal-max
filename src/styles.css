@@ -326,6 +326,11 @@ body {
 .modal-wide {
   width: min(560px, 92vw);
 }
+.saves-empty {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 6px 2px;
+}
 .set-row {
   display: flex;
   align-items: center;

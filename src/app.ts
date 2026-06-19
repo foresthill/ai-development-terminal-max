@@ -18,7 +18,7 @@ import { handleSubagentEvent, clearSubagentLayers } from "./subagent";
 import { defaultShell, homeDir, agentStats } from "./pty";
 import { createWorktree, writeAidtSettings, currentBranch } from "./git";
 import { listen } from "@tauri-apps/api/event";
-import { askText, toast, pickDirectory, openSettings } from "./ui";
+import { askText, toast, pickDirectory, openSettings, openSavesDialog } from "./ui";
 import { GUARD_PRESETS, effectiveDeny } from "./guard";
 import { t, getLang, setLang } from "./i18n";
 import { renderAll, RenderCtx, Mode, View, PermMode } from "./render";
@@ -29,6 +29,11 @@ import {
   loadProjects,
   restoreProjects,
   SavedProject,
+  WorkspaceSnap,
+  loadSaves,
+  upsertSave,
+  removeSave,
+  getSave,
 } from "./persistence";
 import { ProjectsController } from "./projects-controller";
 
@@ -125,6 +130,7 @@ export class App {
     root.querySelector("#btn-clone")!.addEventListener("click", () => this.projectsCtrl.cloneProject());
     root.querySelector("#btn-guard")!.addEventListener("click", () => this.toggleGuardrails());
     root.querySelector("#btn-nest")!.addEventListener("click", () => this.toggleSubagentNest());
+    root.querySelector("#btn-saves")!.addEventListener("click", () => this.openSaves());
     root.querySelector("#btn-settings")!.addEventListener("click", () => this.openSettingsDialog());
     this.btnLayout.addEventListener("click", () => {
       this.layout = this.layout === "square" ? "fit" : "square";
@@ -716,28 +722,27 @@ export class App {
   }
 
   private saveTimer: number | undefined;
-  private persist() {
-    clearTimeout(this.saveTimer);
-    this.saveTimer = window.setTimeout(() => {
-      saveSnap(
-        buildSnapshot(this.projects, {
-          layout: this.layout,
-          permMode: this.permMode,
-          guardrails: this.guardrails,
-          subagentNest: this.subagentNest,
-          ap: this.ap,
-          agentCmd: this.agentCmd,
-          presets: [...this.presets],
-          customDeny: this.customDeny,
-          agentPresets: this.agentPresets,
-        })
-      );
-    }, 400);
+  private snapshot(): WorkspaceSnap {
+    return buildSnapshot(this.projects, {
+      layout: this.layout,
+      permMode: this.permMode,
+      guardrails: this.guardrails,
+      subagentNest: this.subagentNest,
+      ap: this.ap,
+      agentCmd: this.agentCmd,
+      presets: [...this.presets],
+      customDeny: this.customDeny,
+      agentPresets: this.agentPresets,
+    });
   }
 
-  private restore(): boolean {
-    const snap = loadSnap();
-    if (!snap?.projects?.length) return false;
+  private persist() {
+    clearTimeout(this.saveTimer);
+    this.saveTimer = window.setTimeout(() => saveSnap(this.snapshot()), 400);
+  }
+
+  /// Apply a snapshot's settings + rebuild its projects into this app.
+  private applySnapshot(snap: WorkspaceSnap) {
     this.layout = snap.layout === "fit" ? "fit" : "square";
     this.permMode = (["auto", "normal", "bypass"] as PermMode[]).includes(snap.permMode)
       ? snap.permMode
@@ -758,7 +763,40 @@ export class App {
       fillAgentSelect: (a) => this.fillAgentSelect(a),
       refreshBranch: (a) => void this.refreshBranch(a),
     });
+  }
+
+  private restore(): boolean {
+    const snap = loadSnap();
+    if (!snap?.projects?.length) return false;
+    this.applySnapshot(snap);
     return true;
+  }
+
+  // --- named save slots (game-save style) ----------------------------------
+
+  private openSaves() {
+    openSavesDialog({
+      list: () => loadSaves().map((s) => s.name),
+      saveAs: (name) => {
+        upsertSave(name, this.snapshot());
+        toast(t("toast.saved", name));
+      },
+      load: (name) => this.loadSlot(name),
+      remove: (name) => removeSave(name),
+    });
+  }
+
+  private loadSlot(name: string) {
+    const snap = getSave(name);
+    if (!snap) return;
+    for (const p of this.projects) for (const a of p.agents) a.layers.forEach(disposeLayer);
+    this.projects.length = 0;
+    this.grid.replaceChildren();
+    this.focused = 0;
+    this.view = "project";
+    this.applySnapshot(snap);
+    this.render();
+    toast(t("toast.loaded", name));
   }
 
   private fitPending = false;
