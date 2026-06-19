@@ -77,6 +77,9 @@ export class App {
   private btnGuard: HTMLElement;
   private btnNest: HTMLElement;
   private permSelect: HTMLSelectElement;
+  private sendBar: HTMLElement;
+  private sendInput: HTMLInputElement;
+  private sendTarget: HTMLSelectElement;
   private resizeObs: ResizeObserver;
 
   constructor(root: HTMLElement) {
@@ -94,6 +97,16 @@ export class App {
     root.querySelector("#btn-fill")!.addEventListener("click", () => this.fill());
     root.querySelector("#btn-zoom")!.addEventListener("click", () => this.toggleZoom());
     root.querySelector("#btn-macro")!.addEventListener("click", () => this.toggleMacro());
+    root.querySelector("#btn-send")!.addEventListener("click", () => this.toggleSendBar());
+    this.sendBar = root.querySelector("#sendbar")!;
+    this.sendInput = root.querySelector("#send-input")!;
+    this.sendTarget = root.querySelector("#send-target")!;
+    root.querySelector("#send-go")!.addEventListener("click", () => this.doSend());
+    this.sendInput.addEventListener("keydown", (e) => {
+      e.stopPropagation();
+      if (e.key === "Enter") this.doSend();
+      else if (e.key === "Escape") this.toggleSendBar(false);
+    });
     root.querySelector("#btn-open")!.addEventListener("click", () => this.openFolderProject());
     root.querySelector("#btn-clone")!.addEventListener("click", () => this.cloneProject());
     root.querySelector("#btn-guard")!.addEventListener("click", () => this.toggleGuardrails());
@@ -180,11 +193,15 @@ export class App {
     return base.split("/").pop() || base;
   }
   private primaryLayer(cwd: string | null, cmd: string): Layer {
+    // Interactive login shell (sources .zshrc → correct PATH), then type the
+    // agent command — robust against "command not found" and leaves you at a
+    // working shell when the agent exits.
     return createTerminalLayer({
       title: this.agentLabel(cmd),
       shell: this.shell,
-      args: ["-l", "-c", `${this.buildCmd(cmd)}; exec ${this.shell} -l`],
+      args: ["-l"],
       cwd,
+      autoRun: this.buildCmd(cmd),
     });
   }
   private shellLayer(cwd: string | null): Layer {
@@ -592,6 +609,46 @@ export class App {
     this.render();
   }
 
+  // --- cross-agent send (manual, tmux send-keys style) ----------------------
+
+  private toggleSendBar(force?: boolean) {
+    const show = force ?? this.sendBar.classList.contains("hidden");
+    this.sendBar.classList.toggle("hidden", !show);
+    if (show) setTimeout(() => this.sendInput.focus(), 0);
+  }
+
+  /// Inject a line into the terminal(s) of the chosen target (this / project /
+  /// all). Manual only — autonomous agent-to-agent messaging is intentionally
+  /// not built (loop/safety risk; use Claude Code's built-in subagents instead).
+  private doSend() {
+    const text = this.sendInput.value;
+    if (!text.trim()) return;
+    const target = this.sendTarget.value;
+    const targets: Agent[] = [];
+    if (target === "this") {
+      const a = this.agents[this.focused];
+      if (a) targets.push(a);
+    } else if (target === "project") {
+      targets.push(...this.agents);
+    } else {
+      for (const p of this.projects) targets.push(...p.agents);
+    }
+    let n = 0;
+    for (const a of targets) {
+      const active = a.layers[a.active];
+      const layer =
+        active?.kind === "terminal" && active.pty
+          ? active
+          : a.layers.find((l) => l.kind === "terminal" && l.pty);
+      if (layer?.pty) {
+        layer.pty.write(text + "\r");
+        n++;
+      }
+    }
+    this.sendInput.value = "";
+    toast(t("toast.sent", n));
+  }
+
   // --- keyboard (leader = Alt/Option) --------------------------------------
 
   private onKey(e: KeyboardEvent) {
@@ -613,6 +670,7 @@ export class App {
       KeyX: () => this.closeAgentObj(this.agents[this.focused]),
       KeyP: () => this.switchProject(1),
       KeyM: () => this.toggleMacro(),
+      Enter: () => this.toggleSendBar(),
     };
     let fn = handlers[e.code];
     if (!fn && /^Digit[1-9]$/.test(e.code)) {

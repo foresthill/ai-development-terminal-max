@@ -24,6 +24,7 @@
           <button id="btn-zoom" data-i18n="btn.zoom" data-i18n-title="tip.zoom">⤢ zoom</button>
           <button id="btn-layout" data-i18n-title="tip.layout">▦ 3×3</button>
           <button id="btn-macro" data-i18n="btn.macro" data-i18n-title="tip.macro">✦ macro</button>
+          <button id="btn-send" data-i18n="btn.send" data-i18n-title="tip.send">↗ send</button>
           <label class="perm">
             <span data-i18n="lbl.perm">perm</span>
             <select id="perm-mode" data-i18n-title="tip.perm">
@@ -46,6 +47,15 @@
       </header>
       <main id="grid" class="mode-overview"></main>
       <section id="macro" class="hidden"></section>
+      <div id="sendbar" class="sendbar hidden">
+        <select id="send-target">
+          <option value="this" data-i18n="send.this">this agent</option>
+          <option value="project" data-i18n="send.project">project</option>
+          <option value="all" data-i18n="send.all">all agents</option>
+        </select>
+        <input id="send-input" data-i18n-ph="send.placeholder" spellcheck="false" />
+        <button id="send-go" data-i18n="send.go">send</button>
+      </div>
     </div>
   </body>
 </html>

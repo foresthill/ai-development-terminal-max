@@ -27,14 +27,27 @@ arranges all projects on a golden-angle (phyllotaxis) spiral.
 
 ## File-size rule override
 
-The global rule caps files at 500 lines. **`src/app.ts` may run up to ~800
-lines.** It is the single orchestrator; rendering, persistence I/O, guard policy,
-the domain models, and all UI have already been extracted. The remaining code is
-cohesive lifecycle/state/keyboard/settings wiring whose pieces share too much
-state to split further without callback indirection that hurts readability.
-**Before adding the next feature to app.ts, extract a module** — the
-project/saved-project lifecycle (open/clone/saved bookmarks) or the persistence
-`restore()` rebuild are the best candidates to pull out next.
+The global rule caps files at 500 lines. **`src/app.ts` is ~840 lines and over
+budget — a refactor is queued** to extract the project/saved-project lifecycle
+(open/clone/saved bookmarks) and the persistence `restore()` rebuild into their
+own modules, targeting ≤~650 afterward. Until then, rendering, persistence I/O,
+guard policy, the domain models, and all UI are already extracted; the remainder
+is cohesive lifecycle/state/keyboard/settings wiring. **Do not add new features
+to app.ts before that refactor lands** — put new concerns in their own module.
+
+## Design philosophy: cross-agent messaging
+
+- **Manual cross-agent send is supported & recommended.** A human can inject a
+  line into another agent's terminal (this / project / all) via the send bar
+  (`Alt+Enter`) — the tmux `send-keys` / `synchronize-panes` analog. Low risk
+  because a person drives it.
+- **Autonomous agent-to-agent command injection is intentionally NOT built.**
+  Agents prompting each other across separate claude sessions invites loops,
+  token burn, and safety hazards, and loses parent/child context & cancellation.
+- **For agent-directed sub-work, the right mechanism is Claude Code's built-in
+  subagents (the Task tool)** — shared context, proper control — which this app
+  *visualizes* via the 🪆 nest feature. Don't reimplement orchestration by
+  injecting commands into other windows.
 
 ## Conventions
 

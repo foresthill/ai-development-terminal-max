@@ -23,6 +23,7 @@ export interface Layer {
   shell?: string;
   args?: string[];
   cwd?: string | null;
+  autoRun?: string; // typed into the interactive shell once spawned (e.g. "claude")
   iframe?: HTMLIFrameElement;
   subId?: string; // subagent correlation id (agent_id from the hook payload)
 }
@@ -71,6 +72,7 @@ export function createTerminalLayer(opts: {
   shell: string;
   args?: string[];
   cwd?: string | null;
+  autoRun?: string;
 }): Layer {
   const el = document.createElement("div");
   el.className = "layer layer-terminal";
@@ -106,6 +108,7 @@ export function createTerminalLayer(opts: {
     shell: opts.shell,
     args: opts.args,
     cwd: opts.cwd ?? null,
+    autoRun: opts.autoRun,
   };
 
   term.onData((data) => layer.pty?.write(data));
@@ -188,6 +191,12 @@ export async function startLayer(layer: Layer, cols: number, rows: number) {
     rows,
     onData: (bytes) => layer.term!.write(bytes),
   });
+  // Type the agent command into the freshly-started interactive shell so it runs
+  // with the user's real PATH (.zshrc is sourced — fixes "command not found").
+  if (layer.autoRun) {
+    const cmd = layer.autoRun;
+    setTimeout(() => layer.pty?.write(cmd + "\r"), 350);
+  }
 }
 
 export function fitLayer(layer: Layer) {
