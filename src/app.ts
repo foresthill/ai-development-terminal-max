@@ -163,6 +163,20 @@ export class App {
     listen<Record<string, unknown>>("subagent", (e) => {
       if (this.subagentNest) handleSubagentEvent(e.payload, this.projects, () => this.render());
     });
+    // A terminal layer whose process exited (e.g. `exit`) auto-closes; the last
+    // layer closing closes the window (tmux-style).
+    listen<string>("pty-exit", (e) => this.onPtyExit(e.payload));
+  }
+
+  private onPtyExit(id: string) {
+    for (const p of this.projects)
+      for (const a of p.agents) {
+        const li = a.layers.findIndex((l) => l.pty?.id === id);
+        if (li < 0) continue;
+        if (a.layers.length > 1) this.closeLayerAt(a, li);
+        else this.closeAgentObj(a);
+        return;
+      }
   }
 
   /// Sample each agent's CPU% (process subtree) and live cwd; update badge and,

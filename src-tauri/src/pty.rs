@@ -11,6 +11,7 @@ use std::sync::Mutex;
 use base64::Engine;
 use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
 use tauri::ipc::Channel;
+use tauri::Emitter;
 
 /// A single live pseudo-terminal: its master (for resize), an input writer, and
 /// the child process handle (for kill). The reader runs on a detached thread.
@@ -28,6 +29,7 @@ pub struct PtyRegistry(Mutex<HashMap<String, PtySession>>);
 /// base64-encoded and pushed through `on_output` as they arrive.
 #[tauri::command]
 pub fn spawn_pty(
+    app: tauri::AppHandle,
     registry: tauri::State<'_, PtyRegistry>,
     id: String,
     shell: String,
@@ -72,8 +74,10 @@ pub fn spawn_pty(
         .take_writer()
         .map_err(|e| format!("take writer failed: {e}"))?;
 
-    // Detached reader thread: pump master output into the channel until EOF.
+    // Detached reader thread: pump master output into the channel until EOF, then
+    // notify the frontend so it can auto-close the layer when the process exits.
     let channel = on_output.clone();
+    let exit_id = id.clone();
     std::thread::spawn(move || {
         let mut buf = [0u8; 8192];
         loop {
@@ -87,6 +91,7 @@ pub fn spawn_pty(
                 }
             }
         }
+        let _ = app.emit("pty-exit", exit_id);
     });
 
     registry.0.lock().unwrap().insert(
