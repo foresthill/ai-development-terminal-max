@@ -171,7 +171,14 @@ export class App {
     const items: { agent: Agent; pid: number }[] = [];
     for (const p of this.projects)
       for (const a of p.agents) {
-        const pid = a.layers[0]?.pty?.pid;
+        // Use a started terminal layer (prefer the active one) — the primary may
+        // be unstarted if the user switched to a shell layer.
+        const active = a.layers[a.active];
+        const term =
+          active?.kind === "terminal" && active.pty
+            ? active
+            : a.layers.find((l) => l.kind === "terminal" && l.pty);
+        const pid = term?.pty?.pid;
         if (pid) items.push({ agent: a, pid });
       }
     if (!items.length) return;
