@@ -346,9 +346,8 @@ export function createAgent(index: number): Agent {
   closeEl.textContent = "×";
   closeEl.title = t("tip.closeAgent");
 
+  // Title row: keep it for the (readable) title + controls only.
   titleRow.appendChild(titleEl);
-  titleRow.appendChild(branchEl);
-  titleRow.appendChild(cpuEl);
   titleRow.appendChild(agentSel);
   titleRow.appendChild(runEl);
   titleRow.appendChild(closeEl);
@@ -363,7 +362,8 @@ export function createAgent(index: number): Agent {
   pathEl.className = "agent-path";
   pathEl.placeholder = t("agent.pathPlaceholder");
   pathEl.spellcheck = false;
-  pathRow.append(pickEl, pathEl);
+  // Path row carries the cwd plus the branch + CPU/RAM status badges.
+  pathRow.append(pickEl, pathEl, branchEl, cpuEl);
 
   // Z-axis layer tabs, sitting directly above the terminal.
   const tabsEl = document.createElement("div");
