@@ -95,7 +95,8 @@ export function renderAll(c: RenderCtx) {
     agent.cardEl.classList.toggle("focused", ai === c.focused);
     agent.cardEl.classList.toggle("zoomed", c.mode === "zoom" && ai === c.focused);
     agent.cardEl.classList.toggle("hidden", c.mode === "zoom" && ai !== c.focused);
-    if (agent.titleEl.contentEditable !== "true") agent.titleEl.textContent = agent.title;
+    if (agent.titleEl.contentEditable !== "true" && agent.titleEl.textContent !== agent.title)
+      agent.titleEl.textContent = agent.title; // only when changed (don't disrupt dblclick)
     agent.branchEl.textContent = agent.branch ? `⎇ ${agent.branch}` : "";
     agent.branchEl.style.display = agent.branch ? "" : "none";
 

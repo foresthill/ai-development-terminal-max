@@ -602,7 +602,7 @@ export class App {
   // --- navigation -----------------------------------------------------------
 
   private focus(i: number) {
-    if (i < 0 || i >= this.agents.length) return;
+    if (i < 0 || i >= this.agents.length || i === this.focused) return; // no re-render churn
     this.focused = i;
     this.render();
   }
