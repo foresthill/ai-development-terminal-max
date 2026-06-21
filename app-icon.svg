@@ -1,0 +1,25 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="512" y1="40" x2="512" y2="984" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#141d3e"/>
+      <stop offset="1" stop-color="#070a14"/>
+    </linearGradient>
+  </defs>
+
+  <!-- app tile -->
+  <rect x="40" y="40" width="944" height="944" rx="224" fill="url(#bg)"/>
+  <rect x="44" y="44" width="936" height="936" rx="220" fill="none" stroke="#2c3c72" stroke-width="8"/>
+
+  <!-- depth: stacked windows offset up-right (the multiplex / Z-axis idea) -->
+  <rect x="368" y="232" width="392" height="250" rx="32" fill="none" stroke="#3a4d86" stroke-width="7" opacity="0.55"/>
+  <rect x="312" y="300" width="430" height="270" rx="34" fill="none" stroke="#5067ad" stroke-width="7" opacity="0.85"/>
+
+  <!-- front terminal window -->
+  <rect x="232" y="384" width="560" height="344" rx="40" fill="#0a0f20" stroke="#7aa2f7" stroke-width="9"/>
+
+  <!-- prompt: >_ -->
+  <g stroke="#7aa2f7" stroke-width="48" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <polyline points="332,470 438,556 332,642"/>
+    <line x1="486" y1="648" x2="624" y2="648"/>
+  </g>
+</svg>
