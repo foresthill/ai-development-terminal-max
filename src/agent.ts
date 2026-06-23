@@ -5,6 +5,7 @@
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
+import { WebLinksAddon } from "@xterm/addon-web-links";
 import { spawnPty, PtyHandle } from "./pty";
 import { t } from "./i18n";
 
@@ -24,6 +25,7 @@ export interface Layer {
   args?: string[];
   cwd?: string | null;
   autoRun?: string; // typed into the interactive shell once spawned (e.g. "claude")
+  lastOutput?: number; // performance.now() of the last PTY output (for idle status)
   iframe?: HTMLIFrameElement;
   subId?: string; // subagent correlation id (agent_id from the hook payload)
 }
@@ -75,6 +77,9 @@ export function createTerminalLayer(opts: {
   args?: string[];
   cwd?: string | null;
   autoRun?: string;
+  // Invoked when a URL in the terminal is ⌘/Ctrl-clicked. The host decides where
+  // to open it (in-app browser layer by default).
+  onOpenUrl?: (url: string) => void;
 }): Layer {
   const el = document.createElement("div");
   el.className = "layer layer-terminal";
@@ -98,6 +103,34 @@ export function createTerminalLayer(opts: {
   } catch {
     // WebGL unavailable (rare) — xterm falls back to canvas automatically.
   }
+
+  // Clickable URLs. Plain click does nothing (so it never steals a text
+  // selection / cursor placement) — only ⌘-click (or Ctrl-click) opens, matching
+  // the macOS terminal convention. The host routes the URL (in-app browser).
+  term.loadAddon(
+    new WebLinksAddon((event, uri) => {
+      if (event.metaKey || event.ctrlKey) opts.onOpenUrl?.(uri);
+    }),
+  );
+
+  // Native copy/paste over the PTY: ⌘C copies the current selection to the
+  // clipboard (falling through to xterm only when there's nothing selected, so
+  // Ctrl-C's SIGINT path is untouched); ⌘V pastes. Returning false stops xterm
+  // from also forwarding the keystroke to the shell.
+  term.attachCustomKeyEventHandler((e) => {
+    if (e.type !== "keydown" || !e.metaKey) return true;
+    if (e.key === "c" && term.hasSelection()) {
+      void navigator.clipboard.writeText(term.getSelection());
+      return false;
+    }
+    if (e.key === "v") {
+      void navigator.clipboard.readText().then((text) => {
+        if (text) layer.pty?.write(text);
+      });
+      return false;
+    }
+    return true;
+  });
 
   const layer: Layer = {
     id: uid("term"),
@@ -253,7 +286,10 @@ export async function startLayer(layer: Layer, cols: number, rows: number) {
     cwd: layer.cwd ?? null,
     cols,
     rows,
-    onData: (bytes) => layer.term!.write(bytes),
+    onData: (bytes) => {
+      layer.lastOutput = performance.now();
+      layer.term!.write(bytes);
+    },
   });
   // Type the agent command into the freshly-started interactive shell so it runs
   // with the user's real PATH (.zshrc is sourced — fixes "command not found").
