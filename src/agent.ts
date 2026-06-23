@@ -2,7 +2,7 @@
 // agent owns a Z-axis stack of Layers — a terminal, a browser, an extra
 // terminal — only one of which is "front" at a time. This is the depth that a
 // flat tmux/zellij layout can't express.
-import { Terminal } from "@xterm/xterm";
+import { Terminal, ILink } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { WebLinksAddon } from "@xterm/addon-web-links";
@@ -80,6 +80,10 @@ export function createTerminalLayer(opts: {
   // Invoked when a URL in the terminal is ⌘/Ctrl-clicked. The host decides where
   // to open it (in-app browser layer by default).
   onOpenUrl?: (url: string) => void;
+  // Invoked when a file path in the terminal is ⌘/Ctrl-clicked. `raw` is the
+  // matched token (may be relative or carry a :line suffix); `cwd` is the
+  // terminal's working dir so the host can resolve relative paths.
+  onOpenPath?: (raw: string, cwd: string | null) => void;
 }): Layer {
   const el = document.createElement("div");
   el.className = "layer layer-terminal";
@@ -130,6 +134,36 @@ export function createTerminalLayer(opts: {
       return false;
     }
     return true;
+  });
+
+  // Clickable file paths (web-links only handles http/https). Matches tokens
+  // with at least one slash and a file extension — `docs/x/foo.md`, `./src/a.ts`,
+  // `/abs/p.rs`, `~/n.md`, optionally with a `:line[:col]` suffix. ⌘/Ctrl-click
+  // resolves it against the terminal's cwd and the host opens it (OS default app).
+  const PATH_RE = /(?:~\/|\.{1,2}\/|\/)?[\w.\-@+]+(?:\/[\w.\-@+]+)+\.\w{1,8}(?::\d+(?:[:.]\d+)?)?/g;
+  term.registerLinkProvider({
+    provideLinks(y, callback) {
+      const line = term.buffer.active.getLine(y - 1);
+      if (!line) return callback(undefined);
+      const text = line.translateToString(true);
+      const links: ILink[] = [];
+      PATH_RE.lastIndex = 0;
+      let m: RegExpExecArray | null;
+      while ((m = PATH_RE.exec(text)) !== null) {
+        const start = m.index;
+        const prev = text[start - 1];
+        if (prev === "/" || prev === ":") continue; // skip URL tails (host/p.md)
+        const raw = m[0];
+        links.push({
+          text: raw,
+          range: { start: { x: start + 1, y }, end: { x: start + raw.length, y } },
+          activate: (e: MouseEvent) => {
+            if (e.metaKey || e.ctrlKey) opts.onOpenPath?.(raw, layer.cwd ?? null);
+          },
+        });
+      }
+      callback(links);
+    },
   });
 
   const layer: Layer = {

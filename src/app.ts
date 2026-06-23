@@ -18,6 +18,7 @@ import { handleSubagentEvent, clearSubagentLayers } from "./subagent";
 import { defaultShell, homeDir, agentStats } from "./pty";
 import { createWorktree, writeAidtSettings, currentBranch } from "./git";
 import { listen } from "@tauri-apps/api/event";
+import { openPath } from "@tauri-apps/plugin-opener";
 import { askText, toast, pickDirectory, openSettings, openSavesDialog, openHelp } from "./ui";
 import { GUARD_PRESETS, effectiveDeny } from "./guard";
 import { t, getLang, setLang } from "./i18n";
@@ -257,6 +258,7 @@ export class App {
       cwd,
       autoRun: autoRun ? this.buildCmd(cmd) : undefined,
       onOpenUrl: (url) => this.openUrl(url),
+      onOpenPath: (raw, cwd) => this.openPathLink(raw, cwd),
     });
   }
 
@@ -294,6 +296,7 @@ export class App {
       args: ["-l"],
       cwd,
       onOpenUrl: (url) => this.openUrl(url),
+      onOpenPath: (raw, cwd2) => this.openPathLink(raw, cwd2),
     });
   }
 
@@ -301,6 +304,19 @@ export class App {
   /// focused agent (the one whose terminal was clicked), and bring it to front.
   private openUrl(url: string) {
     this.addLayerTo(this.agents[this.focused], "browser", url);
+  }
+
+  /// Open a file path ⌘-clicked in a terminal with the OS default app. Resolves
+  /// `~`, and relative paths against the terminal's cwd; strips any `:line` tail.
+  private async openPathLink(raw: string, cwd: string | null) {
+    let p = raw.replace(/:\d+(?:[:.]\d+)?$/, ""); // drop :line[:col]
+    if (p.startsWith("~/")) p = this.home + p.slice(1);
+    else if (!p.startsWith("/")) p = (cwd ?? this.home).replace(/\/$/, "") + "/" + p.replace(/^\.\//, "");
+    try {
+      await openPath(p);
+    } catch {
+      toast(t("toast.openPathFail", p));
+    }
   }
 
   private fillAgentSelect(agent: Agent) {
