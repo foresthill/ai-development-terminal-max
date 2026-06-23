@@ -125,7 +125,16 @@ export function createTerminalLayer(opts: {
   // pasteboard untouched. Returning false stops xterm from also forwarding the
   // keystroke to the shell.
   term.attachCustomKeyEventHandler((e) => {
-    if (e.type !== "keydown" || !e.metaKey) return true;
+    if (e.type !== "keydown") return true;
+    // Shift+Enter inserts a newline instead of submitting. xterm sends CR (\r)
+    // for both Enter and Shift+Enter; we send LF (\n) ourselves, which Claude
+    // Code maps to chat:newline (its default Ctrl+J) and shells treat as a
+    // continuation. Default Enter (CR) still submits.
+    if (e.key === "Enter" && e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      layer.pty?.write("\n");
+      return false;
+    }
+    if (!e.metaKey) return true;
     if (e.key === "c" && term.hasSelection()) {
       void writeText(term.getSelection());
       return false;
