@@ -6,6 +6,7 @@ import { Terminal, ILink } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { WebLinksAddon } from "@xterm/addon-web-links";
+import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { spawnPty, PtyHandle } from "./pty";
 import { t } from "./i18n";
 
@@ -119,16 +120,18 @@ export function createTerminalLayer(opts: {
 
   // Native copy/paste over the PTY: ⌘C copies the current selection to the
   // clipboard (falling through to xterm only when there's nothing selected, so
-  // Ctrl-C's SIGINT path is untouched); ⌘V pastes. Returning false stops xterm
-  // from also forwarding the keystroke to the shell.
+  // Ctrl-C's SIGINT path is untouched); ⌘V pastes. Uses Tauri's clipboard plugin
+  // — WKWebView's navigator.clipboard is unreliable, leaving the system
+  // pasteboard untouched. Returning false stops xterm from also forwarding the
+  // keystroke to the shell.
   term.attachCustomKeyEventHandler((e) => {
     if (e.type !== "keydown" || !e.metaKey) return true;
     if (e.key === "c" && term.hasSelection()) {
-      void navigator.clipboard.writeText(term.getSelection());
+      void writeText(term.getSelection());
       return false;
     }
     if (e.key === "v") {
-      void navigator.clipboard.readText().then((text) => {
+      void readText().then((text) => {
         if (text) layer.pty?.write(text);
       });
       return false;
