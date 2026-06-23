@@ -2,9 +2,11 @@
 // agent owns a Z-axis stack of Layers — a terminal, a browser, an extra
 // terminal — only one of which is "front" at a time. This is the depth that a
 // flat tmux/zellij layout can't express.
-import { Terminal } from "@xterm/xterm";
+import { Terminal, ILink } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
+import { WebLinksAddon } from "@xterm/addon-web-links";
+import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { spawnPty, PtyHandle } from "./pty";
 import { t } from "./i18n";
 
@@ -24,6 +26,7 @@ export interface Layer {
   args?: string[];
   cwd?: string | null;
   autoRun?: string; // typed into the interactive shell once spawned (e.g. "claude")
+  lastOutput?: number; // performance.now() of the last PTY output (for idle status)
   iframe?: HTMLIFrameElement;
   subId?: string; // subagent correlation id (agent_id from the hook payload)
 }
@@ -75,6 +78,13 @@ export function createTerminalLayer(opts: {
   args?: string[];
   cwd?: string | null;
   autoRun?: string;
+  // Invoked when a URL in the terminal is ⌘/Ctrl-clicked. The host decides where
+  // to open it (in-app browser layer by default).
+  onOpenUrl?: (url: string) => void;
+  // Invoked when a file path in the terminal is ⌘/Ctrl-clicked. `raw` is the
+  // matched token (may be relative or carry a :line suffix); `cwd` is the
+  // terminal's working dir so the host can resolve relative paths.
+  onOpenPath?: (raw: string, cwd: string | null) => void;
 }): Layer {
   const el = document.createElement("div");
   el.className = "layer layer-terminal";
@@ -98,6 +108,66 @@ export function createTerminalLayer(opts: {
   } catch {
     // WebGL unavailable (rare) — xterm falls back to canvas automatically.
   }
+
+  // Clickable URLs. Plain click does nothing (so it never steals a text
+  // selection / cursor placement) — only ⌘-click (or Ctrl-click) opens, matching
+  // the macOS terminal convention. The host routes the URL (in-app browser).
+  term.loadAddon(
+    new WebLinksAddon((event, uri) => {
+      if (event.metaKey || event.ctrlKey) opts.onOpenUrl?.(uri);
+    }),
+  );
+
+  // Native copy/paste over the PTY: ⌘C copies the current selection to the
+  // clipboard (falling through to xterm only when there's nothing selected, so
+  // Ctrl-C's SIGINT path is untouched); ⌘V pastes. Uses Tauri's clipboard plugin
+  // — WKWebView's navigator.clipboard is unreliable, leaving the system
+  // pasteboard untouched. Returning false stops xterm from also forwarding the
+  // keystroke to the shell.
+  term.attachCustomKeyEventHandler((e) => {
+    if (e.type !== "keydown" || !e.metaKey) return true;
+    if (e.key === "c" && term.hasSelection()) {
+      void writeText(term.getSelection());
+      return false;
+    }
+    if (e.key === "v") {
+      void readText().then((text) => {
+        if (text) layer.pty?.write(text);
+      });
+      return false;
+    }
+    return true;
+  });
+
+  // Clickable file paths (web-links only handles http/https). Matches tokens
+  // with at least one slash and a file extension — `docs/x/foo.md`, `./src/a.ts`,
+  // `/abs/p.rs`, `~/n.md`, optionally with a `:line[:col]` suffix. ⌘/Ctrl-click
+  // resolves it against the terminal's cwd and the host opens it (OS default app).
+  const PATH_RE = /(?:~\/|\.{1,2}\/|\/)?[\w.\-@+]+(?:\/[\w.\-@+]+)+\.\w{1,8}(?::\d+(?:[:.]\d+)?)?/g;
+  term.registerLinkProvider({
+    provideLinks(y, callback) {
+      const line = term.buffer.active.getLine(y - 1);
+      if (!line) return callback(undefined);
+      const text = line.translateToString(true);
+      const links: ILink[] = [];
+      PATH_RE.lastIndex = 0;
+      let m: RegExpExecArray | null;
+      while ((m = PATH_RE.exec(text)) !== null) {
+        const start = m.index;
+        const prev = text[start - 1];
+        if (prev === "/" || prev === ":") continue; // skip URL tails (host/p.md)
+        const raw = m[0];
+        links.push({
+          text: raw,
+          range: { start: { x: start + 1, y }, end: { x: start + raw.length, y } },
+          activate: (e: MouseEvent) => {
+            if (e.metaKey || e.ctrlKey) opts.onOpenPath?.(raw, layer.cwd ?? null);
+          },
+        });
+      }
+      callback(links);
+    },
+  });
 
   const layer: Layer = {
     id: uid("term"),
@@ -253,7 +323,10 @@ export async function startLayer(layer: Layer, cols: number, rows: number) {
     cwd: layer.cwd ?? null,
     cols,
     rows,
-    onData: (bytes) => layer.term!.write(bytes),
+    onData: (bytes) => {
+      layer.lastOutput = performance.now();
+      layer.term!.write(bytes);
+    },
   });
   // Type the agent command into the freshly-started interactive shell so it runs
   // with the user's real PATH (.zshrc is sourced — fixes "command not found").

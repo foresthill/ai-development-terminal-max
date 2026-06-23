@@ -18,6 +18,7 @@ import { handleSubagentEvent, clearSubagentLayers } from "./subagent";
 import { defaultShell, homeDir, agentStats } from "./pty";
 import { createWorktree, writeAidtSettings, currentBranch } from "./git";
 import { listen } from "@tauri-apps/api/event";
+import { openPath } from "@tauri-apps/plugin-opener";
 import { askText, toast, pickDirectory, openSettings, openSavesDialog, openHelp } from "./ui";
 import { GUARD_PRESETS, effectiveDeny } from "./guard";
 import { t, getLang, setLang } from "./i18n";
@@ -183,6 +184,7 @@ export class App {
   /// display-only, follow `cd` in the path field + branch (no respawn).
   private async pollStats() {
     const items: { agent: Agent; pid: number }[] = [];
+    const now = performance.now();
     for (const p of this.projects)
       for (const a of p.agents) {
         // Use a started terminal layer (prefer the active one) — the primary may
@@ -192,6 +194,10 @@ export class App {
           active?.kind === "terminal" && active.pty
             ? active
             : a.layers.find((l) => l.kind === "terminal" && l.pty);
+        // "waiting": a launched agent whose terminal has been quiet for a bit
+        // (settled at a prompt) — tint it amber so you can spot it.
+        const quiet = !term?.lastOutput || now - term.lastOutput > 1500;
+        a.cardEl.classList.toggle("waiting", !!a.running && !!term && quiet);
         const pid = term?.pty?.pid;
         if (pid) items.push({ agent: a, pid });
       }
@@ -251,6 +257,8 @@ export class App {
       args: ["-l"],
       cwd,
       autoRun: autoRun ? this.buildCmd(cmd) : undefined,
+      onOpenUrl: (url) => this.openUrl(url),
+      onOpenPath: (raw, cwd) => this.openPathLink(raw, cwd),
     });
   }
 
@@ -282,7 +290,33 @@ export class App {
     toast(t("toast.launchedAll", n));
   }
   private shellLayer(cwd: string | null): Layer {
-    return createTerminalLayer({ title: "shell", shell: this.shell, args: ["-l"], cwd });
+    return createTerminalLayer({
+      title: "shell",
+      shell: this.shell,
+      args: ["-l"],
+      cwd,
+      onOpenUrl: (url) => this.openUrl(url),
+      onOpenPath: (raw, cwd2) => this.openPathLink(raw, cwd2),
+    });
+  }
+
+  /// Open a URL ⌘-clicked in a terminal as a new in-app browser layer on the
+  /// focused agent (the one whose terminal was clicked), and bring it to front.
+  private openUrl(url: string) {
+    this.addLayerTo(this.agents[this.focused], "browser", url);
+  }
+
+  /// Open a file path ⌘-clicked in a terminal with the OS default app. Resolves
+  /// `~`, and relative paths against the terminal's cwd; strips any `:line` tail.
+  private async openPathLink(raw: string, cwd: string | null) {
+    let p = raw.replace(/:\d+(?:[:.]\d+)?$/, ""); // drop :line[:col]
+    if (p.startsWith("~/")) p = this.home + p.slice(1);
+    else if (!p.startsWith("/")) p = (cwd ?? this.home).replace(/\/$/, "") + "/" + p.replace(/^\.\//, "");
+    try {
+      await openPath(p);
+    } catch {
+      toast(t("toast.openPathFail", p));
+    }
   }
 
   private fillAgentSelect(agent: Agent) {
@@ -520,10 +554,12 @@ export class App {
     this.refreshBranch(agent);
   }
 
-  private addLayerTo(agent: Agent | undefined, kind: "terminal" | "browser") {
+  private addLayerTo(agent: Agent | undefined, kind: "terminal" | "browser", url?: string) {
     if (!agent) return;
     const layer =
-      kind === "browser" ? createBrowserLayer("http://localhost:3000") : this.shellLayer(agent.cwd);
+      kind === "browser"
+        ? createBrowserLayer(url ?? "http://localhost:3000")
+        : this.shellLayer(agent.cwd);
     agent.layers.push(layer);
     agent.active = agent.layers.length - 1;
     agent.stackEl.appendChild(layer.el);

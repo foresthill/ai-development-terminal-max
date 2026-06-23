@@ -577,6 +577,11 @@ body {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent), 0 8px 30px rgba(122, 162, 247, 0.15);
 }
+/* waiting for input: amber tint (takes visual priority — it wants you) */
+.agent.waiting {
+  border-color: #e0af68;
+  box-shadow: 0 0 0 1px #e0af68, 0 0 18px rgba(224, 175, 104, 0.22);
+}
 .agent-header {
   display: flex;
   flex-direction: column;
