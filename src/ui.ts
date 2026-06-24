@@ -124,7 +124,7 @@ const HELP_JA = `
 </ul>
 <h4>キーボード（leader = Alt / Option）</h4>
 <ul>
-  <li><code>Alt+T</code> 追加 ・ <code>Alt+←/→</code> エージェント移動 ・ <code>Alt+↑/↓</code> 奥行き</li>
+  <li><code>Alt+T</code> 追加 ・ <code>Alt+H/L</code> エージェント移動 ・ <code>Alt+J/K</code> 奥行き（⌥+矢印は端末の単語移動用に解放）</li>
   <li><code>Alt+Z</code> 拡大 ・ <code>Alt+1–9</code> 番号でフォーカス ・ <code>Alt+P</code> プロジェクト切替 ・ <code>Alt+M</code> 俯瞰</li>
   <li><code>Alt+N</code> 端末追加 ・ <code>Alt+B</code> ブラウザ追加 ・ <code>Alt+W</code> レイヤー閉 ・ <code>Alt+X</code> エージェント閉</li>
   <li><code>Alt+R</code> このエージェントを起動 ・ <code>Alt+Shift+R</code> 全起動 ・ <code>Alt+Enter</code> 送信バー</li>
@@ -162,7 +162,7 @@ const HELP_EN = `
 </ul>
 <h4>Keyboard (leader = Alt / Option)</h4>
 <ul>
-  <li><code>Alt+T</code> new ・ <code>Alt+←/→</code> move focus ・ <code>Alt+↑/↓</code> depth</li>
+  <li><code>Alt+T</code> new ・ <code>Alt+H/L</code> move focus ・ <code>Alt+J/K</code> depth (⌥+arrows freed for terminal word-nav)</li>
   <li><code>Alt+Z</code> zoom ・ <code>Alt+1–9</code> focus by number ・ <code>Alt+P</code> switch project ・ <code>Alt+M</code> macro</li>
   <li><code>Alt+N</code> terminal ・ <code>Alt+B</code> browser ・ <code>Alt+W</code> close layer ・ <code>Alt+X</code> close agent</li>
   <li><code>Alt+R</code> launch this agent ・ <code>Alt+Shift+R</code> launch all ・ <code>Alt+Enter</code> send bar</li>

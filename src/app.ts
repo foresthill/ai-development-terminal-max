@@ -747,14 +747,12 @@ export class App {
     if (!e.altKey) return;
     const handlers: Record<string, () => void> = {
       KeyT: () => this.addAgentToActive(),
+      // Focus/depth use H/J/K/L only — Alt+arrows are intentionally NOT bound so
+      // ⌥(Option)+arrow passes through to the terminal (claude/shell word nav).
       KeyL: () => this.moveFocus(1),
-      ArrowRight: () => this.moveFocus(1),
       KeyH: () => this.moveFocus(-1),
-      ArrowLeft: () => this.moveFocus(-1),
       KeyJ: () => this.cycleDepth(1),
-      ArrowDown: () => this.cycleDepth(1),
       KeyK: () => this.cycleDepth(-1),
-      ArrowUp: () => this.cycleDepth(-1),
       KeyZ: () => this.toggleZoom(),
       KeyN: () => this.addLayerTo(this.agents[this.focused], "terminal"),
       KeyB: () => this.addLayerTo(this.agents[this.focused], "browser"),
