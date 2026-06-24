@@ -19,7 +19,15 @@ import { defaultShell, homeDir, agentStats } from "./pty";
 import { createWorktree, writeAidtSettings, currentBranch } from "./git";
 import { listen } from "@tauri-apps/api/event";
 import { openPath } from "@tauri-apps/plugin-opener";
-import { askText, toast, pickDirectory, openSettings, openSavesDialog, openHelp } from "./ui";
+import {
+  askText,
+  toast,
+  pickDirectory,
+  openSettings,
+  openSavesDialog,
+  openHelp,
+  confirmModal,
+} from "./ui";
 import { GUARD_PRESETS, effectiveDeny } from "./guard";
 import { t, getLang, setLang } from "./i18n";
 import { renderAll, RenderCtx, Mode, View, PermMode } from "./render";
@@ -96,6 +104,7 @@ export class App {
   private macroEl: HTMLElement;
   private stripEl: HTMLElement;
   private countEl: HTMLElement;
+  private totalEl: HTMLElement;
   private btnLayout: HTMLElement;
   private btnGuard: HTMLElement;
   private btnNest: HTMLElement;
@@ -110,6 +119,7 @@ export class App {
     this.macroEl = root.querySelector("#macro")!;
     this.stripEl = root.querySelector("#project-strip")!;
     this.countEl = root.querySelector("#agent-count")!;
+    this.totalEl = root.querySelector("#agent-total")!;
     this.btnLayout = root.querySelector("#btn-layout")!;
     this.btnGuard = root.querySelector("#btn-guard")!;
     this.btnNest = root.querySelector("#btn-nest")!;
@@ -137,6 +147,7 @@ export class App {
     root.querySelector("#btn-nest")!.addEventListener("click", () => this.toggleSubagentNest());
     root.querySelector("#btn-saves")!.addEventListener("click", () => this.openSaves());
     root.querySelector("#btn-help")!.addEventListener("click", () => openHelp());
+    root.querySelector("#foot-help")!.addEventListener("click", () => openHelp());
     root.querySelector("#btn-settings")!.addEventListener("click", () => this.openSettingsDialog());
     this.btnLayout.addEventListener("click", () => {
       this.layout = this.layout === "square" ? "fit" : "square";
@@ -183,7 +194,7 @@ export class App {
   /// Sample each agent's CPU% (process subtree) and live cwd; update badge and,
   /// display-only, follow `cd` in the path field + branch (no respawn).
   private async pollStats() {
-    const items: { agent: Agent; pid: number }[] = [];
+    const items: { agent: Agent; pid: number; quiet: boolean }[] = [];
     const now = performance.now();
     for (const p of this.projects)
       for (const a of p.agents) {
@@ -194,21 +205,38 @@ export class App {
           active?.kind === "terminal" && active.pty
             ? active
             : a.layers.find((l) => l.kind === "terminal" && l.pty);
-        // "waiting": a launched agent whose terminal has been quiet for a bit
-        // (settled at a prompt) — tint it amber so you can spot it.
-        const quiet = !term?.lastOutput || now - term.lastOutput > 1500;
-        a.cardEl.classList.toggle("waiting", !!a.running && !!term && quiet);
         const pid = term?.pty?.pid;
-        if (pid) items.push({ agent: a, pid });
+        // The amber "waiting" tint is finalized after we know each subtree's
+        // process count (below) — agents with no live terminal are never amber.
+        if (pid) {
+          const quiet = !term?.lastOutput || now - term.lastOutput > 1500;
+          items.push({ agent: a, pid, quiet });
+        } else {
+          a.cardEl.classList.remove("waiting");
+        }
       }
-    if (!items.length) return;
+    if (!items.length) {
+      this.totalEl.textContent = "";
+      return;
+    }
     try {
       const stats = await agentStats(items.map((x) => x.pid));
+      let sumCpu = 0;
+      let sumMem = 0;
+      let n = 0;
       items.forEach((x, i) => {
         const s = stats[i];
         if (!s) return;
         x.agent.cpu = s.cpu;
         x.agent.cpuEl.textContent = `⚡${Math.round(s.cpu)}% · ${fmtMem(s.mem)}`;
+        sumCpu += s.cpu;
+        sumMem += s.mem;
+        n++;
+        // "waiting" (amber): a launched agent settled quietly *with its command
+        // still running* (subtree has more than the bare shell, procs > 1). Once
+        // you exit claude back to an idle shell (procs == 1), the tint clears.
+        const waiting = x.agent.running && x.quiet && s.procs > 1;
+        x.agent.cardEl.classList.toggle("waiting", waiting);
         // follow `cd` (display only) unless the user is editing the path field
         if (s.cwd && s.cwd !== x.agent.cwd && document.activeElement !== x.agent.pathEl) {
           x.agent.cwd = s.cwd;
@@ -216,6 +244,9 @@ export class App {
           this.refreshBranch(x.agent);
         }
       });
+      // Running total across every live agent (all projects). CPU% is summed
+      // across cores, so it can exceed 100%.
+      this.totalEl.textContent = n ? `Σ ⚡${Math.round(sumCpu)}% · ${fmtMem(sumMem)}` : "";
     } catch {
       // sysinfo unavailable — skip this tick.
     }
@@ -724,6 +755,11 @@ export class App {
       KeyX: () => this.closeAgentObj(this.agents[this.focused]),
       KeyP: () => this.switchProject(1),
       KeyM: () => this.toggleMacro(),
+      KeyR: () => {
+        if (e.shiftKey) return this.launchAll();
+        const a = this.agents[this.focused];
+        if (a && !a.running) this.launchAgent(a);
+      },
       Enter: () => this.toggleSendBar(),
     };
     let fn = handlers[e.code];
@@ -864,9 +900,20 @@ export class App {
     });
   }
 
-  private loadSlot(name: string) {
+  private async loadSlot(name: string): Promise<boolean> {
     const snap = getSave(name);
-    if (!snap) return;
+    if (!snap) return false;
+    // Loading REPLACES the whole current workspace — confirm first (this used to
+    // fire instantly on click and wipe everything), and stash the current state
+    // into an auto-backup slot so the load is undoable.
+    const ok = await confirmModal({
+      title: t("saves.confirmLoad", name),
+      body: t("saves.confirmBody"),
+      confirm: t("saves.confirmBtn"),
+      danger: true,
+    });
+    if (!ok) return false;
+    upsertSave(t("saves.autoBackup"), this.snapshot());
     for (const p of this.projects) for (const a of p.agents) a.layers.forEach(disposeLayer);
     this.projects.length = 0;
     this.grid.replaceChildren();
@@ -874,7 +921,8 @@ export class App {
     this.view = "project";
     this.applySnapshot(snap);
     this.render();
-    toast(t("toast.loaded", name));
+    toast(t("saves.loadedUndo", name));
+    return true;
   }
 
   private fitPending = false;

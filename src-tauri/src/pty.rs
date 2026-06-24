@@ -58,6 +58,11 @@ pub fn spawn_pty(
     }
     // Make terminal-aware programs (including claude) render full UI.
     cmd.env("TERM", "xterm-256color");
+    // macOS apps launched from Finder/`open` inherit no LANG, so terminal
+    // programs (vim, less, cat) fall back to the C locale and mangle UTF-8
+    // (Japanese shows as mojibake). Mirror Terminal.app — export a UTF-8 locale
+    // unless the user already has one (their shell rc still wins, running later).
+    ensure_utf8_locale(&mut cmd);
 
     let child = pair
         .slave
@@ -103,6 +108,48 @@ pub fn spawn_pty(
         },
     );
     Ok(pid)
+}
+
+/// Export a UTF-8 `LANG` unless the environment already carries a UTF-8 locale
+/// (in LC_ALL / LC_CTYPE / LANG). Without this, GUI-launched terminals show
+/// UTF-8 text as mojibake. Prefers the system's language/region so program
+/// messages stay localized, validated against installed locales.
+fn ensure_utf8_locale(cmd: &mut CommandBuilder) {
+    let already = ["LC_ALL", "LC_CTYPE", "LANG"].iter().any(|k| {
+        std::env::var(k)
+            .map(|v| {
+                let u = v.to_ascii_uppercase();
+                u.contains("UTF-8") || u.contains("UTF8")
+            })
+            .unwrap_or(false)
+    });
+    if already {
+        return;
+    }
+    cmd.env("LANG", preferred_utf8_locale());
+}
+
+fn preferred_utf8_locale() -> String {
+    let installed = std::process::Command::new("locale")
+        .arg("-a")
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
+        .unwrap_or_default();
+    // Prefer the macOS system language/region (e.g. "ja_JP" -> "ja_JP.UTF-8").
+    if let Some(loc) = std::process::Command::new("defaults")
+        .args(["read", "-g", "AppleLocale"])
+        .output()
+        .ok()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .filter(|s| !s.is_empty())
+    {
+        let base = loc.split('@').next().unwrap_or(&loc);
+        let candidate = format!("{base}.UTF-8");
+        if installed.lines().any(|l| l.eq_ignore_ascii_case(&candidate)) {
+            return candidate;
+        }
+    }
+    "en_US.UTF-8".to_string()
 }
 
 /// Forward user keystrokes (raw UTF-8) to the PTY.

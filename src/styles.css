@@ -92,6 +92,18 @@ body {
   border-color: var(--accent);
   color: var(--accent);
 }
+/* compact circular icon button (e.g. ? help) — a mark, not a labelled pill */
+.proj-actions button.btn-mark {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 50%;
+  font-weight: 600;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
 /* match the toolbar buttons: one pill, label + borderless select inside */
 .perm {
   display: inline-flex;
@@ -179,10 +191,49 @@ body {
   font-size: 12px;
   color: var(--muted);
 }
+/* running total of CPU/mem across all agents — accented, monospace digits */
+.count-total {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.count-total:empty {
+  display: none;
+}
 .hint {
-  margin-left: auto;
   font-size: 11px;
   color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* slim bottom footer: shortcut hint on the left, help button on the right */
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 14px;
+  background: linear-gradient(0deg, #0c1120, #080b14);
+  border-top: 1px solid var(--border);
+  user-select: none;
+}
+.footer .hint {
+  flex: 1;
+  min-width: 0;
+}
+.foot-help {
+  flex: none;
+  background: var(--panel-2);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px 10px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.foot-help:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 /* macro spiral view */
@@ -422,6 +473,17 @@ body {
   background: var(--accent-dim);
   border-color: var(--accent);
   color: #fff;
+}
+.modal-row button.danger {
+  background: #5a2533;
+  border-color: #f7768e;
+  color: #ffdce3;
+}
+.modal-body {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
 }
 .toast {
   position: fixed;

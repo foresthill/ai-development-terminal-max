@@ -2,7 +2,7 @@
 // agent owns a Z-axis stack of Layers — a terminal, a browser, an extra
 // terminal — only one of which is "front" at a time. This is the depth that a
 // flat tmux/zellij layout can't express.
-import { Terminal, ILink } from "@xterm/xterm";
+import { Terminal, ILink, IBufferLine } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { WebLinksAddon } from "@xterm/addon-web-links";
@@ -65,6 +65,22 @@ export function basename(p: string): string {
 let seq = 0;
 const uid = (p: string) => `${p}-${Date.now().toString(36)}-${seq++}`;
 
+/// Map a JS string index (into IBufferLine.translateToString) to a 0-based cell
+/// column. Wide (CJK) chars take 2 cells but 1 string char, so a naive index ==
+/// column assumption puts links on the wrong columns when full-width text (e.g.
+/// "ファイル: ") precedes the link on the same line.
+function colForStrIdx(line: IBufferLine, strIdx: number): number {
+  let acc = 0;
+  for (let col = 0; col < line.length; col++) {
+    const cell = line.getCell(col);
+    if (!cell) break;
+    if (cell.getWidth() === 0) continue; // trailing half of a wide char
+    if (acc >= strIdx) return col;
+    acc += cell.getChars().length || 1;
+  }
+  return line.length;
+}
+
 const TERM_THEME = {
   background: "#0b0e14",
   foreground: "#c8d3f5",
@@ -99,6 +115,11 @@ export function createTerminalLayer(opts: {
     allowProposedApi: true,
     scrollback: 5000,
     theme: TERM_THEME,
+    // Apps that capture the mouse (claude's TUI enables tracking) otherwise eat
+    // click/drag, so text can't be selected. On macOS xterm's force-selection
+    // modifier is Option (Shift isn't honored here), so let ⌥-drag / ⌥-click
+    // select even while an app is tracking the mouse.
+    macOptionClickForcesSelection: true,
   });
   const fit = new FitAddon();
   term.loadAddon(fit);
@@ -124,17 +145,37 @@ export function createTerminalLayer(opts: {
   // — WKWebView's navigator.clipboard is unreliable, leaving the system
   // pasteboard untouched. Returning false stops xterm from also forwarding the
   // keystroke to the shell.
+  // Returning false from attachCustomKeyEventHandler stops xterm from sending the
+  // key, but it does NOT prevent the browser default — so the keystroke still
+  // reaches xterm's hidden textarea and gets re-sent, corrupting our injected
+  // sequence. We must preventDefault() ourselves whenever we handle a key here.
+  const handled = (e: KeyboardEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    return false;
+  };
   term.attachCustomKeyEventHandler((e) => {
-    if (e.type !== "keydown" || !e.metaKey) return true;
+    if (e.type !== "keydown") return true;
+    // Shift+Enter inserts a newline instead of submitting. xterm sends CR (\r)
+    // for both Enter and Shift+Enter, so we send ESC+CR (\x1b\r) — the exact bytes
+    // Claude Code's own /terminal-setup binds Shift+Enter to in VS Code (also an
+    // xterm.js terminal), which Claude Code recognizes as chat:newline. Default
+    // Enter (plain CR) still submits.
+    // Ref: https://code.claude.com/docs/en/terminal-config
+    if (e.key === "Enter" && e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      layer.pty?.write("\x1b\r");
+      return handled(e);
+    }
+    if (!e.metaKey) return true;
     if (e.key === "c" && term.hasSelection()) {
       void writeText(term.getSelection());
-      return false;
+      return handled(e);
     }
     if (e.key === "v") {
       void readText().then((text) => {
         if (text) layer.pty?.write(text);
       });
-      return false;
+      return handled(e);
     }
     return true;
   });
@@ -154,12 +195,15 @@ export function createTerminalLayer(opts: {
       let m: RegExpExecArray | null;
       while ((m = PATH_RE.exec(text)) !== null) {
         const start = m.index;
-        const prev = text[start - 1];
-        if (prev === "/" || prev === ":") continue; // skip URL tails (host/p.md)
+        if (text[start - 1] === "/") continue; // skip URL tails (the host/p.md of a URL)
         const raw = m[0];
+        // Map string indices → cell columns so links land correctly even when
+        // wide (CJK) characters precede the path on the line.
+        const startCol = colForStrIdx(line, start);
+        const endCol = colForStrIdx(line, start + raw.length); // exclusive
         links.push({
           text: raw,
-          range: { start: { x: start + 1, y }, end: { x: start + raw.length, y } },
+          range: { start: { x: startCol + 1, y }, end: { x: endCol, y } },
           activate: (e: MouseEvent) => {
             if (e.metaKey || e.ctrlKey) opts.onOpenPath?.(raw, layer.cwd ?? null);
           },

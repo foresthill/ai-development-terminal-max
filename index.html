@@ -16,7 +16,7 @@
             <button id="btn-open" data-i18n="btn.folder" data-i18n-title="tip.folder">📁 folder</button>
             <button id="btn-clone" data-i18n="btn.clone" data-i18n-title="tip.clone">⎇ clone</button>
             <button id="btn-saves" data-i18n="btn.saves" data-i18n-title="tip.saves">💾 saves</button>
-            <button id="btn-help" data-i18n="btn.help" data-i18n-title="tip.help">? help</button>
+            <button id="btn-help" class="btn-mark" data-i18n-title="tip.help">?</button>
             <button id="btn-settings" data-i18n="btn.settings" data-i18n-title="tip.settings">⚙ Settings</button>
           </div>
         </div>
@@ -45,7 +45,7 @@
             <span class="btn-txt">nest: off</span>
           </button>
           <span id="agent-count" class="count">0 agents</span>
-          <div class="hint" data-i18n="hint"></div>
+          <span id="agent-total" class="count count-total" data-i18n-title="tip.total"></span>
         </div>
       </header>
       <main id="grid" class="mode-overview"></main>
@@ -59,6 +59,10 @@
         <input id="send-input" data-i18n-ph="send.placeholder" spellcheck="false" />
         <button id="send-go" data-i18n="send.go">send</button>
       </div>
+      <footer id="footer" class="footer">
+        <span class="hint" data-i18n="hint"></span>
+        <button id="foot-help" class="foot-help" data-i18n="foot.help" data-i18n-title="tip.help">? help</button>
+      </footer>
     </div>
   </body>
 </html>

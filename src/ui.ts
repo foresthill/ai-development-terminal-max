@@ -58,6 +58,59 @@ export function askText(opts: {
   });
 }
 
+/// Yes/no confirmation. Resolves true on confirm, false on cancel/Escape/backdrop.
+/// Focus defaults to Cancel so a stray Enter doesn't confirm a destructive action.
+export function confirmModal(opts: {
+  title: string;
+  body?: string;
+  confirm?: string;
+  danger?: boolean;
+}): Promise<boolean> {
+  return new Promise((resolve) => {
+    const back = document.createElement("div");
+    back.className = "modal-back";
+    const box = document.createElement("div");
+    box.className = "modal";
+    const h = document.createElement("div");
+    h.className = "modal-title";
+    h.textContent = opts.title;
+    box.append(h);
+    if (opts.body) {
+      const b = document.createElement("div");
+      b.className = "modal-body";
+      b.textContent = opts.body;
+      box.append(b);
+    }
+    const row = document.createElement("div");
+    row.className = "modal-row";
+    const cancel = document.createElement("button");
+    cancel.textContent = t("modal.cancel");
+    const ok = document.createElement("button");
+    ok.textContent = opts.confirm ?? t("modal.ok");
+    ok.className = opts.danger ? "danger" : "primary";
+    row.append(cancel, ok);
+    box.append(row);
+    back.append(box);
+    document.body.append(back);
+    const done = (v: boolean) => {
+      back.remove();
+      document.removeEventListener("keydown", onKey, true);
+      resolve(v);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      e.stopPropagation();
+      if (e.key === "Escape") done(false);
+    };
+    document.addEventListener("keydown", onKey, true);
+    ok.onclick = () => done(true);
+    cancel.onclick = () => done(false);
+    back.onclick = (e) => {
+      if (e.target === back) done(false);
+    };
+    setTimeout(() => cancel.focus(), 0);
+  });
+}
+
 import { GUARD_PRESETS } from "./guard";
 import { t, Lang, getLang } from "./i18n";
 
@@ -74,7 +127,9 @@ const HELP_JA = `
   <li><code>Alt+T</code> 追加 ・ <code>Alt+←/→</code> エージェント移動 ・ <code>Alt+↑/↓</code> 奥行き</li>
   <li><code>Alt+Z</code> 拡大 ・ <code>Alt+1–9</code> 番号でフォーカス ・ <code>Alt+P</code> プロジェクト切替 ・ <code>Alt+M</code> 俯瞰</li>
   <li><code>Alt+N</code> 端末追加 ・ <code>Alt+B</code> ブラウザ追加 ・ <code>Alt+W</code> レイヤー閉 ・ <code>Alt+X</code> エージェント閉</li>
-  <li><code>Alt+Enter</code> 送信バー</li>
+  <li><code>Alt+R</code> このエージェントを起動 ・ <code>Alt+Shift+R</code> 全起動 ・ <code>Alt+Enter</code> 送信バー</li>
+  <li><code>Shift+Enter</code> 端末内で改行（Claude Codeの改行）・ <code>⌘C/⌘V</code> コピー/貼付 ・ <code>⌘/Ctrl+クリック</code> URL/パスを開く</li>
+  <li>選択: ドラッグ／<code>Shift+クリック</code>で範囲。claude等マウス使用アプリ上では <code>⌥(Option)+ドラッグ</code>（macOSの選択強制キーはOption固定）</li>
 </ul>
 <h4>ツールバー</h4>
 <ul>
@@ -109,7 +164,9 @@ const HELP_EN = `
   <li><code>Alt+T</code> new ・ <code>Alt+←/→</code> move focus ・ <code>Alt+↑/↓</code> depth</li>
   <li><code>Alt+Z</code> zoom ・ <code>Alt+1–9</code> focus by number ・ <code>Alt+P</code> switch project ・ <code>Alt+M</code> macro</li>
   <li><code>Alt+N</code> terminal ・ <code>Alt+B</code> browser ・ <code>Alt+W</code> close layer ・ <code>Alt+X</code> close agent</li>
-  <li><code>Alt+Enter</code> send bar</li>
+  <li><code>Alt+R</code> launch this agent ・ <code>Alt+Shift+R</code> launch all ・ <code>Alt+Enter</code> send bar</li>
+  <li><code>Shift+Enter</code> newline in terminal (Claude Code) ・ <code>⌘C/⌘V</code> copy/paste ・ <code>⌘/Ctrl+click</code> open URL/path</li>
+  <li>Select: drag / <code>Shift+click</code> for a range. In mouse-capturing apps (claude) use <code>⌥(Option)+drag</code> (macOS force-selection key is Option)</li>
 </ul>
 <h4>Toolbar</h4>
 <ul>
@@ -272,7 +329,7 @@ export function openSettings(cur: SettingsValues): Promise<SettingsValues | null
 export interface SavesController {
   list(): string[];
   saveAs(name: string): void;
-  load(name: string): void;
+  load(name: string): Promise<boolean>; // resolves true if the slot was loaded
   remove(name: string): void;
 }
 
@@ -320,10 +377,12 @@ export function openSavesDialog(c: SavesController) {
       row.className = "saved-row";
       const open = document.createElement("button");
       open.className = "saved-open";
-      open.textContent = `💾 ${name}`;
-      open.addEventListener("click", () => {
-        c.load(name);
-        close();
+      open.textContent = `📂 ${name}`;
+      open.title = t("saves.loadTip");
+      open.addEventListener("click", async () => {
+        // load() confirms first (it replaces the current workspace); only close
+        // the dialog if the user went through with it.
+        if (await c.load(name)) close();
       });
       const del = document.createElement("button");
       del.className = "saved-act";
