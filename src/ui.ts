@@ -130,7 +130,7 @@ const HELP_JA = `
   <li><code>Alt+R</code> このエージェントを起動 ・ <code>Alt+Shift+R</code> 全起動 ・ <code>Alt+Enter</code> 送信バー</li>
   <li><code>Shift+Enter</code> 端末内で改行（Claude Codeの改行）・ <code>⌘C/⌘V</code> コピー/貼付</li>
   <li>URL: クリックでブラウザに開く（既定=アプリ内、設定で変更可）・ <code>⌘/Ctrl+クリック</code>でもう片方のブラウザ ／ ファイルパス: <code>⌘/Ctrl+クリック</code>でOS標準アプリ</li>
-  <li>選択: ドラッグ／<code>Shift+クリック</code>で範囲。claude等マウス使用アプリ上では <code>⌥(Option)+ドラッグ</code>（macOSの選択強制キーはOption固定）</li>
+  <li>選択: <code>クリック</code>で始点→<code>Shift+クリック</code>で範囲指定（claude上でも可）。ドラッグ選択はシェルではそのまま、claude上は <code>⌥(Option)+ドラッグ</code></li>
 </ul>
 <h4>ツールバー</h4>
 <ul>
@@ -168,7 +168,7 @@ const HELP_EN = `
   <li><code>Alt+R</code> launch this agent ・ <code>Alt+Shift+R</code> launch all ・ <code>Alt+Enter</code> send bar</li>
   <li><code>Shift+Enter</code> newline in terminal (Claude Code) ・ <code>⌘C/⌘V</code> copy/paste</li>
   <li>URL: click opens it in the browser (default = in-app, configurable) ・ <code>⌘/Ctrl+click</code> = the other browser ／ file path: <code>⌘/Ctrl+click</code> = OS default app</li>
-  <li>Select: drag / <code>Shift+click</code> for a range. In mouse-capturing apps (claude) use <code>⌥(Option)+drag</code> (macOS force-selection key is Option)</li>
+  <li>Select: <code>click</code> the start → <code>Shift+click</code> the end for a range (works in claude too). Drag-select works in shells; in claude use <code>⌥(Option)+drag</code></li>
 </ul>
 <h4>Toolbar</h4>
 <ul>

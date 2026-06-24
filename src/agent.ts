@@ -215,6 +215,46 @@ export function createTerminalLayer(opts: {
     },
   });
 
+  // Shift+click range-selection, implemented ourselves because xterm's native
+  // shift-extend only fires when the app isn't tracking the mouse — and claude's
+  // TUI tracks it (and on macOS xterm's force-selection modifier is Option, not
+  // Shift). A capture-phase handler maps the pixel to a buffer cell: a plain
+  // click records the anchor; Shift+click selects from the anchor to the clicked
+  // cell (works regardless of mouse-tracking). Plain clicks pass through
+  // untouched so normal focus / app mouse reporting still work.
+  let anchor: { col: number; row: number } | null = null;
+  const cellFromEvent = (e: MouseEvent): { col: number; row: number } | null => {
+    const screen = host.querySelector(".xterm-screen") as HTMLElement | null;
+    if (!screen || !term.cols || !term.rows) return null;
+    const r = screen.getBoundingClientRect();
+    const cw = r.width / term.cols;
+    const ch = r.height / term.rows;
+    if (cw <= 0 || ch <= 0) return null;
+    const col = Math.max(0, Math.min(term.cols - 1, Math.floor((e.clientX - r.left) / cw)));
+    const vrow = Math.max(0, Math.min(term.rows - 1, Math.floor((e.clientY - r.top) / ch)));
+    return { col, row: term.buffer.active.viewportY + vrow };
+  };
+  host.addEventListener(
+    "mousedown",
+    (e) => {
+      if (e.button !== 0) return;
+      const cell = cellFromEvent(e);
+      if (!cell) return;
+      if (e.shiftKey && anchor) {
+        e.preventDefault();
+        e.stopImmediatePropagation(); // don't let xterm also report this click
+        const cols = term.cols;
+        const aLin = anchor.row * cols + anchor.col;
+        const bLin = cell.row * cols + cell.col;
+        const [s, len] = aLin <= bLin ? [anchor, bLin - aLin + 1] : [cell, aLin - bLin + 1];
+        term.select(s.col, s.row, len);
+      } else if (!e.shiftKey) {
+        anchor = cell; // remember where a later Shift+click should extend from
+      }
+    },
+    true,
+  );
+
   const layer: Layer = {
     id: uid("term"),
     kind: "terminal",
