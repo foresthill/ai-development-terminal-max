@@ -444,6 +444,17 @@ body {
   border-color: var(--accent);
   color: #fff;
 }
+.modal-row button.danger {
+  background: #5a2533;
+  border-color: #f7768e;
+  color: #ffdce3;
+}
+.modal-body {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
 .toast {
   position: fixed;
   bottom: 18px;

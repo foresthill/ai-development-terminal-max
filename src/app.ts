@@ -19,7 +19,15 @@ import { defaultShell, homeDir, agentStats } from "./pty";
 import { createWorktree, writeAidtSettings, currentBranch } from "./git";
 import { listen } from "@tauri-apps/api/event";
 import { openPath } from "@tauri-apps/plugin-opener";
-import { askText, toast, pickDirectory, openSettings, openSavesDialog, openHelp } from "./ui";
+import {
+  askText,
+  toast,
+  pickDirectory,
+  openSettings,
+  openSavesDialog,
+  openHelp,
+  confirmModal,
+} from "./ui";
 import { GUARD_PRESETS, effectiveDeny } from "./guard";
 import { t, getLang, setLang } from "./i18n";
 import { renderAll, RenderCtx, Mode, View, PermMode } from "./render";
@@ -891,9 +899,20 @@ export class App {
     });
   }
 
-  private loadSlot(name: string) {
+  private async loadSlot(name: string): Promise<boolean> {
     const snap = getSave(name);
-    if (!snap) return;
+    if (!snap) return false;
+    // Loading REPLACES the whole current workspace — confirm first (this used to
+    // fire instantly on click and wipe everything), and stash the current state
+    // into an auto-backup slot so the load is undoable.
+    const ok = await confirmModal({
+      title: t("saves.confirmLoad", name),
+      body: t("saves.confirmBody"),
+      confirm: t("saves.confirmBtn"),
+      danger: true,
+    });
+    if (!ok) return false;
+    upsertSave(t("saves.autoBackup"), this.snapshot());
     for (const p of this.projects) for (const a of p.agents) a.layers.forEach(disposeLayer);
     this.projects.length = 0;
     this.grid.replaceChildren();
@@ -901,7 +920,8 @@ export class App {
     this.view = "project";
     this.applySnapshot(snap);
     this.render();
-    toast(t("toast.loaded", name));
+    toast(t("saves.loadedUndo", name));
+    return true;
   }
 
   private fitPending = false;
