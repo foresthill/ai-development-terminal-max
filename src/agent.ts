@@ -184,9 +184,12 @@ export function createTerminalLayer(opts: {
 
   // Clickable file paths (web-links only handles http/https). Matches tokens
   // with at least one slash and a file extension — `docs/x/foo.md`, `./src/a.ts`,
-  // `/abs/p.rs`, `~/n.md`, optionally with a `:line[:col]` suffix. ⌘/Ctrl-click
-  // resolves it against the terminal's cwd and the host opens it (OS default app).
-  const PATH_RE = /(?:~\/|\.{1,2}\/|\/)?[\w.\-@+]+(?:\/[\w.\-@+]+)+\.\w{1,8}(?::\d+(?:[:.]\d+)?)?/g;
+  // `/abs/p.rs`, `~/n.md`, `成果物/_社内検討/メール_土井さん.md`, optionally with a
+  // `:line[:col]` suffix. Segments allow Unicode letters (\p{L}) so Japanese path
+  // parts match; the extension stays ASCII so it never swallows trailing prose.
+  // ⌘/Ctrl-click resolves it against the cwd and the host opens it (OS default app).
+  const PATH_RE =
+    /(?:~\/|\.{1,2}\/|\/)?[\p{L}\p{N}._\-@+]+(?:\/[\p{L}\p{N}._\-@+]+)+\.[A-Za-z0-9]{1,8}(?::\d+(?:[:.]\d+)?)?/gu;
   term.registerLinkProvider({
     provideLinks(y, callback) {
       const line = term.buffer.active.getLine(y - 1);
