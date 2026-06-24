@@ -191,6 +191,15 @@ body {
   font-size: 12px;
   color: var(--muted);
 }
+/* running total of CPU/mem across all agents — accented, monospace digits */
+.count-total {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.count-total:empty {
+  display: none;
+}
 .hint {
   margin-left: auto;
   font-size: 11px;

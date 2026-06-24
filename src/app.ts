@@ -96,6 +96,7 @@ export class App {
   private macroEl: HTMLElement;
   private stripEl: HTMLElement;
   private countEl: HTMLElement;
+  private totalEl: HTMLElement;
   private btnLayout: HTMLElement;
   private btnGuard: HTMLElement;
   private btnNest: HTMLElement;
@@ -110,6 +111,7 @@ export class App {
     this.macroEl = root.querySelector("#macro")!;
     this.stripEl = root.querySelector("#project-strip")!;
     this.countEl = root.querySelector("#agent-count")!;
+    this.totalEl = root.querySelector("#agent-total")!;
     this.btnLayout = root.querySelector("#btn-layout")!;
     this.btnGuard = root.querySelector("#btn-guard")!;
     this.btnNest = root.querySelector("#btn-nest")!;
@@ -201,14 +203,23 @@ export class App {
         const pid = term?.pty?.pid;
         if (pid) items.push({ agent: a, pid });
       }
-    if (!items.length) return;
+    if (!items.length) {
+      this.totalEl.textContent = "";
+      return;
+    }
     try {
       const stats = await agentStats(items.map((x) => x.pid));
+      let sumCpu = 0;
+      let sumMem = 0;
+      let n = 0;
       items.forEach((x, i) => {
         const s = stats[i];
         if (!s) return;
         x.agent.cpu = s.cpu;
         x.agent.cpuEl.textContent = `⚡${Math.round(s.cpu)}% · ${fmtMem(s.mem)}`;
+        sumCpu += s.cpu;
+        sumMem += s.mem;
+        n++;
         // follow `cd` (display only) unless the user is editing the path field
         if (s.cwd && s.cwd !== x.agent.cwd && document.activeElement !== x.agent.pathEl) {
           x.agent.cwd = s.cwd;
@@ -216,6 +227,9 @@ export class App {
           this.refreshBranch(x.agent);
         }
       });
+      // Running total across every live agent (all projects). CPU% is summed
+      // across cores, so it can exceed 100%.
+      this.totalEl.textContent = n ? `Σ ⚡${Math.round(sumCpu)}% · ${fmtMem(sumMem)}` : "";
     } catch {
       // sysinfo unavailable — skip this tick.
     }
