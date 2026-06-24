@@ -76,6 +76,7 @@ const HELP_JA = `
   <li><code>Alt+N</code> 端末追加 ・ <code>Alt+B</code> ブラウザ追加 ・ <code>Alt+W</code> レイヤー閉 ・ <code>Alt+X</code> エージェント閉</li>
   <li><code>Alt+R</code> このエージェントを起動 ・ <code>Alt+Shift+R</code> 全起動 ・ <code>Alt+Enter</code> 送信バー</li>
   <li><code>Shift+Enter</code> 端末内で改行（Claude Codeの改行）・ <code>⌘C/⌘V</code> コピー/貼付 ・ <code>⌘/Ctrl+クリック</code> URL/パスを開く</li>
+  <li>選択: ドラッグ／<code>Shift+クリック</code>で範囲。claude等マウス使用アプリ上では <code>⌥(Option)+ドラッグ</code>（macOSの選択強制キーはOption固定）</li>
 </ul>
 <h4>ツールバー</h4>
 <ul>
@@ -112,6 +113,7 @@ const HELP_EN = `
   <li><code>Alt+N</code> terminal ・ <code>Alt+B</code> browser ・ <code>Alt+W</code> close layer ・ <code>Alt+X</code> close agent</li>
   <li><code>Alt+R</code> launch this agent ・ <code>Alt+Shift+R</code> launch all ・ <code>Alt+Enter</code> send bar</li>
   <li><code>Shift+Enter</code> newline in terminal (Claude Code) ・ <code>⌘C/⌘V</code> copy/paste ・ <code>⌘/Ctrl+click</code> open URL/path</li>
+  <li>Select: drag / <code>Shift+click</code> for a range. In mouse-capturing apps (claude) use <code>⌥(Option)+drag</code> (macOS force-selection key is Option)</li>
 </ul>
 <h4>Toolbar</h4>
 <ul>

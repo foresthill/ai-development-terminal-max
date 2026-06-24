@@ -115,6 +115,11 @@ export function createTerminalLayer(opts: {
     allowProposedApi: true,
     scrollback: 5000,
     theme: TERM_THEME,
+    // Apps that capture the mouse (claude's TUI enables tracking) otherwise eat
+    // click/drag, so text can't be selected. On macOS xterm's force-selection
+    // modifier is Option (Shift isn't honored here), so let ⌥-drag / ⌥-click
+    // select even while an app is tracking the mouse.
+    macOptionClickForcesSelection: true,
   });
   const fit = new FitAddon();
   term.loadAddon(fit);
