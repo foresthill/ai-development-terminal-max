@@ -350,6 +350,9 @@ export class App {
     else if (!p.startsWith("/")) p = (cwd ?? this.home).replace(/\/$/, "") + "/" + p.replace(/^\.\//, "");
     try {
       await openPath(p);
+      // Surface where the (often relative) path actually resolved to — a relative
+      // path claude prints is otherwise hard to locate without digging.
+      toast(t("toast.openedPath", p));
     } catch {
       toast(t("toast.openPathFail", p));
     }
