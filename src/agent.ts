@@ -140,28 +140,37 @@ export function createTerminalLayer(opts: {
   // — WKWebView's navigator.clipboard is unreliable, leaving the system
   // pasteboard untouched. Returning false stops xterm from also forwarding the
   // keystroke to the shell.
+  // Returning false from attachCustomKeyEventHandler stops xterm from sending the
+  // key, but it does NOT prevent the browser default — so the keystroke still
+  // reaches xterm's hidden textarea and gets re-sent, corrupting our injected
+  // sequence. We must preventDefault() ourselves whenever we handle a key here.
+  const handled = (e: KeyboardEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    return false;
+  };
   term.attachCustomKeyEventHandler((e) => {
     if (e.type !== "keydown") return true;
     // Shift+Enter inserts a newline instead of submitting. xterm sends CR (\r)
-    // for both Enter and Shift+Enter, so we send ESC+CR (\x1b\r) — the same bytes
-    // macOS Option+Enter produces — which Claude Code recognizes as chat:newline.
-    // (A bare LF doesn't work: Claude Code treats it as another submit.) Default
+    // for both Enter and Shift+Enter, so we send ESC+CR (\x1b\r) — the exact bytes
+    // Claude Code's own /terminal-setup binds Shift+Enter to in VS Code (also an
+    // xterm.js terminal), which Claude Code recognizes as chat:newline. Default
     // Enter (plain CR) still submits.
     // Ref: https://code.claude.com/docs/en/terminal-config
     if (e.key === "Enter" && e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
       layer.pty?.write("\x1b\r");
-      return false;
+      return handled(e);
     }
     if (!e.metaKey) return true;
     if (e.key === "c" && term.hasSelection()) {
       void writeText(term.getSelection());
-      return false;
+      return handled(e);
     }
     if (e.key === "v") {
       void readText().then((text) => {
         if (text) layer.pty?.write(text);
       });
-      return false;
+      return handled(e);
     }
     return true;
   });
