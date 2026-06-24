@@ -342,9 +342,11 @@ export function openSavesDialog(c: SavesController) {
   box.className = "modal modal-wide";
   box.innerHTML = `
     <div class="modal-title">${t("saves.title")}</div>
+    <div class="modal-body">${t("saves.intro")}</div>
+    <div class="set-section">${t("saves.saveSection")}</div>
     <div class="set-row"><input class="modal-input" id="save-name" spellcheck="false"
-        placeholder="${t("saves.placeholder")}"><button class="primary" id="save-go">${t("saves.saveAs")}</button></div>
-    <div class="set-section">${t("saves.slots")}</div>
+        placeholder="${t("saves.placeholder")}"><button class="primary" id="save-go">💾 ${t("saves.saveAs")}</button></div>
+    <div class="set-section">${t("saves.loadSection")}</div>
     <div id="save-list"></div>
     <div class="modal-row"><button id="save-close">${t("saves.close")}</button></div>`;
   back.append(box);
@@ -375,13 +377,33 @@ export function openSavesDialog(c: SavesController) {
     for (const name of names) {
       const row = document.createElement("div");
       row.className = "saved-row";
-      const open = document.createElement("button");
-      open.className = "saved-open";
-      open.textContent = `📂 ${name}`;
-      open.title = t("saves.loadTip");
-      open.addEventListener("click", async () => {
-        // load() confirms first (it replaces the current workspace); only close
-        // the dialog if the user went through with it.
+      // The slot name is a plain label — NOT a load trigger. Loading and
+      // overwriting are explicit, separate buttons so neither is a surprise.
+      const nm = document.createElement("span");
+      nm.className = "saved-name";
+      nm.textContent = `💾 ${name}`;
+      const over = document.createElement("button");
+      over.className = "saved-act";
+      over.textContent = t("saves.overwrite");
+      over.title = t("saves.overwriteTip");
+      over.addEventListener("click", async () => {
+        const ok = await confirmModal({
+          title: t("saves.confirmOverwrite", name),
+          confirm: t("saves.overwriteBtn"),
+          danger: true,
+        });
+        if (ok) {
+          c.saveAs(name);
+          refresh();
+        }
+      });
+      const load = document.createElement("button");
+      load.className = "saved-load";
+      load.textContent = t("saves.load");
+      load.title = t("saves.loadTip");
+      load.addEventListener("click", async () => {
+        // load() confirms (it replaces the current workspace) and auto-backs-up;
+        // only close the dialog if the user went through with it.
         if (await c.load(name)) close();
       });
       const del = document.createElement("button");
@@ -392,7 +414,7 @@ export function openSavesDialog(c: SavesController) {
         c.remove(name);
         refresh();
       });
-      row.append(open, del);
+      row.append(nm, over, load, del);
       listEl.appendChild(row);
     }
   };
