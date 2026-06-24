@@ -2,7 +2,7 @@
 // agent owns a Z-axis stack of Layers — a terminal, a browser, an extra
 // terminal — only one of which is "front" at a time. This is the depth that a
 // flat tmux/zellij layout can't express.
-import { Terminal, ILink } from "@xterm/xterm";
+import { Terminal, ILink, IBufferLine } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { WebLinksAddon } from "@xterm/addon-web-links";
@@ -64,6 +64,22 @@ export function basename(p: string): string {
 
 let seq = 0;
 const uid = (p: string) => `${p}-${Date.now().toString(36)}-${seq++}`;
+
+/// Map a JS string index (into IBufferLine.translateToString) to a 0-based cell
+/// column. Wide (CJK) chars take 2 cells but 1 string char, so a naive index ==
+/// column assumption puts links on the wrong columns when full-width text (e.g.
+/// "ファイル: ") precedes the link on the same line.
+function colForStrIdx(line: IBufferLine, strIdx: number): number {
+  let acc = 0;
+  for (let col = 0; col < line.length; col++) {
+    const cell = line.getCell(col);
+    if (!cell) break;
+    if (cell.getWidth() === 0) continue; // trailing half of a wide char
+    if (acc >= strIdx) return col;
+    acc += cell.getChars().length || 1;
+  }
+  return line.length;
+}
 
 const TERM_THEME = {
   background: "#0b0e14",
@@ -165,12 +181,15 @@ export function createTerminalLayer(opts: {
       let m: RegExpExecArray | null;
       while ((m = PATH_RE.exec(text)) !== null) {
         const start = m.index;
-        const prev = text[start - 1];
-        if (prev === "/" || prev === ":") continue; // skip URL tails (host/p.md)
+        if (text[start - 1] === "/") continue; // skip URL tails (the host/p.md of a URL)
         const raw = m[0];
+        // Map string indices → cell columns so links land correctly even when
+        // wide (CJK) characters precede the path on the line.
+        const startCol = colForStrIdx(line, start);
+        const endCol = colForStrIdx(line, start + raw.length); // exclusive
         links.push({
           text: raw,
-          range: { start: { x: start + 1, y }, end: { x: start + raw.length, y } },
+          range: { start: { x: startCol + 1, y }, end: { x: endCol, y } },
           activate: (e: MouseEvent) => {
             if (e.metaKey || e.ctrlKey) opts.onOpenPath?.(raw, layer.cwd ?? null);
           },
