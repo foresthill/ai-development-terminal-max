@@ -92,6 +92,18 @@ body {
   border-color: var(--accent);
   color: var(--accent);
 }
+/* compact circular icon button (e.g. ? help) — a mark, not a labelled pill */
+.proj-actions button.btn-mark {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 50%;
+  font-weight: 600;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
 /* match the toolbar buttons: one pill, label + borderless select inside */
 .perm {
   display: inline-flex;

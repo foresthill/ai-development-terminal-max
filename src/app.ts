@@ -724,6 +724,11 @@ export class App {
       KeyX: () => this.closeAgentObj(this.agents[this.focused]),
       KeyP: () => this.switchProject(1),
       KeyM: () => this.toggleMacro(),
+      KeyR: () => {
+        if (e.shiftKey) return this.launchAll();
+        const a = this.agents[this.focused];
+        if (a && !a.running) this.launchAgent(a);
+      },
       Enter: () => this.toggleSendBar(),
     };
     let fn = handlers[e.code];

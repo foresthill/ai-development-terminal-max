@@ -74,7 +74,8 @@ const HELP_JA = `
   <li><code>Alt+T</code> 追加 ・ <code>Alt+←/→</code> エージェント移動 ・ <code>Alt+↑/↓</code> 奥行き</li>
   <li><code>Alt+Z</code> 拡大 ・ <code>Alt+1–9</code> 番号でフォーカス ・ <code>Alt+P</code> プロジェクト切替 ・ <code>Alt+M</code> 俯瞰</li>
   <li><code>Alt+N</code> 端末追加 ・ <code>Alt+B</code> ブラウザ追加 ・ <code>Alt+W</code> レイヤー閉 ・ <code>Alt+X</code> エージェント閉</li>
-  <li><code>Alt+Enter</code> 送信バー</li>
+  <li><code>Alt+R</code> このエージェントを起動 ・ <code>Alt+Shift+R</code> 全起動 ・ <code>Alt+Enter</code> 送信バー</li>
+  <li><code>Shift+Enter</code> 端末内で改行（Claude Codeの改行）・ <code>⌘C/⌘V</code> コピー/貼付 ・ <code>⌘/Ctrl+クリック</code> URL/パスを開く</li>
 </ul>
 <h4>ツールバー</h4>
 <ul>
@@ -109,7 +110,8 @@ const HELP_EN = `
   <li><code>Alt+T</code> new ・ <code>Alt+←/→</code> move focus ・ <code>Alt+↑/↓</code> depth</li>
   <li><code>Alt+Z</code> zoom ・ <code>Alt+1–9</code> focus by number ・ <code>Alt+P</code> switch project ・ <code>Alt+M</code> macro</li>
   <li><code>Alt+N</code> terminal ・ <code>Alt+B</code> browser ・ <code>Alt+W</code> close layer ・ <code>Alt+X</code> close agent</li>
-  <li><code>Alt+Enter</code> send bar</li>
+  <li><code>Alt+R</code> launch this agent ・ <code>Alt+Shift+R</code> launch all ・ <code>Alt+Enter</code> send bar</li>
+  <li><code>Shift+Enter</code> newline in terminal (Claude Code) ・ <code>⌘C/⌘V</code> copy/paste ・ <code>⌘/Ctrl+click</code> open URL/path</li>
 </ul>
 <h4>Toolbar</h4>
 <ul>
