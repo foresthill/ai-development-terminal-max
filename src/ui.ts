@@ -128,7 +128,8 @@ const HELP_JA = `
   <li><code>Alt+Z</code> 拡大 ・ <code>Alt+1–9</code> 番号でフォーカス ・ <code>Alt+P</code> プロジェクト切替 ・ <code>Alt+M</code> 俯瞰</li>
   <li><code>Alt+N</code> 端末追加 ・ <code>Alt+B</code> ブラウザ追加 ・ <code>Alt+W</code> レイヤー閉 ・ <code>Alt+X</code> エージェント閉</li>
   <li><code>Alt+R</code> このエージェントを起動 ・ <code>Alt+Shift+R</code> 全起動 ・ <code>Alt+Enter</code> 送信バー</li>
-  <li><code>Shift+Enter</code> 端末内で改行（Claude Codeの改行）・ <code>⌘C/⌘V</code> コピー/貼付 ・ <code>⌘/Ctrl+クリック</code> URL/パスを開く</li>
+  <li><code>Shift+Enter</code> 端末内で改行（Claude Codeの改行）・ <code>⌘C/⌘V</code> コピー/貼付</li>
+  <li>URL: クリックでブラウザに開く（既定=アプリ内、設定で変更可）・ <code>⌘/Ctrl+クリック</code>でもう片方のブラウザ ／ ファイルパス: <code>⌘/Ctrl+クリック</code>でOS標準アプリ</li>
   <li>選択: ドラッグ／<code>Shift+クリック</code>で範囲。claude等マウス使用アプリ上では <code>⌥(Option)+ドラッグ</code>（macOSの選択強制キーはOption固定）</li>
 </ul>
 <h4>ツールバー</h4>
@@ -165,7 +166,8 @@ const HELP_EN = `
   <li><code>Alt+Z</code> zoom ・ <code>Alt+1–9</code> focus by number ・ <code>Alt+P</code> switch project ・ <code>Alt+M</code> macro</li>
   <li><code>Alt+N</code> terminal ・ <code>Alt+B</code> browser ・ <code>Alt+W</code> close layer ・ <code>Alt+X</code> close agent</li>
   <li><code>Alt+R</code> launch this agent ・ <code>Alt+Shift+R</code> launch all ・ <code>Alt+Enter</code> send bar</li>
-  <li><code>Shift+Enter</code> newline in terminal (Claude Code) ・ <code>⌘C/⌘V</code> copy/paste ・ <code>⌘/Ctrl+click</code> open URL/path</li>
+  <li><code>Shift+Enter</code> newline in terminal (Claude Code) ・ <code>⌘C/⌘V</code> copy/paste</li>
+  <li>URL: click opens it in the browser (default = in-app, configurable) ・ <code>⌘/Ctrl+click</code> = the other browser ／ file path: <code>⌘/Ctrl+click</code> = OS default app</li>
   <li>Select: drag / <code>Shift+click</code> for a range. In mouse-capturing apps (claude) use <code>⌥(Option)+drag</code> (macOS force-selection key is Option)</li>
 </ul>
 <h4>Toolbar</h4>
@@ -222,6 +224,7 @@ export interface SettingsValues {
   enabled: Set<string>;
   customDeny: string;
   agentPresets: { label: string; cmd: string }[];
+  urlExternal: boolean;
 }
 
 function parsePresets(text: string): { label: string; cmd: string }[] {
@@ -261,6 +264,12 @@ export function openSettings(cur: SettingsValues): Promise<SettingsValues | null
           <option value="auto">auto</option><option value="normal">normal</option>
           <option value="bypass">bypass ⚠</option>
         </select></label>
+      <label class="set-row"><span>${t("set.urlTarget")}</span>
+        <select class="modal-input" id="set-url">
+          <option value="inapp">${t("set.urlInapp")}</option>
+          <option value="external">${t("set.urlExternal")}</option>
+        </select></label>
+      <div class="set-hint">${t("set.urlHint")}</div>
       <div class="set-section">${t("set.guardSection")}</div>
       <div id="set-presets"></div>
       <label class="set-row col"><span>${t("set.customDeny")}</span>
@@ -275,12 +284,14 @@ export function openSettings(cur: SettingsValues): Promise<SettingsValues | null
     const cmd = box.querySelector<HTMLInputElement>("#set-cmd")!;
     const agents = box.querySelector<HTMLTextAreaElement>("#set-agents")!;
     const perm = box.querySelector<HTMLSelectElement>("#set-perm")!;
+    const urlSel = box.querySelector<HTMLSelectElement>("#set-url")!;
     const custom = box.querySelector<HTMLTextAreaElement>("#set-custom")!;
     const presetsEl = box.querySelector<HTMLElement>("#set-presets")!;
     langSel.value = cur.lang;
     cmd.value = cur.agentCmd;
     agents.value = cur.agentPresets.map((p) => `${p.label} = ${p.cmd}`).join("\n");
     perm.value = cur.permMode;
+    urlSel.value = cur.urlExternal ? "external" : "inapp";
     custom.value = cur.customDeny;
     const boxes: Record<string, HTMLInputElement> = {};
     for (const p of GUARD_PRESETS) {
@@ -317,6 +328,7 @@ export function openSettings(cur: SettingsValues): Promise<SettingsValues | null
         enabled,
         customDeny: custom.value,
         agentPresets: parsePresets(agents.value),
+        urlExternal: urlSel.value === "external",
       });
     });
     back.addEventListener("click", (e) => {

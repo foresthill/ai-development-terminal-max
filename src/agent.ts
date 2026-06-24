@@ -96,7 +96,9 @@ export function createTerminalLayer(opts: {
   autoRun?: string;
   // Invoked when a URL in the terminal is ⌘/Ctrl-clicked. The host decides where
   // to open it (in-app browser layer by default).
-  onOpenUrl?: (url: string) => void;
+  // `modifierHeld` is true when ⌘/Ctrl was down — the host opens the non-default
+  // target (in-app browser vs external) for that case.
+  onOpenUrl?: (url: string, modifierHeld: boolean) => void;
   // Invoked when a file path in the terminal is ⌘/Ctrl-clicked. `raw` is the
   // matched token (may be relative or carry a :line suffix); `cwd` is the
   // terminal's working dir so the host can resolve relative paths.
@@ -130,12 +132,12 @@ export function createTerminalLayer(opts: {
     // WebGL unavailable (rare) — xterm falls back to canvas automatically.
   }
 
-  // Clickable URLs. Plain click does nothing (so it never steals a text
-  // selection / cursor placement) — only ⌘-click (or Ctrl-click) opens, matching
-  // the macOS terminal convention. The host routes the URL (in-app browser).
+  // Clickable URLs. Plain click opens in the default target (Settings: in-app
+  // browser by default); ⌘/Ctrl-click opens the other target (external browser).
+  // The host decides based on the modifier flag.
   term.loadAddon(
     new WebLinksAddon((event, uri) => {
-      if (event.metaKey || event.ctrlKey) opts.onOpenUrl?.(uri);
+      opts.onOpenUrl?.(uri, event.metaKey || event.ctrlKey);
     }),
   );
 

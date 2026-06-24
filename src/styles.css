@@ -445,6 +445,12 @@ body {
   font-weight: 600;
   color: var(--text);
 }
+.set-hint {
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted);
+}
 .set-check {
   display: flex;
   align-items: center;
