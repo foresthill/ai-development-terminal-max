@@ -175,7 +175,20 @@ export function createTerminalLayer(opts: {
     }
     if (e.key === "v") {
       void readText().then((text) => {
-        if (text) layer.pty?.write(text);
+        const bracket = term.modes.bracketedPasteMode;
+        if (text) {
+          // Strip any embedded paste-end marker so content can't break out early,
+          // and wrap in bracketed-paste when the app enabled it (so claude/zsh
+          // treat it as a paste, not typed input).
+          const safe = text.replace(/\x1b\[201~/g, "");
+          layer.pty?.write(bracket ? `\x1b[200~${safe}\x1b[201~` : safe);
+        } else if (bracket) {
+          // No text — the clipboard may hold an image. Send an empty bracketed
+          // paste so a running app (claude) probes the clipboard and reads the
+          // image itself (claude does this via osascript on macOS). Plain shells
+          // (no bracketed-paste mode) get nothing, as they can't use an image.
+          layer.pty?.write("\x1b[200~\x1b[201~");
+        }
       });
       return handled(e);
     }
