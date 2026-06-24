@@ -18,7 +18,7 @@ import { handleSubagentEvent, clearSubagentLayers } from "./subagent";
 import { defaultShell, homeDir, agentStats } from "./pty";
 import { createWorktree, writeAidtSettings, currentBranch } from "./git";
 import { listen } from "@tauri-apps/api/event";
-import { openPath } from "@tauri-apps/plugin-opener";
+import { openPath, openUrl as openExternalUrl } from "@tauri-apps/plugin-opener";
 import {
   askText,
   toast,
@@ -82,6 +82,7 @@ export class App {
   private saved: SavedProject[] = [];
   private presets = new Set<string>(GUARD_PRESETS.map((p) => p.id));
   private customDeny = "";
+  private urlExternal = false; // false ⇒ clicked URLs open in the in-app browser
   private shell = "/bin/zsh";
   private home = "";
   private agentSeq = 1;
@@ -288,7 +289,7 @@ export class App {
       args: ["-l"],
       cwd,
       autoRun: autoRun ? this.buildCmd(cmd) : undefined,
-      onOpenUrl: (url) => this.openUrl(url),
+      onOpenUrl: (url, mod) => this.openUrl(url, mod),
       onOpenPath: (raw, cwd) => this.openPathLink(raw, cwd),
     });
   }
@@ -326,15 +327,19 @@ export class App {
       shell: this.shell,
       args: ["-l"],
       cwd,
-      onOpenUrl: (url) => this.openUrl(url),
+      onOpenUrl: (url, mod) => this.openUrl(url, mod),
       onOpenPath: (raw, cwd2) => this.openPathLink(raw, cwd2),
     });
   }
 
-  /// Open a URL ⌘-clicked in a terminal as a new in-app browser layer on the
-  /// focused agent (the one whose terminal was clicked), and bring it to front.
-  private openUrl(url: string) {
-    this.addLayerTo(this.agents[this.focused], "browser", url);
+  /// Open a URL clicked in a terminal. Default target is the Settings choice
+  /// (in-app browser layer, or the OS browser); holding ⌘/Ctrl while clicking
+  /// opens the OTHER target. So with the default (in-app): plain click → in-app,
+  /// ⌘/Ctrl-click → external.
+  private openUrl(url: string, modifierHeld = false) {
+    const external = modifierHeld ? !this.urlExternal : this.urlExternal;
+    if (external) void openExternalUrl(url);
+    else this.addLayerTo(this.agents[this.focused], "browser", url);
   }
 
   /// Open a file path ⌘-clicked in a terminal with the OS default app. Resolves
@@ -345,6 +350,9 @@ export class App {
     else if (!p.startsWith("/")) p = (cwd ?? this.home).replace(/\/$/, "") + "/" + p.replace(/^\.\//, "");
     try {
       await openPath(p);
+      // Surface where the (often relative) path actually resolved to — a relative
+      // path claude prints is otherwise hard to locate without digging.
+      toast(t("toast.openedPath", p));
     } catch {
       toast(t("toast.openPathFail", p));
     }
@@ -648,6 +656,7 @@ export class App {
       enabled: new Set(this.presets),
       customDeny: this.customDeny,
       agentPresets: this.agentPresets,
+      urlExternal: this.urlExternal,
     });
     if (!res) return;
     if (res.lang !== getLang()) setLang(res.lang); // re-applies static labels
@@ -655,6 +664,7 @@ export class App {
     this.permMode = res.permMode;
     this.presets = res.enabled;
     this.customDeny = res.customDeny;
+    this.urlExternal = res.urlExternal;
     this.agentPresets = res.agentPresets.length ? res.agentPresets : [...DEFAULT_AGENT_PRESETS];
     for (const p of this.projects) for (const a of p.agents) this.fillAgentSelect(a);
     if (this.guardrails) {
@@ -740,14 +750,12 @@ export class App {
     if (!e.altKey) return;
     const handlers: Record<string, () => void> = {
       KeyT: () => this.addAgentToActive(),
+      // Focus/depth use H/J/K/L only — Alt+arrows are intentionally NOT bound so
+      // ⌥(Option)+arrow passes through to the terminal (claude/shell word nav).
       KeyL: () => this.moveFocus(1),
-      ArrowRight: () => this.moveFocus(1),
       KeyH: () => this.moveFocus(-1),
-      ArrowLeft: () => this.moveFocus(-1),
       KeyJ: () => this.cycleDepth(1),
-      ArrowDown: () => this.cycleDepth(1),
       KeyK: () => this.cycleDepth(-1),
-      ArrowUp: () => this.cycleDepth(-1),
       KeyZ: () => this.toggleZoom(),
       KeyN: () => this.addLayerTo(this.agents[this.focused], "terminal"),
       KeyB: () => this.addLayerTo(this.agents[this.focused], "browser"),
@@ -847,6 +855,7 @@ export class App {
       presets: [...this.presets],
       customDeny: this.customDeny,
       agentPresets: this.agentPresets,
+      urlExternal: this.urlExternal,
     });
   }
 
@@ -865,6 +874,7 @@ export class App {
     this.subagentNest = !!snap.subagentNest;
     this.agentCmd = snap.agentCmd || "claude";
     this.customDeny = snap.customDeny ?? "";
+    this.urlExternal = !!snap.urlExternal;
     if (snap.presets) this.presets = new Set(snap.presets);
     if (snap.agentPresets?.length) this.agentPresets = snap.agentPresets;
 

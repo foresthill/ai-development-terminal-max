@@ -100,6 +100,7 @@ export interface WorkspaceSnap {
   presets?: string[];
   customDeny?: string;
   agentPresets?: AgentPresetSnap[];
+  urlExternal?: boolean; // open clicked URLs in the external browser by default
   projects: ProjectSnap[];
 }
 
@@ -113,6 +114,7 @@ export interface Settings {
   presets: string[];
   customDeny: string;
   agentPresets: AgentPresetSnap[];
+  urlExternal: boolean;
 }
 
 export function buildSnapshot(projects: Project[], s: Settings): WorkspaceSnap {
@@ -126,6 +128,7 @@ export function buildSnapshot(projects: Project[], s: Settings): WorkspaceSnap {
     presets: s.presets,
     customDeny: s.customDeny,
     agentPresets: s.agentPresets,
+    urlExternal: s.urlExternal,
     projects: projects.map((p) => ({
       name: p.name,
       root: p.root,

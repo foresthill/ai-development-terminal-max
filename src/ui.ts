@@ -124,12 +124,13 @@ const HELP_JA = `
 </ul>
 <h4>キーボード（leader = Alt / Option）</h4>
 <ul>
-  <li><code>Alt+T</code> 追加 ・ <code>Alt+←/→</code> エージェント移動 ・ <code>Alt+↑/↓</code> 奥行き</li>
+  <li><code>Alt+T</code> 追加 ・ <code>Alt+H/L</code> エージェント移動 ・ <code>Alt+J/K</code> 奥行き（⌥+矢印は端末の単語移動用に解放）</li>
   <li><code>Alt+Z</code> 拡大 ・ <code>Alt+1–9</code> 番号でフォーカス ・ <code>Alt+P</code> プロジェクト切替 ・ <code>Alt+M</code> 俯瞰</li>
   <li><code>Alt+N</code> 端末追加 ・ <code>Alt+B</code> ブラウザ追加 ・ <code>Alt+W</code> レイヤー閉 ・ <code>Alt+X</code> エージェント閉</li>
   <li><code>Alt+R</code> このエージェントを起動 ・ <code>Alt+Shift+R</code> 全起動 ・ <code>Alt+Enter</code> 送信バー</li>
-  <li><code>Shift+Enter</code> 端末内で改行（Claude Codeの改行）・ <code>⌘C/⌘V</code> コピー/貼付 ・ <code>⌘/Ctrl+クリック</code> URL/パスを開く</li>
-  <li>選択: ドラッグ／<code>Shift+クリック</code>で範囲。claude等マウス使用アプリ上では <code>⌥(Option)+ドラッグ</code>（macOSの選択強制キーはOption固定）</li>
+  <li><code>Shift+Enter</code> 端末内で改行（Claude Codeの改行）・ <code>⌘C/⌘V</code> コピー/貼付</li>
+  <li>URL: クリックでブラウザに開く（既定=アプリ内、設定で変更可）・ <code>⌘/Ctrl+クリック</code>でもう片方のブラウザ ／ ファイルパス: <code>⌘/Ctrl+クリック</code>でOS標準アプリ</li>
+  <li>選択: <code>クリック</code>で始点→<code>Shift+クリック</code>で範囲指定（claude上でも可）。ドラッグ選択はシェルではそのまま、claude上は <code>⌥(Option)+ドラッグ</code></li>
 </ul>
 <h4>ツールバー</h4>
 <ul>
@@ -161,12 +162,13 @@ const HELP_EN = `
 </ul>
 <h4>Keyboard (leader = Alt / Option)</h4>
 <ul>
-  <li><code>Alt+T</code> new ・ <code>Alt+←/→</code> move focus ・ <code>Alt+↑/↓</code> depth</li>
+  <li><code>Alt+T</code> new ・ <code>Alt+H/L</code> move focus ・ <code>Alt+J/K</code> depth (⌥+arrows freed for terminal word-nav)</li>
   <li><code>Alt+Z</code> zoom ・ <code>Alt+1–9</code> focus by number ・ <code>Alt+P</code> switch project ・ <code>Alt+M</code> macro</li>
   <li><code>Alt+N</code> terminal ・ <code>Alt+B</code> browser ・ <code>Alt+W</code> close layer ・ <code>Alt+X</code> close agent</li>
   <li><code>Alt+R</code> launch this agent ・ <code>Alt+Shift+R</code> launch all ・ <code>Alt+Enter</code> send bar</li>
-  <li><code>Shift+Enter</code> newline in terminal (Claude Code) ・ <code>⌘C/⌘V</code> copy/paste ・ <code>⌘/Ctrl+click</code> open URL/path</li>
-  <li>Select: drag / <code>Shift+click</code> for a range. In mouse-capturing apps (claude) use <code>⌥(Option)+drag</code> (macOS force-selection key is Option)</li>
+  <li><code>Shift+Enter</code> newline in terminal (Claude Code) ・ <code>⌘C/⌘V</code> copy/paste</li>
+  <li>URL: click opens it in the browser (default = in-app, configurable) ・ <code>⌘/Ctrl+click</code> = the other browser ／ file path: <code>⌘/Ctrl+click</code> = OS default app</li>
+  <li>Select: <code>click</code> the start → <code>Shift+click</code> the end for a range (works in claude too). Drag-select works in shells; in claude use <code>⌥(Option)+drag</code></li>
 </ul>
 <h4>Toolbar</h4>
 <ul>
@@ -222,6 +224,7 @@ export interface SettingsValues {
   enabled: Set<string>;
   customDeny: string;
   agentPresets: { label: string; cmd: string }[];
+  urlExternal: boolean;
 }
 
 function parsePresets(text: string): { label: string; cmd: string }[] {
@@ -261,6 +264,12 @@ export function openSettings(cur: SettingsValues): Promise<SettingsValues | null
           <option value="auto">auto</option><option value="normal">normal</option>
           <option value="bypass">bypass ⚠</option>
         </select></label>
+      <label class="set-row"><span>${t("set.urlTarget")}</span>
+        <select class="modal-input" id="set-url">
+          <option value="inapp">${t("set.urlInapp")}</option>
+          <option value="external">${t("set.urlExternal")}</option>
+        </select></label>
+      <div class="set-hint">${t("set.urlHint")}</div>
       <div class="set-section">${t("set.guardSection")}</div>
       <div id="set-presets"></div>
       <label class="set-row col"><span>${t("set.customDeny")}</span>
@@ -275,12 +284,14 @@ export function openSettings(cur: SettingsValues): Promise<SettingsValues | null
     const cmd = box.querySelector<HTMLInputElement>("#set-cmd")!;
     const agents = box.querySelector<HTMLTextAreaElement>("#set-agents")!;
     const perm = box.querySelector<HTMLSelectElement>("#set-perm")!;
+    const urlSel = box.querySelector<HTMLSelectElement>("#set-url")!;
     const custom = box.querySelector<HTMLTextAreaElement>("#set-custom")!;
     const presetsEl = box.querySelector<HTMLElement>("#set-presets")!;
     langSel.value = cur.lang;
     cmd.value = cur.agentCmd;
     agents.value = cur.agentPresets.map((p) => `${p.label} = ${p.cmd}`).join("\n");
     perm.value = cur.permMode;
+    urlSel.value = cur.urlExternal ? "external" : "inapp";
     custom.value = cur.customDeny;
     const boxes: Record<string, HTMLInputElement> = {};
     for (const p of GUARD_PRESETS) {
@@ -317,6 +328,7 @@ export function openSettings(cur: SettingsValues): Promise<SettingsValues | null
         enabled,
         customDeny: custom.value,
         agentPresets: parsePresets(agents.value),
+        urlExternal: urlSel.value === "external",
       });
     });
     back.addEventListener("click", (e) => {
@@ -342,9 +354,11 @@ export function openSavesDialog(c: SavesController) {
   box.className = "modal modal-wide";
   box.innerHTML = `
     <div class="modal-title">${t("saves.title")}</div>
+    <div class="modal-body">${t("saves.intro")}</div>
+    <div class="set-section">${t("saves.saveSection")}</div>
     <div class="set-row"><input class="modal-input" id="save-name" spellcheck="false"
-        placeholder="${t("saves.placeholder")}"><button class="primary" id="save-go">${t("saves.saveAs")}</button></div>
-    <div class="set-section">${t("saves.slots")}</div>
+        placeholder="${t("saves.placeholder")}"><button class="primary" id="save-go">💾 ${t("saves.saveAs")}</button></div>
+    <div class="set-section">${t("saves.loadSection")}</div>
     <div id="save-list"></div>
     <div class="modal-row"><button id="save-close">${t("saves.close")}</button></div>`;
   back.append(box);
@@ -375,13 +389,33 @@ export function openSavesDialog(c: SavesController) {
     for (const name of names) {
       const row = document.createElement("div");
       row.className = "saved-row";
-      const open = document.createElement("button");
-      open.className = "saved-open";
-      open.textContent = `📂 ${name}`;
-      open.title = t("saves.loadTip");
-      open.addEventListener("click", async () => {
-        // load() confirms first (it replaces the current workspace); only close
-        // the dialog if the user went through with it.
+      // The slot name is a plain label — NOT a load trigger. Loading and
+      // overwriting are explicit, separate buttons so neither is a surprise.
+      const nm = document.createElement("span");
+      nm.className = "saved-name";
+      nm.textContent = `💾 ${name}`;
+      const over = document.createElement("button");
+      over.className = "saved-act";
+      over.textContent = t("saves.overwrite");
+      over.title = t("saves.overwriteTip");
+      over.addEventListener("click", async () => {
+        const ok = await confirmModal({
+          title: t("saves.confirmOverwrite", name),
+          confirm: t("saves.overwriteBtn"),
+          danger: true,
+        });
+        if (ok) {
+          c.saveAs(name);
+          refresh();
+        }
+      });
+      const load = document.createElement("button");
+      load.className = "saved-load";
+      load.textContent = t("saves.load");
+      load.title = t("saves.loadTip");
+      load.addEventListener("click", async () => {
+        // load() confirms (it replaces the current workspace) and auto-backs-up;
+        // only close the dialog if the user went through with it.
         if (await c.load(name)) close();
       });
       const del = document.createElement("button");
@@ -392,7 +426,7 @@ export function openSavesDialog(c: SavesController) {
         c.remove(name);
         refresh();
       });
-      row.append(open, del);
+      row.append(nm, over, load, del);
       listEl.appendChild(row);
     }
   };

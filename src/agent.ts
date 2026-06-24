@@ -96,7 +96,9 @@ export function createTerminalLayer(opts: {
   autoRun?: string;
   // Invoked when a URL in the terminal is ⌘/Ctrl-clicked. The host decides where
   // to open it (in-app browser layer by default).
-  onOpenUrl?: (url: string) => void;
+  // `modifierHeld` is true when ⌘/Ctrl was down — the host opens the non-default
+  // target (in-app browser vs external) for that case.
+  onOpenUrl?: (url: string, modifierHeld: boolean) => void;
   // Invoked when a file path in the terminal is ⌘/Ctrl-clicked. `raw` is the
   // matched token (may be relative or carry a :line suffix); `cwd` is the
   // terminal's working dir so the host can resolve relative paths.
@@ -130,12 +132,12 @@ export function createTerminalLayer(opts: {
     // WebGL unavailable (rare) — xterm falls back to canvas automatically.
   }
 
-  // Clickable URLs. Plain click does nothing (so it never steals a text
-  // selection / cursor placement) — only ⌘-click (or Ctrl-click) opens, matching
-  // the macOS terminal convention. The host routes the URL (in-app browser).
+  // Clickable URLs. Plain click opens in the default target (Settings: in-app
+  // browser by default); ⌘/Ctrl-click opens the other target (external browser).
+  // The host decides based on the modifier flag.
   term.loadAddon(
     new WebLinksAddon((event, uri) => {
-      if (event.metaKey || event.ctrlKey) opts.onOpenUrl?.(uri);
+      opts.onOpenUrl?.(uri, event.metaKey || event.ctrlKey);
     }),
   );
 
@@ -182,9 +184,12 @@ export function createTerminalLayer(opts: {
 
   // Clickable file paths (web-links only handles http/https). Matches tokens
   // with at least one slash and a file extension — `docs/x/foo.md`, `./src/a.ts`,
-  // `/abs/p.rs`, `~/n.md`, optionally with a `:line[:col]` suffix. ⌘/Ctrl-click
-  // resolves it against the terminal's cwd and the host opens it (OS default app).
-  const PATH_RE = /(?:~\/|\.{1,2}\/|\/)?[\w.\-@+]+(?:\/[\w.\-@+]+)+\.\w{1,8}(?::\d+(?:[:.]\d+)?)?/g;
+  // `/abs/p.rs`, `~/n.md`, `成果物/_社内検討/メール_土井さん.md`, optionally with a
+  // `:line[:col]` suffix. Segments allow Unicode letters (\p{L}) so Japanese path
+  // parts match; the extension stays ASCII so it never swallows trailing prose.
+  // ⌘/Ctrl-click resolves it against the cwd and the host opens it (OS default app).
+  const PATH_RE =
+    /(?:~\/|\.{1,2}\/|\/)?[\p{L}\p{N}._\-@+]+(?:\/[\p{L}\p{N}._\-@+]+)+\.[A-Za-z0-9]{1,8}(?::\d+(?:[:.]\d+)?)?/gu;
   term.registerLinkProvider({
     provideLinks(y, callback) {
       const line = term.buffer.active.getLine(y - 1);
@@ -212,6 +217,46 @@ export function createTerminalLayer(opts: {
       callback(links);
     },
   });
+
+  // Shift+click range-selection, implemented ourselves because xterm's native
+  // shift-extend only fires when the app isn't tracking the mouse — and claude's
+  // TUI tracks it (and on macOS xterm's force-selection modifier is Option, not
+  // Shift). A capture-phase handler maps the pixel to a buffer cell: a plain
+  // click records the anchor; Shift+click selects from the anchor to the clicked
+  // cell (works regardless of mouse-tracking). Plain clicks pass through
+  // untouched so normal focus / app mouse reporting still work.
+  let anchor: { col: number; row: number } | null = null;
+  const cellFromEvent = (e: MouseEvent): { col: number; row: number } | null => {
+    const screen = host.querySelector(".xterm-screen") as HTMLElement | null;
+    if (!screen || !term.cols || !term.rows) return null;
+    const r = screen.getBoundingClientRect();
+    const cw = r.width / term.cols;
+    const ch = r.height / term.rows;
+    if (cw <= 0 || ch <= 0) return null;
+    const col = Math.max(0, Math.min(term.cols - 1, Math.floor((e.clientX - r.left) / cw)));
+    const vrow = Math.max(0, Math.min(term.rows - 1, Math.floor((e.clientY - r.top) / ch)));
+    return { col, row: term.buffer.active.viewportY + vrow };
+  };
+  host.addEventListener(
+    "mousedown",
+    (e) => {
+      if (e.button !== 0) return;
+      const cell = cellFromEvent(e);
+      if (!cell) return;
+      if (e.shiftKey && anchor) {
+        e.preventDefault();
+        e.stopImmediatePropagation(); // don't let xterm also report this click
+        const cols = term.cols;
+        const aLin = anchor.row * cols + anchor.col;
+        const bLin = cell.row * cols + cell.col;
+        const [s, len] = aLin <= bLin ? [anchor, bLin - aLin + 1] : [cell, aLin - bLin + 1];
+        term.select(s.col, s.row, len);
+      } else if (!e.shiftKey) {
+        anchor = cell; // remember where a later Shift+click should extend from
+      }
+    },
+    true,
+  );
 
   const layer: Layer = {
     id: uid("term"),
