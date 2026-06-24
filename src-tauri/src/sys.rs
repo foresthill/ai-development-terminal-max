@@ -22,6 +22,8 @@ pub struct AgentStat {
     cpu: f32,
     mem: u64, // bytes, summed over the process subtree
     cwd: String,
+    procs: u32, // processes in the subtree incl. the root shell; >1 ⇒ a command
+                // (claude/aider/…) is still running, ==1 ⇒ back at an idle shell
 }
 
 #[tauri::command]
@@ -48,11 +50,13 @@ pub fn agent_stats(state: tauri::State<'_, SysState>, pids: Vec<u32>) -> Vec<Age
         .map(|&root| {
             let mut cpu = 0.0f32;
             let mut mem = 0u64;
+            let mut procs = 0u32;
             let mut stack = vec![root];
             while let Some(p) = stack.pop() {
                 if let Some(proc_) = sys.process(Pid::from_u32(p)) {
                     cpu += proc_.cpu_usage();
                     mem += proc_.memory();
+                    procs += 1;
                 }
                 if let Some(kids) = children.get(&p) {
                     stack.extend(kids);
@@ -63,7 +67,7 @@ pub fn agent_stats(state: tauri::State<'_, SysState>, pids: Vec<u32>) -> Vec<Age
                 .and_then(|p| p.cwd())
                 .map(|p| p.to_string_lossy().to_string())
                 .unwrap_or_default();
-            AgentStat { cpu, mem, cwd }
+            AgentStat { cpu, mem, cwd, procs }
         })
         .collect()
 }

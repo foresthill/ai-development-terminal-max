@@ -185,7 +185,7 @@ export class App {
   /// Sample each agent's CPU% (process subtree) and live cwd; update badge and,
   /// display-only, follow `cd` in the path field + branch (no respawn).
   private async pollStats() {
-    const items: { agent: Agent; pid: number }[] = [];
+    const items: { agent: Agent; pid: number; quiet: boolean }[] = [];
     const now = performance.now();
     for (const p of this.projects)
       for (const a of p.agents) {
@@ -196,12 +196,15 @@ export class App {
           active?.kind === "terminal" && active.pty
             ? active
             : a.layers.find((l) => l.kind === "terminal" && l.pty);
-        // "waiting": a launched agent whose terminal has been quiet for a bit
-        // (settled at a prompt) — tint it amber so you can spot it.
-        const quiet = !term?.lastOutput || now - term.lastOutput > 1500;
-        a.cardEl.classList.toggle("waiting", !!a.running && !!term && quiet);
         const pid = term?.pty?.pid;
-        if (pid) items.push({ agent: a, pid });
+        // The amber "waiting" tint is finalized after we know each subtree's
+        // process count (below) — agents with no live terminal are never amber.
+        if (pid) {
+          const quiet = !term?.lastOutput || now - term.lastOutput > 1500;
+          items.push({ agent: a, pid, quiet });
+        } else {
+          a.cardEl.classList.remove("waiting");
+        }
       }
     if (!items.length) {
       this.totalEl.textContent = "";
@@ -220,6 +223,11 @@ export class App {
         sumCpu += s.cpu;
         sumMem += s.mem;
         n++;
+        // "waiting" (amber): a launched agent settled quietly *with its command
+        // still running* (subtree has more than the bare shell, procs > 1). Once
+        // you exit claude back to an idle shell (procs == 1), the tint clears.
+        const waiting = x.agent.running && x.quiet && s.procs > 1;
+        x.agent.cardEl.classList.toggle("waiting", waiting);
         // follow `cd` (display only) unless the user is editing the path field
         if (s.cwd && s.cwd !== x.agent.cwd && document.activeElement !== x.agent.pathEl) {
           x.agent.cwd = s.cwd;

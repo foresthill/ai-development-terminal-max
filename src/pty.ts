@@ -56,6 +56,7 @@ export interface AgentStat {
   cpu: number;
   mem: number; // bytes
   cwd: string;
+  procs: number; // processes in the subtree; >1 ⇒ a command is still running
 }
 export const agentStats = (pids: number[]): Promise<AgentStat[]> =>
   invoke("agent_stats", { pids });
