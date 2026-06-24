@@ -147,6 +147,7 @@ export class App {
     root.querySelector("#btn-nest")!.addEventListener("click", () => this.toggleSubagentNest());
     root.querySelector("#btn-saves")!.addEventListener("click", () => this.openSaves());
     root.querySelector("#btn-help")!.addEventListener("click", () => openHelp());
+    root.querySelector("#foot-help")!.addEventListener("click", () => openHelp());
     root.querySelector("#btn-settings")!.addEventListener("click", () => this.openSettingsDialog());
     this.btnLayout.addEventListener("click", () => {
       this.layout = this.layout === "square" ? "fit" : "square";
