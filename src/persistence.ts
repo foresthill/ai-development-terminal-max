@@ -101,6 +101,7 @@ export interface WorkspaceSnap {
   customDeny?: string;
   agentPresets?: AgentPresetSnap[];
   urlExternal?: boolean; // open clicked URLs in the external browser by default
+  autoResume?: boolean; // re-run the agent command on restore (else idle, click ▶)
   projects: ProjectSnap[];
 }
 
@@ -115,6 +116,7 @@ export interface Settings {
   customDeny: string;
   agentPresets: AgentPresetSnap[];
   urlExternal: boolean;
+  autoResume: boolean;
 }
 
 export function buildSnapshot(projects: Project[], s: Settings): WorkspaceSnap {
@@ -129,6 +131,7 @@ export function buildSnapshot(projects: Project[], s: Settings): WorkspaceSnap {
     customDeny: s.customDeny,
     agentPresets: s.agentPresets,
     urlExternal: s.urlExternal,
+    autoResume: s.autoResume,
     projects: projects.map((p) => ({
       name: p.name,
       root: p.root,

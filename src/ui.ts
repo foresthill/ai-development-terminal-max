@@ -124,7 +124,7 @@ const HELP_JA = `
 </ul>
 <h4>キーボード（leader = Alt / Option）</h4>
 <ul>
-  <li><code>Alt+T</code> 追加 ・ <code>Alt+H/L</code> エージェント移動 ・ <code>Alt+J/K</code> 奥行き（⌥+矢印は端末の単語移動用に解放）</li>
+  <li><code>Alt+T</code> 追加 ・ <code>Alt+←/→</code>(H/L) エージェント移動 ・ <code>Alt+↑/↓</code>(J/K) 奥行き</li>
   <li><code>Alt+Z</code> 拡大 ・ <code>Alt+1–9</code> 番号でフォーカス ・ <code>Alt+P</code> プロジェクト切替 ・ <code>Alt+M</code> 俯瞰</li>
   <li><code>Alt+N</code> 端末追加 ・ <code>Alt+B</code> ブラウザ追加 ・ <code>Alt+W</code> レイヤー閉 ・ <code>Alt+X</code> エージェント閉</li>
   <li><code>Alt+R</code> このエージェントを起動 ・ <code>Alt+Shift+R</code> 全起動 ・ <code>Alt+Enter</code> 送信バー</li>
@@ -162,7 +162,7 @@ const HELP_EN = `
 </ul>
 <h4>Keyboard (leader = Alt / Option)</h4>
 <ul>
-  <li><code>Alt+T</code> new ・ <code>Alt+H/L</code> move focus ・ <code>Alt+J/K</code> depth (⌥+arrows freed for terminal word-nav)</li>
+  <li><code>Alt+T</code> new ・ <code>Alt+←/→</code>(H/L) move focus ・ <code>Alt+↑/↓</code>(J/K) depth</li>
   <li><code>Alt+Z</code> zoom ・ <code>Alt+1–9</code> focus by number ・ <code>Alt+P</code> switch project ・ <code>Alt+M</code> macro</li>
   <li><code>Alt+N</code> terminal ・ <code>Alt+B</code> browser ・ <code>Alt+W</code> close layer ・ <code>Alt+X</code> close agent</li>
   <li><code>Alt+R</code> launch this agent ・ <code>Alt+Shift+R</code> launch all ・ <code>Alt+Enter</code> send bar</li>
@@ -225,6 +225,7 @@ export interface SettingsValues {
   customDeny: string;
   agentPresets: { label: string; cmd: string }[];
   urlExternal: boolean;
+  autoResume: boolean;
 }
 
 function parsePresets(text: string): { label: string; cmd: string }[] {
@@ -270,6 +271,12 @@ export function openSettings(cur: SettingsValues): Promise<SettingsValues | null
           <option value="external">${t("set.urlExternal")}</option>
         </select></label>
       <div class="set-hint">${t("set.urlHint")}</div>
+      <label class="set-row"><span>${t("set.resume")}</span>
+        <select class="modal-input" id="set-resume">
+          <option value="manual">${t("set.resumeManual")}</option>
+          <option value="auto">${t("set.resumeAuto")}</option>
+        </select></label>
+      <div class="set-hint">${t("set.resumeHint")}</div>
       <div class="set-section">${t("set.guardSection")}</div>
       <div id="set-presets"></div>
       <label class="set-row col"><span>${t("set.customDeny")}</span>
@@ -285,6 +292,7 @@ export function openSettings(cur: SettingsValues): Promise<SettingsValues | null
     const agents = box.querySelector<HTMLTextAreaElement>("#set-agents")!;
     const perm = box.querySelector<HTMLSelectElement>("#set-perm")!;
     const urlSel = box.querySelector<HTMLSelectElement>("#set-url")!;
+    const resumeSel = box.querySelector<HTMLSelectElement>("#set-resume")!;
     const custom = box.querySelector<HTMLTextAreaElement>("#set-custom")!;
     const presetsEl = box.querySelector<HTMLElement>("#set-presets")!;
     langSel.value = cur.lang;
@@ -292,6 +300,7 @@ export function openSettings(cur: SettingsValues): Promise<SettingsValues | null
     agents.value = cur.agentPresets.map((p) => `${p.label} = ${p.cmd}`).join("\n");
     perm.value = cur.permMode;
     urlSel.value = cur.urlExternal ? "external" : "inapp";
+    resumeSel.value = cur.autoResume ? "auto" : "manual";
     custom.value = cur.customDeny;
     const boxes: Record<string, HTMLInputElement> = {};
     for (const p of GUARD_PRESETS) {
@@ -329,6 +338,7 @@ export function openSettings(cur: SettingsValues): Promise<SettingsValues | null
         customDeny: custom.value,
         agentPresets: parsePresets(agents.value),
         urlExternal: urlSel.value === "external",
+        autoResume: resumeSel.value === "auto",
       });
     });
     back.addEventListener("click", (e) => {
