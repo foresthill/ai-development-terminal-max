@@ -651,14 +651,33 @@ body {
   min-height: 0;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
-.agent.focused {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent), 0 8px 30px rgba(122, 162, 247, 0.15);
+/* Non-focused agents are slightly dimmed so the focused one pops. */
+.agent:not(.focused) {
+  opacity: 0.78;
 }
-/* waiting for input: amber tint (takes visual priority — it wants you) */
-.agent.waiting {
+/* Focused agent: a thick, bright accent ring that is ALWAYS visible (even while
+   waiting) — knowing which window has focus is the most important cue. */
+.agent.focused {
+  opacity: 1;
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 3px var(--accent),
+    0 0 22px rgba(122, 162, 247, 0.45);
+}
+.agent.focused .agent-header {
+  background: linear-gradient(180deg, rgba(122, 162, 247, 0.22), rgba(122, 162, 247, 0.06));
+}
+/* waiting for input: amber tint — shown when NOT focused. */
+.agent.waiting:not(.focused) {
   border-color: #e0af68;
   box-shadow: 0 0 0 1px #e0af68, 0 0 18px rgba(224, 175, 104, 0.22);
+}
+/* focused AND waiting: keep the bright focus ring, add an amber outer glow so
+   both cues read at once (focus never gets hidden by the amber). */
+.agent.focused.waiting {
+  box-shadow:
+    0 0 0 3px var(--accent),
+    0 0 22px rgba(224, 175, 104, 0.55);
 }
 .agent-header {
   display: flex;

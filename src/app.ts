@@ -83,10 +83,13 @@ export class App {
   private presets = new Set<string>(GUARD_PRESETS.map((p) => p.id));
   private customDeny = "";
   private urlExternal = false; // false ⇒ clicked URLs open in the in-app browser
+  private autoResume = false; // false ⇒ restored agents come up idle (click ▶ to run)
+  private autoStart = true; // false ⇒ Alt+T opens an idle shell (click ▶ to launch the CLI)
   private shell = "/bin/zsh";
   private home = "";
   private agentSeq = 1;
   private resizeTimer: number | undefined;
+  private refitTimer: number | undefined;
   private projectsCtrl = new ProjectsController({
     projects: () => this.projects,
     saved: () => this.saved,
@@ -470,10 +473,13 @@ export class App {
     const agent = this.newAgent(project, cwd);
     agent.title = cwd && cwd !== this.home ? basename(cwd) : `agent ${this.agentSeq - 1}`;
     if (this.guardrails || this.subagentNest) await this.applyAidtSettings(cwd);
-    // Auto-run the agent only for a single focused add; bulk (fill, focus=false)
-    // comes up as a shell to avoid launching many heavy claudes at once (▶ to run).
-    agent.running = focus;
-    const layer = this.primaryLayer(cwd, agent.agentCmd, focus);
+    // Auto-run the agent only for a single focused add, and only when auto-start
+    // is on (Settings). Bulk (fill, focus=false) always comes up as a shell to
+    // avoid launching many heavy claudes at once; with auto-start off, even a
+    // focused Alt+T opens an idle shell (▶ / Alt+R to launch).
+    const autoRun = focus && this.autoStart;
+    agent.running = autoRun;
+    const layer = this.primaryLayer(cwd, agent.agentCmd, autoRun);
     agent.layers.push(layer);
     this.observeLayer(layer);
     if (focus) {
@@ -657,6 +663,8 @@ export class App {
       customDeny: this.customDeny,
       agentPresets: this.agentPresets,
       urlExternal: this.urlExternal,
+      autoResume: this.autoResume,
+      autoStart: this.autoStart,
     });
     if (!res) return;
     if (res.lang !== getLang()) setLang(res.lang); // re-applies static labels
@@ -665,6 +673,8 @@ export class App {
     this.presets = res.enabled;
     this.customDeny = res.customDeny;
     this.urlExternal = res.urlExternal;
+    this.autoResume = res.autoResume;
+    this.autoStart = res.autoStart;
     this.agentPresets = res.agentPresets.length ? res.agentPresets : [...DEFAULT_AGENT_PRESETS];
     for (const p of this.projects) for (const a of p.agents) this.fillAgentSelect(a);
     if (this.guardrails) {
@@ -698,10 +708,24 @@ export class App {
     this.view = "project";
     this.mode = this.mode === "zoom" ? "overview" : "zoom";
     this.render();
+    // Defensive second fit after the layout settles. render()'s fit runs in an
+    // immediate rAF, which can race the grid relayout (and xterm's renderer) on a
+    // zoom transition; a settled re-fit (same timing as the window-resize path)
+    // makes the terminal match its final cell size.
+    this.refitSoon();
   }
   private toggleMacro() {
     this.view = this.view === "macro" ? "project" : "macro";
     this.render();
+    this.refitSoon();
+  }
+
+  /// Re-run fit once the layout has settled (mirrors the debounced window-resize
+  /// path). Used after zoom/macro toggles, where an immediate fit can measure a
+  /// terminal mid-transition.
+  private refitSoon() {
+    clearTimeout(this.refitTimer);
+    this.refitTimer = window.setTimeout(() => this.scheduleFit(), 130);
   }
 
   // --- cross-agent send (manual, tmux send-keys style) ----------------------
@@ -750,12 +774,17 @@ export class App {
     if (!e.altKey) return;
     const handlers: Record<string, () => void> = {
       KeyT: () => this.addAgentToActive(),
-      // Focus/depth use H/J/K/L only — Alt+arrows are intentionally NOT bound so
-      // ⌥(Option)+arrow passes through to the terminal (claude/shell word nav).
+      // Focus/depth on H/J/K/L and the arrows. (Trade-off: Alt+arrow is the app
+      // shortcut, so it doesn't reach the terminal — use Ctrl+arrow / Esc+f/b for
+      // word nav in claude/shell.)
       KeyL: () => this.moveFocus(1),
+      ArrowRight: () => this.moveFocus(1),
       KeyH: () => this.moveFocus(-1),
+      ArrowLeft: () => this.moveFocus(-1),
       KeyJ: () => this.cycleDepth(1),
+      ArrowDown: () => this.cycleDepth(1),
       KeyK: () => this.cycleDepth(-1),
+      ArrowUp: () => this.cycleDepth(-1),
       KeyZ: () => this.toggleZoom(),
       KeyN: () => this.addLayerTo(this.agents[this.focused], "terminal"),
       KeyB: () => this.addLayerTo(this.agents[this.focused], "browser"),
@@ -789,6 +818,13 @@ export class App {
   // --- render + persistence -------------------------------------------------
 
   render() {
+    // Keep `focused` in range for the current project (switching to a project
+    // with fewer agents could otherwise leave it pointing past the end, so no
+    // window shows the focus ring — "nothing is focused").
+    const n = this.agents.length;
+    if (n > 0 && (this.focused < 0 || this.focused >= n)) {
+      this.focused = Math.max(0, Math.min(this.focused, n - 1));
+    }
     renderAll(this.ctx());
   }
 
@@ -856,6 +892,8 @@ export class App {
       customDeny: this.customDeny,
       agentPresets: this.agentPresets,
       urlExternal: this.urlExternal,
+      autoResume: this.autoResume,
+      autoStart: this.autoStart,
     });
   }
 
@@ -875,12 +913,17 @@ export class App {
     this.agentCmd = snap.agentCmd || "claude";
     this.customDeny = snap.customDeny ?? "";
     this.urlExternal = !!snap.urlExternal;
+    this.autoResume = !!snap.autoResume;
+    this.autoStart = snap.autoStart ?? true; // default on (preserve prior behavior)
     if (snap.presets) this.presets = new Set(snap.presets);
     if (snap.agentPresets?.length) this.agentPresets = snap.agentPresets;
 
     this.ap = restoreProjects(snap, this.projects, this.agentCmd, {
       newAgent: (p, cwd) => this.newAgent(p, cwd),
-      primaryLayer: (cwd, cmd, autoRun) => this.primaryLayer(cwd, cmd, autoRun), // resume only if was running
+      // Resume the agent command on restore only when it was running AND the
+      // user opted into auto-resume; otherwise the window comes up as an idle
+      // shell and the ▶ button (or Alt+R) starts it on demand.
+      primaryLayer: (cwd, cmd, autoRun) => this.primaryLayer(cwd, cmd, autoRun && this.autoResume),
       shellLayer: (cwd) => this.shellLayer(cwd),
       createBrowserLayer,
       observeLayer: (l) => this.observeLayer(l),

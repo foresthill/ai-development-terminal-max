@@ -264,6 +264,9 @@ export function createTerminalLayer(opts: {
         const bLin = cell.row * cols + cell.col;
         const [s, len] = aLin <= bLin ? [anchor, bLin - aLin + 1] : [cell, aLin - bLin + 1];
         term.select(s.col, s.row, len);
+        // preventDefault above blocks the textarea from refocusing — restore it
+        // so ⌘C reaches xterm and copies THIS selection (not a stale drag).
+        term.focus();
       } else if (!e.shiftKey) {
         anchor = cell; // remember where a later Shift+click should extend from
       }
