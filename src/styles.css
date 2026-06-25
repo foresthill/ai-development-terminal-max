@@ -702,8 +702,10 @@ body {
   outline: none;
   border-radius: 3px;
   padding: 0 2px;
-  flex: 1;
-  min-width: 0;
+  /* Shrink-to-fit (was flex:1) so the branch badge sits right next to the name;
+     the controls are pushed to the right via .agent-sel's margin-left:auto. */
+  flex: 0 1 auto;
+  min-width: 1.5em;
 }
 .agent-branch {
   flex: 0 1 auto;
@@ -725,6 +727,7 @@ body {
 }
 .agent-sel {
   flex: 0 0 auto;
+  margin-left: auto; /* push the select + run + close to the right edge */
   max-width: 96px;
   background: transparent;
   color: var(--text);
