@@ -84,10 +84,12 @@ export class App {
   private customDeny = "";
   private urlExternal = false; // false ⇒ clicked URLs open in the in-app browser
   private autoResume = false; // false ⇒ restored agents come up idle (click ▶ to run)
+  private autoStart = true; // false ⇒ Alt+T opens an idle shell (click ▶ to launch the CLI)
   private shell = "/bin/zsh";
   private home = "";
   private agentSeq = 1;
   private resizeTimer: number | undefined;
+  private refitTimer: number | undefined;
   private projectsCtrl = new ProjectsController({
     projects: () => this.projects,
     saved: () => this.saved,
@@ -471,10 +473,13 @@ export class App {
     const agent = this.newAgent(project, cwd);
     agent.title = cwd && cwd !== this.home ? basename(cwd) : `agent ${this.agentSeq - 1}`;
     if (this.guardrails || this.subagentNest) await this.applyAidtSettings(cwd);
-    // Auto-run the agent only for a single focused add; bulk (fill, focus=false)
-    // comes up as a shell to avoid launching many heavy claudes at once (▶ to run).
-    agent.running = focus;
-    const layer = this.primaryLayer(cwd, agent.agentCmd, focus);
+    // Auto-run the agent only for a single focused add, and only when auto-start
+    // is on (Settings). Bulk (fill, focus=false) always comes up as a shell to
+    // avoid launching many heavy claudes at once; with auto-start off, even a
+    // focused Alt+T opens an idle shell (▶ / Alt+R to launch).
+    const autoRun = focus && this.autoStart;
+    agent.running = autoRun;
+    const layer = this.primaryLayer(cwd, agent.agentCmd, autoRun);
     agent.layers.push(layer);
     this.observeLayer(layer);
     if (focus) {
@@ -659,6 +664,7 @@ export class App {
       agentPresets: this.agentPresets,
       urlExternal: this.urlExternal,
       autoResume: this.autoResume,
+      autoStart: this.autoStart,
     });
     if (!res) return;
     if (res.lang !== getLang()) setLang(res.lang); // re-applies static labels
@@ -668,6 +674,7 @@ export class App {
     this.customDeny = res.customDeny;
     this.urlExternal = res.urlExternal;
     this.autoResume = res.autoResume;
+    this.autoStart = res.autoStart;
     this.agentPresets = res.agentPresets.length ? res.agentPresets : [...DEFAULT_AGENT_PRESETS];
     for (const p of this.projects) for (const a of p.agents) this.fillAgentSelect(a);
     if (this.guardrails) {
@@ -701,10 +708,24 @@ export class App {
     this.view = "project";
     this.mode = this.mode === "zoom" ? "overview" : "zoom";
     this.render();
+    // Defensive second fit after the layout settles. render()'s fit runs in an
+    // immediate rAF, which can race the grid relayout (and xterm's renderer) on a
+    // zoom transition; a settled re-fit (same timing as the window-resize path)
+    // makes the terminal match its final cell size.
+    this.refitSoon();
   }
   private toggleMacro() {
     this.view = this.view === "macro" ? "project" : "macro";
     this.render();
+    this.refitSoon();
+  }
+
+  /// Re-run fit once the layout has settled (mirrors the debounced window-resize
+  /// path). Used after zoom/macro toggles, where an immediate fit can measure a
+  /// terminal mid-transition.
+  private refitSoon() {
+    clearTimeout(this.refitTimer);
+    this.refitTimer = window.setTimeout(() => this.scheduleFit(), 130);
   }
 
   // --- cross-agent send (manual, tmux send-keys style) ----------------------
@@ -872,6 +893,7 @@ export class App {
       agentPresets: this.agentPresets,
       urlExternal: this.urlExternal,
       autoResume: this.autoResume,
+      autoStart: this.autoStart,
     });
   }
 
@@ -892,6 +914,7 @@ export class App {
     this.customDeny = snap.customDeny ?? "";
     this.urlExternal = !!snap.urlExternal;
     this.autoResume = !!snap.autoResume;
+    this.autoStart = snap.autoStart ?? true; // default on (preserve prior behavior)
     if (snap.presets) this.presets = new Set(snap.presets);
     if (snap.agentPresets?.length) this.agentPresets = snap.agentPresets;
 

@@ -226,6 +226,7 @@ export interface SettingsValues {
   agentPresets: { label: string; cmd: string }[];
   urlExternal: boolean;
   autoResume: boolean;
+  autoStart: boolean;
 }
 
 function parsePresets(text: string): { label: string; cmd: string }[] {
@@ -277,6 +278,12 @@ export function openSettings(cur: SettingsValues): Promise<SettingsValues | null
           <option value="auto">${t("set.resumeAuto")}</option>
         </select></label>
       <div class="set-hint">${t("set.resumeHint")}</div>
+      <label class="set-row"><span>${t("set.autoStart")}</span>
+        <select class="modal-input" id="set-autostart">
+          <option value="on">${t("set.autoStartOn")}</option>
+          <option value="off">${t("set.autoStartOff")}</option>
+        </select></label>
+      <div class="set-hint">${t("set.autoStartHint")}</div>
       <div class="set-section">${t("set.guardSection")}</div>
       <div id="set-presets"></div>
       <label class="set-row col"><span>${t("set.customDeny")}</span>
@@ -293,6 +300,7 @@ export function openSettings(cur: SettingsValues): Promise<SettingsValues | null
     const perm = box.querySelector<HTMLSelectElement>("#set-perm")!;
     const urlSel = box.querySelector<HTMLSelectElement>("#set-url")!;
     const resumeSel = box.querySelector<HTMLSelectElement>("#set-resume")!;
+    const autoStartSel = box.querySelector<HTMLSelectElement>("#set-autostart")!;
     const custom = box.querySelector<HTMLTextAreaElement>("#set-custom")!;
     const presetsEl = box.querySelector<HTMLElement>("#set-presets")!;
     langSel.value = cur.lang;
@@ -301,6 +309,7 @@ export function openSettings(cur: SettingsValues): Promise<SettingsValues | null
     perm.value = cur.permMode;
     urlSel.value = cur.urlExternal ? "external" : "inapp";
     resumeSel.value = cur.autoResume ? "auto" : "manual";
+    autoStartSel.value = cur.autoStart ? "on" : "off";
     custom.value = cur.customDeny;
     const boxes: Record<string, HTMLInputElement> = {};
     for (const p of GUARD_PRESETS) {
@@ -339,6 +348,7 @@ export function openSettings(cur: SettingsValues): Promise<SettingsValues | null
         agentPresets: parsePresets(agents.value),
         urlExternal: urlSel.value === "external",
         autoResume: resumeSel.value === "auto",
+        autoStart: autoStartSel.value === "on",
       });
     });
     back.addEventListener("click", (e) => {
