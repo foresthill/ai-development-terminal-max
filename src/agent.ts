@@ -48,7 +48,7 @@ export interface Agent {
   titleEl: HTMLElement;
   branchEl: HTMLElement;
   cpuEl: HTMLElement;
-  agentSel: HTMLSelectElement;
+  agentSel: HTMLButtonElement; // ▾ caret: opens the CLI chooser (hidden when 1 preset)
   runEl: HTMLButtonElement;
   closeEl: HTMLButtonElement;
   pathEl: HTMLInputElement;
@@ -510,26 +510,31 @@ export function createAgent(index: number): Agent {
   const cpuEl = document.createElement("span");
   cpuEl.className = "agent-cpu";
 
-  const agentSel = document.createElement("select");
-  agentSel.className = "agent-sel";
-  agentSel.title = t("tip.agentSel");
-
   const runEl = document.createElement("button");
   runEl.className = "agent-run";
   runEl.textContent = "▶";
   runEl.title = t("tip.runAgent");
+
+  // ▾ caret: opens the CLI chooser, grouped to the right of ▶ as a split button.
+  // Hidden when only one preset exists (then the row shows just ▶).
+  const agentSel = document.createElement("button");
+  agentSel.className = "agent-caret"; // the ▾ glyph is drawn in CSS (crisp, exact size)
+  agentSel.title = t("tip.agentSel");
 
   const closeEl = document.createElement("button");
   closeEl.className = "agent-close";
   closeEl.textContent = "×";
   closeEl.title = t("tip.closeAgent");
 
-  // Title row: agent name + branch badge on the left, controls on the right.
-  // (Branch lives here, not on the path row, so the full cwd has room to show.)
+  // Title row: agent name + branch badge on the left; run/chooser/close on the
+  // right. ▶ and the ▾ caret sit together as a split button (▶ runs the current
+  // CLI, ▾ picks one). Branch lives here (not the path row) so the cwd has room.
+  const runGroup = document.createElement("div");
+  runGroup.className = "run-group";
+  runGroup.append(runEl, agentSel);
   titleRow.appendChild(titleEl);
   titleRow.appendChild(branchEl);
-  titleRow.appendChild(agentSel);
-  titleRow.appendChild(runEl);
+  titleRow.appendChild(runGroup);
   titleRow.appendChild(closeEl);
 
   const pathRow = document.createElement("div");
