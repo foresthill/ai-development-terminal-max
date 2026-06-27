@@ -298,15 +298,13 @@ export class App {
     });
   }
 
-  /// Launch the agent's command in its front terminal on demand (▶). Used for
-  /// restored / filled windows that come up as plain shells (avoids a startup
-  /// stampede of many heavy claude processes).
+  /// Launch the agent's command on demand (▶). Always targets the agent's PRIMARY
+  /// terminal (the first terminal layer = layer 0), never whichever layer happens
+  /// to be front — so pressing ▶ while a secondary shell layer is focused can't
+  /// start a second claude there (the "claude running in both the claude and shell
+  /// windows" duplicate). Re-pressing ▶ just lands in the same primary layer.
   private launchAgent(agent: Agent) {
-    const front = agent.layers[agent.active];
-    const layer =
-      front?.kind === "terminal" && front.pty
-        ? front
-        : agent.layers.find((l) => l.kind === "terminal" && l.pty);
+    const layer = agent.layers.find((l) => l.kind === "terminal" && l.pty);
     if (!layer?.pty) return;
     layer.pty.write(this.buildCmd(agent.agentCmd) + "\r");
     agent.running = true; // remember so a restore resumes this one
@@ -405,11 +403,20 @@ export class App {
 
   // --- agent lifecycle ------------------------------------------------------
 
+  /// Keep the END of the path field in view (right-aligned) — roots repeat, the
+  /// tail is what differs. Deferred a frame so the input has its laid-out width.
+  private showPathTail(el: HTMLInputElement) {
+    requestAnimationFrame(() => {
+      el.scrollLeft = el.scrollWidth;
+    });
+  }
+
   private newAgent(project: Project, cwd: string | null): Agent {
     const agent = createAgent(this.agentSeq++);
     agent.cwd = cwd;
     agent.agentCmd = this.agentCmd; // global default; per-agent override via the select
     agent.pathEl.value = cwd ?? "";
+    this.showPathTail(agent.pathEl);
     this.fillAgentSelect(agent);
     project.agents.push(agent);
 
@@ -418,7 +425,10 @@ export class App {
       this.ap = this.projects.indexOf(project);
       this.focus(idx());
     });
-    agent.cardEl.addEventListener("dblclick", () => {
+    // Double-click to zoom lives on the HEADER only (not the whole card), so
+    // double-clicking inside a terminal or the in-app browser — e.g. selecting
+    // text or editing the URL bar — no longer toggles zoom by accident.
+    agent.headerEl.addEventListener("dblclick", () => {
       this.ap = this.projects.indexOf(project);
       this.focus(idx());
       this.toggleZoom();
@@ -437,10 +447,14 @@ export class App {
       e.stopPropagation();
       this.closeAgentObj(agent);
     });
+    agent.pathEl.addEventListener("dblclick", (e) => e.stopPropagation()); // don't zoom
     agent.pathEl.addEventListener("keydown", (e) => {
       e.stopPropagation();
       if (e.key === "Enter") agent.pathEl.blur();
     });
+    // Roots are usually identical and only the tail differs, so when not editing,
+    // keep the END of the path in view (right-aligned) rather than the start.
+    agent.pathEl.addEventListener("blur", () => this.showPathTail(agent.pathEl));
     agent.pathEl.addEventListener("change", () => {
       const v = agent.pathEl.value.trim();
       if (v && v !== agent.cwd) this.setAgentCwd(agent, v);
@@ -575,6 +589,7 @@ export class App {
   private async setAgentCwd(agent: Agent, path: string) {
     agent.cwd = path;
     agent.pathEl.value = path;
+    this.showPathTail(agent.pathEl);
     agent.running = true; // respawns and runs the agent in the new dir
     if (!agent.manualTitle) agent.title = basename(path);
     if (this.guardrails || this.subagentNest) await this.applyAidtSettings(path);
@@ -593,7 +608,7 @@ export class App {
     if (!agent) return;
     const layer =
       kind === "browser"
-        ? createBrowserLayer(url ?? "http://localhost:3000")
+        ? createBrowserLayer(url ?? "http://localhost:3000", (u) => void openExternalUrl(u))
         : this.shellLayer(agent.cwd);
     agent.layers.push(layer);
     agent.active = agent.layers.length - 1;
