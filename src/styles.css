@@ -702,8 +702,10 @@ body {
   outline: none;
   border-radius: 3px;
   padding: 0 2px;
-  flex: 1;
-  min-width: 0;
+  /* Shrink-to-fit (was flex:1) so the branch badge sits right next to the name;
+     the controls are pushed to the right via .run-group's margin-left:auto. */
+  flex: 0 1 auto;
+  min-width: 1.5em;
 }
 .agent-branch {
   flex: 0 1 auto;
@@ -723,20 +725,13 @@ body {
   font-family: Menlo, monospace;
   font-variant-numeric: tabular-nums;
 }
-.agent-sel {
+/* ▶ + ▾ split button: ▶ runs the current CLI, the caret opens the chooser. */
+.run-group {
   flex: 0 0 auto;
-  max-width: 96px;
-  background: transparent;
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  font-size: 10px;
-  padding: 1px 4px;
-  cursor: pointer;
-}
-.agent-sel:hover {
-  color: var(--accent);
-  border-color: var(--accent);
+  margin-left: auto; /* push run/chooser/close to the right edge */
+  display: flex;
+  align-items: stretch;
+  gap: 0;
 }
 .agent-run {
   flex: 0 0 auto;
@@ -752,6 +747,75 @@ body {
 .agent-run:hover {
   border-color: #9ece6a;
   background: rgba(158, 206, 106, 0.12);
+}
+/* When the caret is present, join the two: ▶ rounded-left, ▾ rounded-right. */
+.run-group:has(.agent-caret:not([style*="none"])) .agent-run {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.agent-caret {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-left: none;
+  border-radius: 0 4px 4px 0;
+  padding: 2px 7px;
+  cursor: pointer;
+}
+/* Caret drawn in CSS (not a glyph) so the size is exact and font-independent:
+   a 7px-base down-triangle. Color matches the chooser preview. */
+.agent-caret::before {
+  content: "";
+  width: 0;
+  height: 0;
+  border-left: 3.5px solid transparent;
+  border-right: 3.5px solid transparent;
+  border-top: 5px solid #9aa0c0;
+}
+.agent-caret:hover {
+  border-color: var(--accent);
+}
+.agent-caret:hover::before {
+  border-top-color: var(--accent);
+}
+
+/* popup CLI chooser (the ▾ caret) */
+.popmenu {
+  position: fixed;
+  z-index: 200;
+  min-width: 120px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 4px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.popmenu-item {
+  text-align: left;
+  background: transparent;
+  color: var(--text);
+  border: none;
+  border-radius: 5px;
+  font-size: 12px;
+  padding: 5px 9px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.popmenu-item:hover {
+  background: var(--panel-2);
+  color: var(--accent);
+}
+.popmenu-item.active {
+  color: var(--accent);
+}
+.popmenu-item.active::before {
+  content: "✓ ";
 }
 .agent-close {
   flex: 0 0 auto;

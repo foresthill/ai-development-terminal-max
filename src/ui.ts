@@ -482,3 +482,52 @@ export function toast(message: string, kind: "info" | "error" = "info") {
     setTimeout(() => el.remove(), 300);
   }, 4200);
 }
+
+/// Small popup menu anchored under `anchor`, right-aligned to it. Picks call
+/// `onPick(value)` and close; click-away or Escape closes without picking. Used
+/// for the per-agent CLI chooser (the ▾ caret next to ▶).
+export function openMenu(
+  anchor: HTMLElement,
+  items: { label: string; value: string }[],
+  current: string,
+  onPick: (value: string) => void,
+) {
+  document.querySelector(".popmenu")?.remove(); // only one at a time
+  const menu = document.createElement("div");
+  menu.className = "popmenu";
+  const close = () => {
+    menu.remove();
+    document.removeEventListener("mousedown", onDoc, true);
+    document.removeEventListener("keydown", onKey, true);
+  };
+  const onDoc = (e: MouseEvent) => {
+    if (!menu.contains(e.target as Node)) close();
+  };
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      close();
+    }
+  };
+  for (const it of items) {
+    const b = document.createElement("button");
+    b.className = "popmenu-item" + (it.value === current ? " active" : "");
+    b.textContent = it.label;
+    b.addEventListener("mousedown", (e) => e.stopPropagation());
+    b.addEventListener("click", (e) => {
+      e.stopPropagation();
+      close();
+      onPick(it.value);
+    });
+    menu.appendChild(b);
+  }
+  document.body.appendChild(menu);
+  const r = anchor.getBoundingClientRect();
+  menu.style.top = `${r.bottom + 4}px`;
+  menu.style.left = `${Math.max(6, r.right - menu.offsetWidth)}px`;
+  // Defer listener attach so the click that opened the menu doesn't close it.
+  setTimeout(() => {
+    document.addEventListener("mousedown", onDoc, true);
+    document.addEventListener("keydown", onKey, true);
+  }, 0);
+}

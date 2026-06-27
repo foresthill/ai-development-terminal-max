@@ -27,6 +27,7 @@ import {
   openSavesDialog,
   openHelp,
   confirmModal,
+  openMenu,
 } from "./ui";
 import { GUARD_PRESETS, effectiveDeny } from "./guard";
 import { t, getLang, setLang } from "./i18n";
@@ -361,31 +362,30 @@ export class App {
     }
   }
 
+  /// Reflect the agent's current CLI on the ▾ caret (tooltip) and only show the
+  /// caret when there's a real choice (2+ presets) — with one preset the row is
+  /// just ▶. The actual chooser is the popup opened on click (openAgentMenu).
   private fillAgentSelect(agent: Agent) {
-    const sel = agent.agentSel;
-    sel.replaceChildren();
-    let matched = false;
-    for (const p of this.agentPresets) {
-      const o = document.createElement("option");
-      o.value = p.cmd;
-      o.textContent = p.label;
-      if (p.cmd === agent.agentCmd) {
-        o.selected = true;
-        matched = true;
+    agent.agentSel.title = `${t("tip.agentSel")} — ${this.agentLabel(agent.agentCmd)}`;
+    agent.agentSel.style.display = this.agentPresets.length >= 2 ? "" : "none";
+  }
+
+  /// Popup CLI chooser for one agent (the ▾ caret): the presets plus "custom…".
+  private openAgentMenu(agent: Agent) {
+    const items = this.agentPresets.map((p) => ({ label: p.label, value: p.cmd }));
+    items.push({ label: t("set.custom"), value: "__custom__" });
+    openMenu(agent.agentSel, items, agent.agentCmd, async (v) => {
+      if (v === "__custom__") {
+        const cmd = await askText({
+          title: t("modal.customTitle"),
+          placeholder: "aider --model gpt-5",
+          value: agent.agentCmd,
+        });
+        if (cmd) this.setAgentCommand(agent, cmd);
+      } else {
+        this.setAgentCommand(agent, v);
       }
-      sel.appendChild(o);
-    }
-    if (!matched) {
-      const o = document.createElement("option");
-      o.value = agent.agentCmd;
-      o.textContent = `⌥ ${this.agentLabel(agent.agentCmd)}`;
-      o.selected = true;
-      sel.appendChild(o);
-    }
-    const c = document.createElement("option");
-    c.value = "__custom__";
-    c.textContent = "custom…";
-    sel.appendChild(c);
+    });
   }
 
   /// Switch the agent's CLI and respawn its primary layer in place.
@@ -452,19 +452,9 @@ export class App {
       if (dir) this.setAgentCwd(agent, dir);
     });
     agent.agentSel.addEventListener("mousedown", (e) => e.stopPropagation());
-    agent.agentSel.addEventListener("change", async () => {
-      const v = agent.agentSel.value;
-      if (v === "__custom__") {
-        const cmd = await askText({
-          title: t("modal.customTitle"),
-          placeholder: "aider --model gpt-5",
-          value: agent.agentCmd,
-        });
-        if (!cmd) this.fillAgentSelect(agent); // revert dropdown
-        else this.setAgentCommand(agent, cmd);
-      } else {
-        this.setAgentCommand(agent, v);
-      }
+    agent.agentSel.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.openAgentMenu(agent);
     });
     return agent;
   }
