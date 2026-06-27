@@ -183,11 +183,12 @@ export function createTerminalLayer(opts: {
           const safe = text.replace(/\x1b\[201~/g, "");
           layer.pty?.write(bracket ? `\x1b[200~${safe}\x1b[201~` : safe);
         } else if (bracket) {
-          // No text — the clipboard may hold an image. Send an empty bracketed
-          // paste so a running app (claude) probes the clipboard and reads the
-          // image itself (claude does this via osascript on macOS). Plain shells
-          // (no bracketed-paste mode) get nothing, as they can't use an image.
-          layer.pty?.write("\x1b[200~\x1b[201~");
+          // No text — the clipboard likely holds an image. Send Ctrl+V (\x16),
+          // exactly what works when the user presses Ctrl+V directly: it reaches
+          // claude's own paste handler, which reads the image via osascript on
+          // macOS. (An empty bracketed paste didn't trigger that.) Gated on
+          // bracketed-paste mode so a plain shell isn't sent a stray Ctrl+V.
+          layer.pty?.write("\x16");
         }
       });
       return handled(e);
@@ -209,11 +210,20 @@ export function createTerminalLayer(opts: {
       if (!line) return callback(undefined);
       const text = line.translateToString(true);
       const links: ILink[] = [];
+      // URL spans on this line are owned by web-links (→ onOpenUrl). The path
+      // matcher must NOT also claim a slice inside a URL (e.g. the `com/a.md` of
+      // `x.com/a.md`), or a ⌘-click would fire BOTH onOpenUrl (in-app/external)
+      // and onOpenPath (the OS browser) — the "opens in both browsers" bug.
+      const urlSpans: Array<[number, number]> = [];
+      const URL_RE = /https?:\/\/\S+/gu;
+      let um: RegExpExecArray | null;
+      while ((um = URL_RE.exec(text)) !== null) urlSpans.push([um.index, um.index + um[0].length]);
       PATH_RE.lastIndex = 0;
       let m: RegExpExecArray | null;
       while ((m = PATH_RE.exec(text)) !== null) {
         const start = m.index;
-        if (text[start - 1] === "/") continue; // skip URL tails (the host/p.md of a URL)
+        const end = start + m[0].length;
+        if (urlSpans.some(([us, ue]) => start < ue && end > us)) continue; // inside a URL
         const raw = m[0];
         // Map string indices → cell columns so links land correctly even when
         // wide (CJK) characters precede the path on the line.
@@ -292,7 +302,7 @@ export function createTerminalLayer(opts: {
   return layer;
 }
 
-export function createBrowserLayer(url: string): Layer {
+export function createBrowserLayer(url: string, onOpenExternal?: (url: string) => void): Layer {
   const el = document.createElement("div");
   el.className = "layer layer-browser";
 
@@ -310,6 +320,10 @@ export function createBrowserLayer(url: string): Layer {
   const back = mkBtn("‹", "back");
   const fwd = mkBtn("›", "forward");
   const reload = mkBtn("⟳", "reload");
+  // Many sites (Gitea/GitHub/Google/banks…) refuse iframe embedding via
+  // X-Frame-Options/CSP and show blank here — this opens the current URL in the
+  // real browser instead.
+  const ext = mkBtn("↗", "open in external browser");
 
   const titleInput = document.createElement("input");
   titleInput.className = "browser-title";
@@ -364,6 +378,7 @@ export function createBrowserLayer(url: string): Layer {
   reload.addEventListener("click", () => {
     iframe.src = iframe.src; // reassign reloads even cross-origin
   });
+  ext.addEventListener("click", () => onOpenExternal?.(input.value));
   input.addEventListener("keydown", (e) => {
     e.stopPropagation();
     if (e.key === "Enter") {
@@ -372,7 +387,7 @@ export function createBrowserLayer(url: string): Layer {
     }
   });
 
-  bar.append(back, fwd, reload, titleInput, input);
+  bar.append(back, fwd, reload, ext, titleInput, input);
   el.appendChild(bar);
   el.appendChild(iframe);
 
