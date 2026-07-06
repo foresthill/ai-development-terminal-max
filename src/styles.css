@@ -874,6 +874,12 @@ body {
   outline: none;
   font-family: Menlo, monospace;
   text-overflow: ellipsis;
+  /* Show the END of the cwd (roots repeat, tails differ): rtl right-aligns it and
+     puts the ellipsis on the LEFT, keeping the tail in view. Edit flips to ltr. */
+  direction: rtl;
+}
+.agent-path:focus {
+  direction: ltr;
 }
 .agent-path:hover {
   color: var(--text);
@@ -1088,10 +1094,53 @@ body {
   border-color: var(--accent);
   color: var(--text);
 }
-.layer-browser iframe {
+/* iframe + behind-it fallback share the content area. The iframe is transparent
+   so the fallback shows through when a site refuses embedding (blank), but a
+   real page's own (opaque) background covers it. */
+.browser-content {
+  position: relative;
   flex: 1;
+  min-height: 0;
+}
+.layer-browser iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   border: 0;
-  background: #fff;
+  background: transparent;
+  z-index: 1;
+}
+.browser-fallback {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 28px;
+  text-align: center;
+  background: var(--panel);
+}
+.browser-fallback-msg {
+  max-width: 42ch;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.browser-fallback-btn {
+  background: var(--accent-dim);
+  color: #fff;
+  border: 1px solid var(--accent);
+  border-radius: 7px;
+  padding: 7px 16px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.browser-fallback-btn:hover {
+  filter: brightness(1.15);
 }
 
 /* ---- zoom mode ---- */

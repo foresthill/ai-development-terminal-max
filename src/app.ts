@@ -360,6 +360,19 @@ export class App {
     }
   }
 
+  /// Reveal the agent's working directory in Finder (the 📂 button — `open .`).
+  private async openCwdInFinder(agent: Agent) {
+    if (!agent.cwd) {
+      toast(t("toast.noDir"), "error");
+      return;
+    }
+    try {
+      await openPath(agent.cwd);
+    } catch {
+      toast(t("toast.openPathFail", agent.cwd));
+    }
+  }
+
   /// Reflect the agent's current CLI on the ▾ caret (tooltip) and only show the
   /// caret when there's a real choice (2+ presets) — with one preset the row is
   /// just ▶. The actual chooser is the popup opened on click (openAgentMenu).
@@ -403,20 +416,11 @@ export class App {
 
   // --- agent lifecycle ------------------------------------------------------
 
-  /// Keep the END of the path field in view (right-aligned) — roots repeat, the
-  /// tail is what differs. Deferred a frame so the input has its laid-out width.
-  private showPathTail(el: HTMLInputElement) {
-    requestAnimationFrame(() => {
-      el.scrollLeft = el.scrollWidth;
-    });
-  }
-
   private newAgent(project: Project, cwd: string | null): Agent {
     const agent = createAgent(this.agentSeq++);
     agent.cwd = cwd;
     agent.agentCmd = this.agentCmd; // global default; per-agent override via the select
     agent.pathEl.value = cwd ?? "";
-    this.showPathTail(agent.pathEl);
     this.fillAgentSelect(agent);
     project.agents.push(agent);
 
@@ -425,10 +429,11 @@ export class App {
       this.ap = this.projects.indexOf(project);
       this.focus(idx());
     });
-    // Double-click to zoom lives on the HEADER only (not the whole card), so
-    // double-clicking inside a terminal or the in-app browser — e.g. selecting
-    // text or editing the URL bar — no longer toggles zoom by accident.
-    agent.headerEl.addEventListener("dblclick", () => {
+    // Double-click to zoom — handy on the terminal and the header, so it lives on
+    // the whole card. EXCEPT inside the in-app browser (URL bar / page), where a
+    // double-click is for selecting text or interacting, not zooming.
+    agent.cardEl.addEventListener("dblclick", (e) => {
+      if ((e.target as HTMLElement).closest(".layer-browser")) return;
       this.ap = this.projects.indexOf(project);
       this.focus(idx());
       this.toggleZoom();
@@ -452,9 +457,6 @@ export class App {
       e.stopPropagation();
       if (e.key === "Enter") agent.pathEl.blur();
     });
-    // Roots are usually identical and only the tail differs, so when not editing,
-    // keep the END of the path in view (right-aligned) rather than the start.
-    agent.pathEl.addEventListener("blur", () => this.showPathTail(agent.pathEl));
     agent.pathEl.addEventListener("change", () => {
       const v = agent.pathEl.value.trim();
       if (v && v !== agent.cwd) this.setAgentCwd(agent, v);
@@ -464,6 +466,11 @@ export class App {
       e.stopPropagation();
       const dir = await pickDirectory(agent.cwd ?? this.home);
       if (dir) this.setAgentCwd(agent, dir);
+    });
+    agent.openDirEl.addEventListener("mousedown", (e) => e.stopPropagation());
+    agent.openDirEl.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.openCwdInFinder(agent);
     });
     agent.agentSel.addEventListener("mousedown", (e) => e.stopPropagation());
     agent.agentSel.addEventListener("click", (e) => {
@@ -589,7 +596,6 @@ export class App {
   private async setAgentCwd(agent: Agent, path: string) {
     agent.cwd = path;
     agent.pathEl.value = path;
-    this.showPathTail(agent.pathEl);
     agent.running = true; // respawns and runs the agent in the new dir
     if (!agent.manualTitle) agent.title = basename(path);
     if (this.guardrails || this.subagentNest) await this.applyAidtSettings(path);
@@ -625,8 +631,18 @@ export class App {
     this.render();
   }
 
-  private closeAgentObj(agent: Agent | undefined) {
+  private async closeAgentObj(agent: Agent | undefined) {
     if (!agent) return;
+    // Closing kills the agent's process(es) and removes the window — easy to hit
+    // by accident (Alt+X is right next to terminal/editor keys like nano's
+    // Ctrl+X). Confirm first so a stray keystroke can't nuke a running agent.
+    const ok = await confirmModal({
+      title: t("confirm.closeAgent.title"),
+      body: t("confirm.closeAgent.body", agent.title),
+      confirm: t("confirm.closeAgent.ok"),
+      danger: true,
+    });
+    if (!ok) return;
     for (const p of this.projects) {
       const i = p.agents.indexOf(agent);
       if (i < 0) continue;
@@ -879,6 +895,10 @@ export class App {
       },
       afterRender: () => {
         this.scheduleFit();
+        // Also re-fit once the layout has settled. Closing/adding a window
+        // re-flows the grid and can leave a terminal with a stale (too-tall) row
+        // count, which clips claude's multi-line input at the card's bottom edge.
+        this.refitSoon();
         this.persist();
       },
     };

@@ -53,6 +53,7 @@ export interface Agent {
   closeEl: HTMLButtonElement;
   pathEl: HTMLInputElement;
   pickEl: HTMLButtonElement;
+  openDirEl: HTMLButtonElement;
   tabsEl: HTMLElement;
 }
 
@@ -158,6 +159,7 @@ export function createTerminalLayer(opts: {
   };
   term.attachCustomKeyEventHandler((e) => {
     if (e.type !== "keydown") return true;
+
     // Shift+Enter inserts a newline instead of submitting. xterm sends CR (\r)
     // for both Enter and Shift+Enter, so we send ESC+CR (\x1b\r) — the exact bytes
     // Claude Code's own /terminal-setup binds Shift+Enter to in VS Code (also an
@@ -389,7 +391,25 @@ export function createBrowserLayer(url: string, onOpenExternal?: (url: string) =
 
   bar.append(back, fwd, reload, ext, titleInput, input);
   el.appendChild(bar);
-  el.appendChild(iframe);
+
+  // Fallback shown BEHIND the (transparent) iframe: when a site refuses embedding
+  // (X-Frame-Options/CSP) the iframe stays empty and this shows through, instead
+  // of a confusing blank white page. A loaded page's own background covers it.
+  const content = document.createElement("div");
+  content.className = "browser-content";
+  const fallback = document.createElement("div");
+  fallback.className = "browser-fallback";
+  const fbMsg = document.createElement("div");
+  fbMsg.className = "browser-fallback-msg";
+  fbMsg.textContent = t("browser.blocked");
+  const fbBtn = document.createElement("button");
+  fbBtn.className = "browser-fallback-btn";
+  fbBtn.textContent = t("browser.openExternal");
+  fbBtn.addEventListener("mousedown", (e) => e.stopPropagation());
+  fbBtn.addEventListener("click", () => onOpenExternal?.(input.value));
+  fallback.append(fbMsg, fbBtn);
+  content.append(fallback, iframe);
+  el.appendChild(content);
 
   const layer: Layer = {
     id: uid("web"),
@@ -558,13 +578,16 @@ export function createAgent(index: number): Agent {
   pickEl.className = "agent-pick";
   pickEl.textContent = t("agent.pick");
   pickEl.title = t("tip.pick");
+  const openDirEl = document.createElement("button");
+  openDirEl.className = "agent-pick"; // same compact button style
+  openDirEl.textContent = t("agent.openDir");
+  openDirEl.title = t("tip.openDir");
   const pathEl = document.createElement("input");
   pathEl.className = "agent-path";
   pathEl.placeholder = t("agent.pathPlaceholder");
   pathEl.spellcheck = false;
-  // Path row carries the cwd plus the CPU/RAM status badge (branch is on the
-  // title row, leaving the path field the full width to show the cwd).
-  pathRow.append(pickEl, pathEl, cpuEl);
+  // Path row: 📁 choose folder, 📂 reveal folder in Finder, then the cwd + status.
+  pathRow.append(pickEl, openDirEl, pathEl, cpuEl);
 
   // Z-axis layer tabs, sitting directly above the terminal.
   const tabsEl = document.createElement("div");
@@ -602,6 +625,7 @@ export function createAgent(index: number): Agent {
     closeEl,
     pathEl,
     pickEl,
+    openDirEl,
     tabsEl,
   };
 }
