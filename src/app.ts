@@ -12,6 +12,9 @@ import {
   disposeLayer,
   basename,
   startTitleEdit,
+  dbgLog,
+  dbgOn,
+  toggleDbg,
 } from "./agent";
 import { Project } from "./project";
 import { handleSubagentEvent, clearSubagentLayers } from "./subagent";
@@ -185,7 +188,9 @@ export class App {
     listen<string>("pty-exit", (e) => this.onPtyExit(e.payload));
   }
 
-  private onPtyExit(id: string) {
+  private onPtyExit(payload: string) {
+    const [id, reason] = payload.split("|"); // reason: eof | err | channel
+    dbgLog(`PTY-EXIT ${id} reason=${reason ?? "?"}`); // TEMP
     for (const p of this.projects)
       for (const a of p.agents) {
         const li = a.layers.findIndex((l) => l.pty?.id === id);
@@ -792,6 +797,10 @@ export class App {
   // --- keyboard (leader = Alt/Option) --------------------------------------
 
   private onKey(e: KeyboardEvent) {
+    if (dbgOn()) {
+      const ae = document.activeElement as HTMLElement | null;
+      dbgLog(`win:'${e.key}' focus=${ae?.className || ae?.tagName || "?"}`);
+    } // TEMP
     if (!e.altKey) return;
     const handlers: Record<string, () => void> = {
       KeyT: () => this.addAgentToActive(),
@@ -813,6 +822,7 @@ export class App {
       KeyX: () => this.closeAgentObj(this.agents[this.focused]),
       KeyP: () => this.switchProject(1),
       KeyM: () => this.toggleMacro(),
+      KeyD: () => toast(`debug ${toggleDbg() ? "on" : "off"}`), // TEMP: vi-render tracer overlay
       KeyR: () => {
         if (e.shiftKey) return this.launchAll();
         const a = this.agents[this.focused];

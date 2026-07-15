@@ -996,6 +996,22 @@ body {
   inset: 0;
   padding: 4px 6px;
 }
+/* TEMP vi-input tracer overlay — remove after the bug is found. */
+.input-dbg {
+  position: fixed;
+  left: 6px;
+  bottom: 6px;
+  z-index: 9999;
+  pointer-events: none;
+  white-space: pre;
+  font: 10px/1.35 Menlo, monospace;
+  color: #ffd36b;
+  background: rgba(0, 0, 0, 0.85);
+  border: 1px solid #ffd36b55;
+  padding: 4px 7px;
+  border-radius: 5px;
+  max-width: 60ch;
+}
 .term-host .xterm {
   height: 100%;
 }
