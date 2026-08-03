@@ -83,20 +83,55 @@ pub fn spawn_pty(
     // notify the frontend so it can auto-close the layer when the process exits.
     let channel = on_output.clone();
     let exit_id = id.clone();
+    let child_pid = pid;
     std::thread::spawn(move || {
         let mut buf = [0u8; 8192];
+        let mut errs = 0u32;
+        let reason;
         loop {
             match reader.read(&mut buf) {
-                Ok(0) | Err(_) => break,
+                Ok(0) => {
+                    reason = "eof";
+                    break; // clean EOF
+                }
                 Ok(n) => {
+                    errs = 0;
                     let encoded = base64::engine::general_purpose::STANDARD.encode(&buf[..n]);
                     if channel.send(encoded).is_err() {
-                        break;
+                        reason = "channel";
+                        break; // frontend gone
                     }
+                }
+                // A signal (SIGWINCH on resize) can interrupt the blocking read —
+                // not a process exit. Retry.
+                Err(e)
+                    if matches!(
+                        e.kind(),
+                        std::io::ErrorKind::Interrupted | std::io::ErrorKind::WouldBlock
+                    ) =>
+                {
+                    continue;
+                }
+                // Other read errors (macOS returns these transiently while the
+                // child is still alive — vim's rapid startup queries trigger it).
+                // Only treat it as a real exit once the child is actually gone;
+                // otherwise a single hiccup emits `pty-exit`, which kills the shell
+                // and SIGHUPs a full-screen child (vim). `kill(pid, 0)` == 0 while
+                // the process still exists.
+                Err(_) => {
+                    let alive = child_pid != 0
+                        && unsafe { libc::kill(child_pid as libc::pid_t, 0) } == 0;
+                    errs += 1;
+                    if alive && errs < 50 {
+                        std::thread::sleep(std::time::Duration::from_millis(10));
+                        continue;
+                    }
+                    reason = "err";
+                    break;
                 }
             }
         }
-        let _ = app.emit("pty-exit", exit_id);
+        let _ = app.emit("pty-exit", format!("{exit_id}|{reason}"));
     });
 
     registry.0.lock().unwrap().insert(

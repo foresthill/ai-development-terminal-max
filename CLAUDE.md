@@ -65,6 +65,33 @@ app.ts before that follow-up lands** — put new concerns in their own module.
 - Worktrees enforce the user's feature-branch / no-main-push workflow physically.
 - **Persistence**: workspace (projects/agents/cwd/layout/toggles) auto-saves to `aidt-workspace`; opened/cloned projects bookmark to `aidt-projects` (label+path). **Resume**: claude agents launch `claude --continue` (resumes the cwd's last conversation, fresh if none) — interactive login shell types the command (so `.zshrc` PATH is correct). Resume facts sourced from code.claude.com/docs/en/sessions.md.
 
+## Known issue: vim (2026-07) — read before touching the terminal renderer
+
+Full write-up: `docs/2026-07-15-vim-debugging-journey.md`.
+
+- **Input side: SOLVED.** vim died seconds after opening because the PTY reader
+  treated *any* read error as exit → `pty-exit` → layer close → SIGHUP → vim
+  died with the shell. macOS returns transient read errors while the child is
+  alive; vim's startup terminal queries trigger them, **nano's don't** — that
+  asymmetry is what made this look like an alt-screen/xterm bug for ~30 build
+  cycles. Fixed in `pty.rs` with a `libc::kill(pid, 0)` liveness check.
+- **Display side: STILL OPEN.** vim's alternate screen doesn't repaint. Internal
+  state is provably fine (`buf=alternate 47x22 el=346x310 vis=Y`) — the renderer
+  just doesn't paint alt-buffer writes. Leading theory: **xterm.js × WKWebView**
+  (Electron-based xterm.js terminals don't hit it; cmux avoids it by rendering
+  natively instead of with xterm.js). Next diagnostic: **dump the buffer contents**
+  (`getLine().translateToString()`) to separate "not painted" from "buffer empty" —
+  a forced full repaint did *not* help, so don't assume the buffer is populated.
+- **Dead ends — do NOT retry** (each cost a build+swap): refit-on-toggle; DECSET
+  1004 suppression (kept as insurance, *not* the fix); disabling WebGL; removing
+  the `.stack` 3D CSS; forced `refresh()`; `options.theme` re-assign repaint;
+  xterm 5.5 downgrade (symptom predates 6.0 — not a regression);
+  `@xterm/addon-canvas` (**deprecated, removed in @xterm/xterm v6** — DOM/WebGL
+  are the only renderers).
+- Workaround for users: `set t_ti= t_te=` in `.vimrc` (renders inline), or nano.
+- **Debug tracers** live behind `Alt+D` (off by default — when off they don't run
+  at all, including the per-output-byte tracer).
+
 ## Status
 
 MVP, partially unverified. Browser layer is iframe (X-Frame-Options sites won't

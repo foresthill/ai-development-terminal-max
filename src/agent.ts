@@ -89,6 +89,41 @@ const TERM_THEME = {
   selectionBackground: "#2d3f76",
 };
 
+// TEMP vi-input tracer — logs where a keystroke is lost (window → xterm → data →
+// pty) plus what's focused, in a corner overlay. Remove after the bug is found.
+const _dbg: string[] = [];
+let _dbgEl: HTMLElement | null = null;
+let _dbgOn = false; // OFF by default — toggle with Alt+D (out of the way while working)
+export function dbgOn(): boolean {
+  return _dbgOn;
+}
+export function setDbg(on: boolean): void {
+  _dbgOn = on;
+  if (_dbgEl) _dbgEl.style.display = on ? "" : "none";
+}
+export function toggleDbg(): boolean {
+  setDbg(!_dbgOn);
+  return _dbgOn;
+}
+export function dbgLog(msg: string) {
+  if (!_dbgOn) return; // gated: no overlay, no localStorage, no per-byte cost when off
+  _dbg.push(msg);
+  while (_dbg.length > 40) _dbg.shift();
+  if (!_dbgEl) {
+    _dbgEl = document.createElement("div");
+    _dbgEl.className = "input-dbg";
+    document.body.appendChild(_dbgEl);
+  }
+  _dbgEl.textContent = _dbg.slice(-14).join("\n");
+  // Also persist so it can be read off disk (localStorage → sqlite) without a
+  // screenshot. TEMP.
+  try {
+    localStorage.setItem("aidt-vidbg", _dbg.join("\n"));
+  } catch {
+    /* ignore */
+  }
+}
+
 export function createTerminalLayer(opts: {
   title: string;
   shell: string;
@@ -127,10 +162,23 @@ export function createTerminalLayer(opts: {
   const fit = new FitAddon();
   term.loadAddon(fit);
   term.open(host);
+
+  // Swallow focus reporting (DECSET/DECRST 1004). Precautionary: a focus thrash
+  // here would flood the app with focus in/out events, and we never use the
+  // reports. NOTE: this was first added on the theory that it caused the "vim
+  // input jams" bug — it did not; the real cause was the PTY reader treating a
+  // transient read error as exit and SIGHUP-ing the shell (fixed in pty.rs).
+  // Unverified whether it's still needed now; kept as cheap insurance.
+  // Other ?-prefixed modes fall through to xterm's default handling untouched.
+  const only1004 = (params: (number | number[])[]) => params.length === 1 && params[0] === 1004;
+  term.parser.registerCsiHandler({ prefix: "?", final: "h" }, only1004);
+  term.parser.registerCsiHandler({ prefix: "?", final: "l" }, only1004);
   try {
     term.loadAddon(new WebglAddon());
   } catch {
-    // WebGL unavailable (rare) — xterm falls back to canvas automatically.
+    // WebGL unavailable (rare) — xterm falls back to its built-in DOM renderer.
+    // (The canvas addon is deprecated and gone in @xterm/xterm v6, so DOM is the
+    // only fallback: https://github.com/xtermjs/xterm.js/issues/3271)
   }
 
   // Clickable URLs. Plain click opens in the default target (Settings: in-app
@@ -159,6 +207,15 @@ export function createTerminalLayer(opts: {
   };
   term.attachCustomKeyEventHandler((e) => {
     if (e.type !== "keydown") return true;
+    // TEMP: dump xterm's internal state so we can see whether the alt-screen was
+    // actually entered and the render surface is sized.
+    if (dbgOn()) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const el = (term as any).element as HTMLElement | undefined;
+      dbgLog(
+        `key'${e.key}' buf=${term.buffer.active.type} ${term.cols}x${term.rows} el=${el?.offsetWidth ?? "?"}x${el?.offsetHeight ?? "?"} vis=${el?.offsetParent ? "Y" : "N"}`,
+      );
+    } // TEMP
 
     // Shift+Enter inserts a newline instead of submitting. xterm sends CR (\r)
     // for both Enter and Shift+Enter, so we send ESC+CR (\x1b\r) — the exact bytes
@@ -208,14 +265,43 @@ export function createTerminalLayer(opts: {
     /(?:~\/|\.{1,2}\/|\/)?[\p{L}\p{N}._\-@+]+(?:\/[\p{L}\p{N}._\-@+]+)+\.[A-Za-z0-9]{1,8}(?::\d+(?:[:.]\d+)?)?/gu;
   term.registerLinkProvider({
     provideLinks(y, callback) {
-      const line = term.buffer.active.getLine(y - 1);
-      if (!line) return callback(undefined);
-      const text = line.translateToString(true);
+      const buf = term.buffer.active;
+      const first = buf.getLine(y - 1);
+      if (!first) return callback(undefined);
+      // A long path wraps across rows, but the provider runs per row. Skip
+      // continuation rows (their logical line's START row emits one link that
+      // spans all the rows) — otherwise a click on the wrapped tail matches only
+      // a fragment (e.g. the `omi-…` inside `poric|omi-…`) and resolves wrong.
+      if (first.isWrapped) return callback(undefined);
+      // Rebuild the logical line = this row + following wrapped rows, tracking
+      // each row's text and its offset in the joined string so match indices map
+      // back to a (col, row) cell range.
+      const rows: { y: number; line: IBufferLine; text: string; off: number }[] = [];
+      let text = "";
+      let yy = y;
+      let line: IBufferLine | undefined = first;
+      while (line) {
+        const t = line.translateToString(true);
+        rows.push({ y: yy, line, text: t, off: text.length });
+        text += t;
+        const nxt = buf.getLine(yy); // getLine is 0-based, so this is row yy+1
+        if (nxt && nxt.isWrapped) {
+          line = nxt;
+          yy += 1;
+        } else break;
+      }
+      const locate = (i: number) => {
+        let r = rows[0];
+        for (const cand of rows) {
+          if (i >= cand.off) r = cand;
+          else break;
+        }
+        return { col: colForStrIdx(r.line, i - r.off), y: r.y };
+      };
       const links: ILink[] = [];
-      // URL spans on this line are owned by web-links (→ onOpenUrl). The path
-      // matcher must NOT also claim a slice inside a URL (e.g. the `com/a.md` of
-      // `x.com/a.md`), or a ⌘-click would fire BOTH onOpenUrl (in-app/external)
-      // and onOpenPath (the OS browser) — the "opens in both browsers" bug.
+      // URL spans are owned by web-links (→ onOpenUrl). The path matcher must NOT
+      // also claim a slice inside a URL (e.g. the `com/a.md` of `x.com/a.md`), or
+      // a ⌘-click fires BOTH onOpenUrl and onOpenPath — the "opens in both" bug.
       const urlSpans: Array<[number, number]> = [];
       const URL_RE = /https?:\/\/\S+/gu;
       let um: RegExpExecArray | null;
@@ -227,15 +313,13 @@ export function createTerminalLayer(opts: {
         const end = start + m[0].length;
         if (urlSpans.some(([us, ue]) => start < ue && end > us)) continue; // inside a URL
         const raw = m[0];
-        // Map string indices → cell columns so links land correctly even when
-        // wide (CJK) characters precede the path on the line.
-        const startCol = colForStrIdx(line, start);
-        const endCol = colForStrIdx(line, start + raw.length); // exclusive
+        const s = locate(start);
+        const e = locate(end); // exclusive
         links.push({
           text: raw,
-          range: { start: { x: startCol + 1, y }, end: { x: endCol, y } },
-          activate: (e: MouseEvent) => {
-            if (e.metaKey || e.ctrlKey) opts.onOpenPath?.(raw, layer.cwd ?? null);
+          range: { start: { x: s.col + 1, y: s.y }, end: { x: e.col, y: e.y } },
+          activate: (ev: MouseEvent) => {
+            if (ev.metaKey || ev.ctrlKey) opts.onOpenPath?.(raw, layer.cwd ?? null);
           },
         });
       }
@@ -300,7 +384,10 @@ export function createTerminalLayer(opts: {
     autoRun: opts.autoRun,
   };
 
-  term.onData((data) => layer.pty?.write(data));
+  term.onData((data) => {
+    if (dbgOn()) dbgLog(`data:[${Array.from(data).map((c) => c.charCodeAt(0)).join(",")}] pty=${layer.pty ? "Y" : "N"}`); // TEMP
+    layer.pty?.write(data);
+  });
   return layer;
 }
 
@@ -464,6 +551,7 @@ export async function startLayer(layer: Layer, cols: number, rows: number) {
     cols,
     rows,
     onData: (bytes) => {
+      if (dbgOn()) dbgLog(`OUT[${Array.from(bytes).slice(0, 48).join(",")}]${bytes.length > 48 ? "…" : ""} ${layer.title}`); // TEMP
       layer.lastOutput = performance.now();
       layer.term!.write(bytes);
     },
@@ -479,6 +567,13 @@ export async function startLayer(layer: Layer, cols: number, rows: number) {
 export function fitLayer(layer: Layer) {
   if (layer.kind !== "terminal" || !layer.fit || !layer.term) return;
   try {
+    // Only fit/resize when the cell grid ACTUALLY changes. Fitting unconditionally
+    // reflows xterm and re-resizes the PTY every call; if a ResizeObserver→fit
+    // loop spins (or refit fires often), that floods a full-screen app like vim
+    // with SIGWINCH + focus-report churn and it stops responding. proposeDimensions
+    // tells us the target size without touching anything, so a no-op stays a no-op.
+    const dims = layer.fit.proposeDimensions();
+    if (!dims || (dims.cols === layer.term.cols && dims.rows === layer.term.rows)) return;
     layer.fit.fit();
     if (layer.started && layer.pty) {
       layer.pty.resize(layer.term.cols, layer.term.rows);
