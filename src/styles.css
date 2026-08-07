@@ -679,6 +679,57 @@ body {
     0 0 0 3px var(--accent),
     0 0 22px rgba(224, 175, 104, 0.55);
 }
+
+/* ---- window priority (● flag in the header cycles none→low→mid→high) ---- */
+.agent-prio {
+  border: 0;
+  background: none;
+  cursor: pointer;
+  padding: 0 3px;
+  font-size: 10px;
+  line-height: 1;
+  color: #565f89; /* "none" — faint */
+  align-self: center;
+}
+.agent-prio:hover {
+  filter: brightness(1.5);
+}
+.agent[data-prio="1"] .agent-prio {
+  color: #8089b3;
+}
+.agent[data-prio="2"] .agent-prio {
+  color: #e0af68;
+}
+.agent[data-prio="3"] .agent-prio {
+  color: #f7768e;
+}
+/* Left accent stripe on the header. An inset box-shadow coexists with the card's
+   own focus ring and waiting border (those are the card's box-shadow/border), and
+   with the focused header's background gradient — so all cues read at once. */
+.agent[data-prio="1"] .agent-header {
+  box-shadow: inset 3px 0 0 #565f89;
+}
+.agent[data-prio="2"] .agent-header {
+  box-shadow: inset 3px 0 0 #e0af68;
+}
+.agent[data-prio="3"] .agent-header {
+  box-shadow: inset 3px 0 0 #f7768e;
+}
+/* High-priority windows stay bright even when not focused; low ones recede more
+   (overrides the .agent:not(.focused) dim). */
+.agent[data-prio="3"]:not(.focused) {
+  opacity: 0.95;
+}
+.agent[data-prio="1"]:not(.focused) {
+  opacity: 0.6;
+}
+/* High priority claims more room in the overview grid. render()'s afterRender
+   re-fits, so the terminal reflows to the larger cell. */
+#grid.mode-overview .agent[data-prio="3"] {
+  grid-column: span 2;
+  grid-row: span 2;
+}
+
 .agent-header {
   display: flex;
   flex-direction: column;

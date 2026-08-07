@@ -482,7 +482,20 @@ export class App {
       e.stopPropagation();
       this.openAgentMenu(agent);
     });
+    agent.prioEl.addEventListener("mousedown", (e) => e.stopPropagation());
+    agent.prioEl.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.cyclePriority(agent);
+    });
     return agent;
+  }
+
+  /// Cycle a window's priority none→low→mid→high→none. Higher priority makes the
+  /// window bigger + brighter in the overview (see render + styles). render()'s
+  /// afterRender persists and re-fits, so a size change re-fits its terminal.
+  private cyclePriority(agent: Agent) {
+    agent.priority = (agent.priority + 1) % 4;
+    this.render();
   }
 
   private async addAgentWithCwd(project: Project, cwd: string | null, focus = true) {
