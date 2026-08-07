@@ -86,6 +86,7 @@ export interface AgentSnap {
   agentCmd?: string;
   running?: boolean; // was the agent command actually launched here?
   manualTitle: boolean;
+  priority?: number; // window priority (0-3); absent = none
   active: number;
   layers: LayerSnap[];
 }
@@ -146,6 +147,7 @@ export function buildSnapshot(projects: Project[], s: Settings): WorkspaceSnap {
         agentCmd: a.agentCmd,
         running: a.running,
         manualTitle: a.manualTitle,
+        priority: a.priority,
         active: a.active,
         layers: a.layers
           .filter((l) => l.kind !== "subagent") // ephemeral — never persisted
@@ -208,6 +210,7 @@ export function restoreProjects(
       agent.branch = as.branch ?? "";
       agent.agentCmd = as.agentCmd || defaultAgentCmd;
       agent.running = !!as.running; // only resume agents that were actually running
+      agent.priority = as.priority ?? 0;
       b.fillAgentSelect(agent);
       b.refreshBranch(agent);
       for (let li = 0; li < (as.layers ?? []).length; li++) {

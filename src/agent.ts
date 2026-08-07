@@ -40,12 +40,14 @@ export interface Agent {
   agentCmd: string; // the CLI agent this window runs (e.g. "claude", "aider")
   running: boolean; // true once the agent command was launched here (for resume)
   manualTitle: boolean; // true once the user renames; stops dir-derived titles
+  priority: number; // 0 none · 1 low · 2 mid · 3 high — drives size/color emphasis
   layers: Layer[];
   active: number; // index of front layer
   cardEl: HTMLElement;
   headerEl: HTMLElement;
   stackEl: HTMLElement;
   titleEl: HTMLElement;
+  prioEl: HTMLButtonElement; // ● priority flag: click cycles none→low→mid→high
   branchEl: HTMLElement;
   cpuEl: HTMLElement;
   agentSel: HTMLButtonElement; // ▾ caret: opens the CLI chooser (hidden when 1 preset)
@@ -629,6 +631,13 @@ export function createAgent(index: number): Agent {
   const titleRow = document.createElement("div");
   titleRow.className = "agent-title-row";
 
+  // ● priority flag (leftmost): click cycles none→low→mid→high. The glyph/colour
+  // is set on render from agent.priority; the card's data-prio drives the emphasis.
+  const prioEl = document.createElement("button");
+  prioEl.className = "agent-prio";
+  prioEl.textContent = "○";
+  prioEl.title = t("tip.priority");
+
   const titleEl = document.createElement("div");
   titleEl.className = "agent-title";
   titleEl.textContent = `agent ${index}`;
@@ -662,6 +671,7 @@ export function createAgent(index: number): Agent {
   const runGroup = document.createElement("div");
   runGroup.className = "run-group";
   runGroup.append(runEl, agentSel);
+  titleRow.appendChild(prioEl);
   titleRow.appendChild(titleEl);
   titleRow.appendChild(branchEl);
   titleRow.appendChild(runGroup);
@@ -707,12 +717,14 @@ export function createAgent(index: number): Agent {
     agentCmd: "claude",
     running: false,
     manualTitle: false,
+    priority: 0,
     layers: [],
     active: 0,
     cardEl,
     headerEl,
     stackEl,
     titleEl,
+    prioEl,
     branchEl,
     cpuEl,
     agentSel,
