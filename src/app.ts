@@ -11,6 +11,7 @@ import {
   fitLayer,
   disposeLayer,
   basename,
+  sortByPriority,
   startTitleEdit,
   dbgLog,
   dbgOn,
@@ -491,11 +492,25 @@ export class App {
   }
 
   /// Cycle a window's priority none→low→mid→high→none. Higher priority makes the
-  /// window bigger + brighter in the overview (see render + styles). render()'s
-  /// afterRender persists and re-fits, so a size change re-fits its terminal.
+  /// window bigger + brighter AND floats it to the front of the overview (see
+  /// arrangeByPriority + render + styles). render()'s afterRender persists and
+  /// re-fits, so the size/position change re-fits its terminal.
   private cyclePriority(agent: Agent) {
     agent.priority = (agent.priority + 1) % 4;
+    this.arrangeByPriority();
     this.render();
+  }
+
+  /// Re-order the active project's windows by priority (higher first) so the
+  /// most important ones sit top-left in the overview. `focused` follows its own
+  /// window across the move, so the focus ring and Alt+1-9 stay meaningful. With
+  /// no priorities set the sort is a no-op (stable), so order is untouched.
+  private arrangeByPriority() {
+    const agents = this.curProject?.agents;
+    if (!agents || agents.length < 2) return;
+    const cur = agents[this.focused];
+    sortByPriority(agents);
+    if (cur) this.focused = Math.max(0, agents.indexOf(cur));
   }
 
   private async addAgentWithCwd(project: Project, cwd: string | null, focus = true) {
@@ -978,6 +993,9 @@ export class App {
       fillAgentSelect: (a) => this.fillAgentSelect(a),
       refreshBranch: (a) => void this.refreshBranch(a),
     });
+    // Restored windows carry their persisted priority — arrange each project so
+    // the order matches (also fixes up workspaces saved before auto-sort existed).
+    for (const p of this.projects) sortByPriority(p.agents);
   }
 
   private restore(): boolean {

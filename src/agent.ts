@@ -65,6 +65,15 @@ export function basename(p: string): string {
   return parts.length ? parts[parts.length - 1] : p;
 }
 
+/// Auto-arrange by priority: sort windows in place so higher priority floats to
+/// the front (top-left of the overview grid). The sort is stable (ES2019+), so
+/// equal-priority windows keep their existing order — setting one window's
+/// priority never reshuffles the rest among themselves. Callers remap `focused`
+/// afterwards (indexOf the same Agent) so the focus ring/keyboard stay put.
+export function sortByPriority(agents: Agent[]): void {
+  agents.sort((a, b) => (b.priority || 0) - (a.priority || 0));
+}
+
 let seq = 0;
 const uid = (p: string) => `${p}-${Date.now().toString(36)}-${seq++}`;
 
