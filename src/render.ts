@@ -100,6 +100,14 @@ export function renderAll(c: RenderCtx) {
     const prio = agent.priority || 0;
     agent.cardEl.dataset.prio = String(prio);
     agent.prioEl.textContent = prio === 0 ? "○" : "●";
+    // Manual per-window tint: --agent-color drives the header tint + resting frame
+    // (CSS). The swatch button previews the current colour (empty ring for none).
+    const color = agent.color || null;
+    agent.cardEl.classList.toggle("has-color", !!color);
+    if (color) agent.cardEl.style.setProperty("--agent-color", color);
+    else agent.cardEl.style.removeProperty("--agent-color");
+    agent.colorEl.style.background = color ?? "transparent";
+    agent.colorEl.classList.toggle("is-set", !!color);
     if (agent.titleEl.contentEditable !== "true" && agent.titleEl.textContent !== agent.title)
       agent.titleEl.textContent = agent.title; // only when changed (don't disrupt dblclick)
     agent.branchEl.textContent = agent.branch ? `⎇ ${agent.branch}` : "";

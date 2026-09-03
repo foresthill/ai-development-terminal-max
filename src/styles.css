@@ -730,6 +730,83 @@ body {
   grid-row: span 2;
 }
 
+/* ---- per-window colour (◑ swatch tints the header + resting frame) ---- */
+.agent-color-btn {
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+  border: 1px solid #565f89; /* empty outline when no colour is set */
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  margin-left: 2px;
+  align-self: center;
+  flex: 0 0 auto;
+}
+.agent-color-btn.is-set {
+  border-color: transparent; /* the fill itself is the swatch */
+}
+.agent-color-btn:hover {
+  filter: brightness(1.2);
+}
+/* Header tint: an overlay so it layers over the focused header gradient too,
+   keeping the colour visible in every state. Header children sit above it. */
+.agent-header {
+  position: relative;
+}
+.agent-header::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--agent-color, transparent);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+  z-index: 0;
+}
+.agent.has-color .agent-header::after {
+  opacity: 0.14;
+}
+.agent-header > * {
+  position: relative;
+  z-index: 1;
+}
+/* Resting frame in the window colour — only when neither focused nor waiting, so
+   those higher-priority state cues keep the border to themselves. */
+.agent.has-color:not(.focused):not(.waiting) {
+  border-color: var(--agent-color);
+}
+
+/* colour picker popup: a row of swatches */
+.popmenu-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: 132px;
+  padding: 8px;
+}
+.popmenu-swatches .swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  cursor: pointer;
+  padding: 0;
+}
+.popmenu-swatches .swatch:hover {
+  filter: brightness(1.15);
+}
+.popmenu-swatches .swatch.active {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.popmenu-swatches .swatch-none {
+  background: transparent;
+  color: #8089b3;
+  font-size: 12px;
+  line-height: 18px;
+}
+
 .agent-header {
   display: flex;
   flex-direction: column;

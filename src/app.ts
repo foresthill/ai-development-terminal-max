@@ -32,6 +32,7 @@ import {
   openHelp,
   confirmModal,
   openMenu,
+  openColorMenu,
 } from "./ui";
 import { GUARD_PRESETS, effectiveDeny } from "./guard";
 import { t, getLang, setLang } from "./i18n";
@@ -487,6 +488,14 @@ export class App {
     agent.prioEl.addEventListener("click", (e) => {
       e.stopPropagation();
       this.cyclePriority(agent);
+    });
+    agent.colorEl.addEventListener("mousedown", (e) => e.stopPropagation());
+    agent.colorEl.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openColorMenu(agent.colorEl, agent.color, (c) => {
+        agent.color = c;
+        this.render();
+      });
     });
     return agent;
   }
