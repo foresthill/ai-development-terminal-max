@@ -688,14 +688,14 @@ body {
   padding: 0 3px;
   font-size: 10px;
   line-height: 1;
-  color: #565f89; /* "none" — faint */
+  color: #414868; /* "none" — dim, clearly "off" so a set flag reads distinctly */
   align-self: center;
 }
 .agent-prio:hover {
   filter: brightness(1.5);
 }
 .agent[data-prio="1"] .agent-prio {
-  color: #8089b3;
+  color: #7aa2f7; /* low — blue (a different hue from "none", not just brighter) */
 }
 .agent[data-prio="2"] .agent-prio {
   color: #e0af68;
@@ -707,7 +707,7 @@ body {
    own focus ring and waiting border (those are the card's box-shadow/border), and
    with the focused header's background gradient — so all cues read at once. */
 .agent[data-prio="1"] .agent-header {
-  box-shadow: inset 3px 0 0 #565f89;
+  box-shadow: inset 3px 0 0 #7aa2f7;
 }
 .agent[data-prio="2"] .agent-header {
   box-shadow: inset 3px 0 0 #e0af68;
