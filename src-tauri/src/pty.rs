@@ -25,6 +25,19 @@ struct PtySession {
 #[derive(Default)]
 pub struct PtyRegistry(Mutex<HashMap<String, PtySession>>);
 
+/// Is the child still alive? Used to tell a transient read error apart from a
+/// real exit (macOS returns transient errors while the child lives — the vim
+/// SIGHUP bug). `kill(pid, 0)` is POSIX-only; the quirk is macOS-specific, so on
+/// non-Unix a read error is treated as a real exit (the pre-fix behavior).
+#[cfg(unix)]
+fn child_is_alive(pid: u32) -> bool {
+    pid != 0 && unsafe { libc::kill(pid as libc::pid_t, 0) } == 0
+}
+#[cfg(not(unix))]
+fn child_is_alive(_pid: u32) -> bool {
+    false
+}
+
 /// Spawn a new PTY running `shell` (with `args`) in `cwd`. Output chunks are
 /// base64-encoded and pushed through `on_output` as they arrive.
 #[tauri::command]
@@ -119,8 +132,7 @@ pub fn spawn_pty(
                 // and SIGHUPs a full-screen child (vim). `kill(pid, 0)` == 0 while
                 // the process still exists.
                 Err(_) => {
-                    let alive = child_pid != 0
-                        && unsafe { libc::kill(child_pid as libc::pid_t, 0) } == 0;
+                    let alive = child_is_alive(child_pid);
                     errs += 1;
                     if alive && errs < 50 {
                         std::thread::sleep(std::time::Duration::from_millis(10));

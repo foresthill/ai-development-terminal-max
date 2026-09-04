@@ -1,7 +1,7 @@
 {
   "name": "ai-dev-terminal",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Native macOS terminal multiplexer for running many Claude Code agents in parallel — overview grid, Z-axis depth, git-worktree isolation, golden-spiral macro view.",
   "license": "MIT",
   "author": "foresthill",

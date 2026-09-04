@@ -1,6 +1,6 @@
 [package]
 name = "ai-dev-terminal"
-version = "0.1.0"
+version = "0.1.1"
 description = "AI Development Terminal MAX - parallel Claude Code multiplexer"
 authors = ["foresthill"]
 license = "MIT"
