@@ -486,6 +486,70 @@ export function toast(message: string, kind: "info" | "error" = "info") {
 /// Small popup menu anchored under `anchor`, right-aligned to it. Picks call
 /// `onPick(value)` and close; click-away or Escape closes without picking. Used
 /// for the per-agent CLI chooser (the ▾ caret next to ▶).
+// Curated per-window tint palette — distinct hues that read on the dark theme.
+export const AGENT_COLORS = [
+  "#7aa2f7", // blue
+  "#2ac3de", // cyan
+  "#9ece6a", // green
+  "#e0af68", // amber
+  "#ff9e64", // orange
+  "#f7768e", // red
+  "#bb9af7", // purple
+  "#c0caf5", // light
+];
+
+/// Swatch popup for the per-window colour. `current` is the active hex (or null);
+/// onPick gets a hex, or null for "none" (the ⌀ clear swatch).
+export function openColorMenu(
+  anchor: HTMLElement,
+  current: string | null,
+  onPick: (value: string | null) => void,
+) {
+  document.querySelector(".popmenu")?.remove();
+  const menu = document.createElement("div");
+  menu.className = "popmenu popmenu-swatches";
+  const close = () => {
+    menu.remove();
+    document.removeEventListener("mousedown", onDoc, true);
+    document.removeEventListener("keydown", onKey, true);
+  };
+  const onDoc = (e: MouseEvent) => {
+    if (!menu.contains(e.target as Node)) close();
+  };
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      close();
+    }
+  };
+  const swatch = (color: string | null) => {
+    const b = document.createElement("button");
+    b.className = "swatch" + ((current ?? null) === color ? " active" : "");
+    if (color) b.style.background = color;
+    else {
+      b.classList.add("swatch-none"); // ⌀ = clear the colour
+      b.textContent = "⌀";
+    }
+    b.addEventListener("mousedown", (e) => e.stopPropagation());
+    b.addEventListener("click", (e) => {
+      e.stopPropagation();
+      close();
+      onPick(color);
+    });
+    menu.appendChild(b);
+  };
+  swatch(null);
+  for (const c of AGENT_COLORS) swatch(c);
+  document.body.appendChild(menu);
+  const r = anchor.getBoundingClientRect();
+  menu.style.top = `${r.bottom + 4}px`;
+  menu.style.left = `${Math.max(6, r.left)}px`;
+  setTimeout(() => {
+    document.addEventListener("mousedown", onDoc, true);
+    document.addEventListener("keydown", onKey, true);
+  }, 0);
+}
+
 export function openMenu(
   anchor: HTMLElement,
   items: { label: string; value: string }[],

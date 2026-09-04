@@ -41,6 +41,7 @@ export interface Agent {
   running: boolean; // true once the agent command was launched here (for resume)
   manualTitle: boolean; // true once the user renames; stops dir-derived titles
   priority: number; // 0 none · 1 low · 2 mid · 3 high — drives size/color emphasis
+  color: string | null; // manual per-window tint (hex) for the header/frame; null = none
   layers: Layer[];
   active: number; // index of front layer
   cardEl: HTMLElement;
@@ -48,6 +49,7 @@ export interface Agent {
   stackEl: HTMLElement;
   titleEl: HTMLElement;
   prioEl: HTMLButtonElement; // ● priority flag: click cycles none→low→mid→high
+  colorEl: HTMLButtonElement; // ◑ colour swatch: click opens the per-window tint picker
   branchEl: HTMLElement;
   cpuEl: HTMLElement;
   agentSel: HTMLButtonElement; // ▾ caret: opens the CLI chooser (hidden when 1 preset)
@@ -688,6 +690,13 @@ export function createAgent(index: number): Agent {
   prioEl.textContent = "○";
   prioEl.title = t("tip.priority");
 
+  // ◑ colour swatch: click opens a picker to tint this window's header/frame.
+  // The swatch shows the current colour (or an empty outline for "none"); render
+  // sets its background from agent.color.
+  const colorEl = document.createElement("button");
+  colorEl.className = "agent-color-btn";
+  colorEl.title = t("tip.color");
+
   const titleEl = document.createElement("div");
   titleEl.className = "agent-title";
   titleEl.textContent = `agent ${index}`;
@@ -722,6 +731,7 @@ export function createAgent(index: number): Agent {
   runGroup.className = "run-group";
   runGroup.append(runEl, agentSel);
   titleRow.appendChild(prioEl);
+  titleRow.appendChild(colorEl);
   titleRow.appendChild(titleEl);
   titleRow.appendChild(branchEl);
   titleRow.appendChild(runGroup);
@@ -768,6 +778,7 @@ export function createAgent(index: number): Agent {
     running: false,
     manualTitle: false,
     priority: 0,
+    color: null,
     layers: [],
     active: 0,
     cardEl,
@@ -775,6 +786,7 @@ export function createAgent(index: number): Agent {
     stackEl,
     titleEl,
     prioEl,
+    colorEl,
     branchEl,
     cpuEl,
     agentSel,
