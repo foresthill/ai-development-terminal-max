@@ -730,7 +730,7 @@ body {
   grid-row: span 2;
 }
 
-/* ---- per-window colour (◑ swatch tints the header + resting frame) ---- */
+/* ---- per-window colour (◑ swatch tints the whole window: wash + header + frame) ---- */
 .agent-color-btn {
   width: 11px;
   height: 11px;
@@ -775,6 +775,21 @@ body {
    those higher-priority state cues keep the border to themselves. */
 .agent.has-color:not(.focused):not(.waiting) {
   border-color: var(--agent-color);
+}
+/* Whole-window wash: a faint tint over the ENTIRE card (terminal included), so
+   the colour reads as "this window", not just its header. Kept low so terminal
+   text stays readable; pointer-events:none lets clicks reach the terminal, and a
+   high z-index puts it above the layer stack. The header keeps its slightly
+   stronger tint above, so it still reads as the window's label. */
+.agent.has-color::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--agent-color);
+  opacity: 0.09;
+  pointer-events: none;
+  z-index: 6;
+  border-radius: inherit;
 }
 
 /* colour picker popup: a row of swatches */
