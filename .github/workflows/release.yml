@@ -46,7 +46,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
             librsvg2-dev \
             patchelf \
             build-essential \
@@ -58,7 +57,9 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9
+          # v10 to match the repo's pnpm-workspace.yaml (onlyBuiltDependencies is
+          # v10-style config); v9 rejects that file with "packages field missing".
+          version: 10
 
       - name: Install Node
         uses: actions/setup-node@v4
