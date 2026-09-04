@@ -85,21 +85,11 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # --- Optional code signing / notarization ---------------------------
-          # The build is UNSIGNED unless these secrets are set. Users then see a
-          # first-launch warning (macOS Gatekeeper / Windows SmartScreen) that
-          # they can bypass. To sign, add the secrets in the repo settings and
-          # they are picked up automatically — no workflow change needed.
-          #
-          # macOS (Apple Developer ID + notarization):
-          #   APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY,
-          #   APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Build is UNSIGNED. Do NOT wire the APPLE_* env unconditionally: when
+          # the secrets are unset they expand to empty strings, which still makes
+          # tauri-action attempt codesign and fail ("failed to import keychain
+          # certificate"). To enable signing later, add an APPLE_* env block here
+          # ONLY once the secrets exist (see docs/RELEASING.md).
         with:
           # On a tag push this is the tag (e.g. v0.1.0); on a manual run it's the
           # branch, which still produces a harmless draft you can delete.
