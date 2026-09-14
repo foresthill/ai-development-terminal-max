@@ -137,6 +137,38 @@ export function dbgLog(msg: string) {
   }
 }
 
+/// Diagnostic for the vim "blank alternate screen" bug: dump the ACTIVE xterm
+/// buffer so we can tell "populated but not painted" (renderer/WKWebView issue)
+/// from "buffer empty" (data never reached the alt-buffer) — the decisive
+/// question left open in docs/2026-07-15-vim-debugging-journey.md. Returns a
+/// one-line summary (buffer type + how many visible rows have content); the full
+/// per-row dump goes to localStorage `aidt-vimdump` so it can be read off disk.
+export function dumpLayerBuffer(layer: Layer): string {
+  const term = layer.term;
+  if (!term) return "no term";
+  const buf = term.buffer.active;
+  const rows = term.rows;
+  const lines: string[] = [
+    `type=${buf.type} ${term.cols}x${term.rows} viewportY=${buf.viewportY} baseY=${buf.baseY} cursor=${buf.cursorX},${buf.cursorY}`,
+  ];
+  let nonEmpty = 0;
+  for (let y = 0; y < rows; y++) {
+    const line = buf.getLine(buf.viewportY + y);
+    const s = line ? line.translateToString(true) : "(null)";
+    if (s.trim()) nonEmpty++;
+    lines.push(`${String(y).padStart(2)}|${s}`);
+  }
+  const summary = `${buf.type} ${term.cols}x${term.rows} nonEmpty=${nonEmpty}/${rows}`;
+  lines.unshift(`SUMMARY ${summary}`);
+  try {
+    localStorage.setItem("aidt-vimdump", lines.join("\n"));
+  } catch {
+    /* ignore */
+  }
+  dbgLog(`DUMP ${summary}`);
+  return summary;
+}
+
 export function createTerminalLayer(opts: {
   title: string;
   shell: string;
