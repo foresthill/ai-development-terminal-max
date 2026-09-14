@@ -33,6 +33,7 @@ export interface RenderCtx {
   setLayer(agent: Agent, li: number, ai: number): void;
   addLayer(agent: Agent, kind: "terminal" | "browser", ai: number): void;
   closeLayer(agent: Agent, li: number, ai: number): void;
+  resetLayer(agent: Agent, ai: number): void;
   openFolder(): void;
   clone(): void;
   openSaved(sp: SavedProject): void;
@@ -181,6 +182,21 @@ function renderLayerTabs(c: RenderCtx, agent: Agent, ai: number) {
       c.addLayer(agent, kind, ai);
     });
     agent.tabsEl.appendChild(add);
+  }
+
+  // ⟳ reset the front terminal — respawns a fresh shell in the same cwd. The
+  // escape hatch for a stuck/blank terminal (a full-screen app that didn't
+  // repaint, or a prompt caught in a cursor-report loop). Only for terminals.
+  if (agent.layers[agent.active]?.kind === "terminal") {
+    const reset = document.createElement("button");
+    reset.className = "ltab-add ltab-reset";
+    reset.title = t("tip.resetLayer");
+    reset.textContent = "⟳";
+    reset.addEventListener("mousedown", (ev) => {
+      ev.stopPropagation();
+      c.resetLayer(agent, ai);
+    });
+    agent.tabsEl.appendChild(reset);
   }
 }
 

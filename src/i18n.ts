@@ -94,6 +94,7 @@ const en: Record<string, string> = {
   "tip.closeAgent": "close this agent (Alt+X)",
   "tip.runAgent": "run the agent here (resumes via --continue)",
   "tip.layerClose": "close this layer",
+  "tip.resetLayer": "reset this terminal — respawn a fresh shell (fixes a stuck/blank screen)",
   "tip.addTerm": "add terminal",
   "tip.addBrowser": "add browser",
   "toast.noProject": "No project. Create one with folder or clone.",
@@ -146,6 +147,8 @@ const en: Record<string, string> = {
   "guard.sudo": "Block sudo",
   "guard.net": "Block curl / wget (outbound)",
   "spawn.fail": "[spawn failed: check the directory path]",
+  "toast.reset": "terminal reset — fresh shell",
+  "toast.resetNonTerm": "the front layer isn't a terminal",
 };
 
 const ja: Record<string, string> = {
@@ -239,6 +242,7 @@ const ja: Record<string, string> = {
   "tip.closeAgent": "このエージェントを閉じる（Alt+X）",
   "tip.runAgent": "ここでエージェントを起動（--continueで再開）",
   "tip.layerClose": "このレイヤーを閉じる",
+  "tip.resetLayer": "この端末をリセット — 新しいシェルを起動し直す（固まった/黒い画面の復帰）",
   "tip.addTerm": "ターミナル追加",
   "tip.addBrowser": "ブラウザ追加",
   "toast.noProject": "プロジェクトがありません。folder か clone で作成してください",
@@ -291,6 +295,8 @@ const ja: Record<string, string> = {
   "guard.sudo": "sudo を禁止",
   "guard.net": "curl / wget を禁止（外部送信）",
   "spawn.fail": "[spawn failed: ディレクトリのパスを確認]",
+  "toast.reset": "端末をリセットしました（新しいシェル）",
+  "toast.resetNonTerm": "前面のレイヤーは端末ではありません",
 };
 
 const dicts: Record<Lang, Record<string, string>> = { en, ja };
