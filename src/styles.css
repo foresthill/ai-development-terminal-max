@@ -723,8 +723,13 @@ body {
 .agent[data-prio="1"]:not(.focused) {
   opacity: 0.6;
 }
-/* High priority claims more room in the overview grid. render()'s afterRender
-   re-fits, so the terminal reflows to the larger cell. */
+/* Priority claims more room in the overview grid, in tiers: mid grows taller
+   (2 rows, same width — a taller terminal shows more scrollback, the most useful
+   way to grow), high claims a full 2×2 cell. render()'s afterRender re-fits, so
+   the terminal reflows to the new cell. */
+#grid.mode-overview .agent[data-prio="2"] {
+  grid-row: span 2;
+}
 #grid.mode-overview .agent[data-prio="3"] {
   grid-column: span 2;
   grid-row: span 2;
