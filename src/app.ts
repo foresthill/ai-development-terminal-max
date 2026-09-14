@@ -673,6 +673,29 @@ export class App {
     this.render();
   }
 
+  /// Reset the front terminal layer: kill its PTY and spawn a fresh shell in the
+  /// same cwd, in place. The recovery hatch for a stuck/blank terminal — a
+  /// full-screen app (vim) that didn't repaint, or a prompt looping on a cursor
+  /// report. Resetting the primary layer drops it to an idle shell (running =
+  /// false), so ▶ / Alt+R re-launches the agent (claude resumes via --continue).
+  private resetFrontTerminal(agent: Agent | undefined) {
+    if (!agent) return;
+    const li = agent.active;
+    const old = agent.layers[li];
+    if (!old || old.kind !== "terminal") {
+      toast(t("toast.resetNonTerm"), "error");
+      return;
+    }
+    const fresh = this.shellLayer(agent.cwd);
+    disposeLayer(old);
+    agent.layers[li] = fresh;
+    agent.stackEl.appendChild(fresh.el);
+    if (li === 0) agent.running = false; // primary → idle shell; ▶ / Alt+R relaunches
+    this.observeLayer(fresh);
+    this.render();
+    toast(t("toast.reset"));
+  }
+
   private async closeAgentObj(agent: Agent | undefined) {
     if (!agent) return;
     // Closing kills the agent's process(es) and removes the window — easy to hit
@@ -940,6 +963,10 @@ export class App {
         this.focused = ai;
         this.closeLayerAt(agent, li);
       },
+      resetLayer: (agent, ai) => {
+        this.focused = ai;
+        this.resetFrontTerminal(agent);
+      },
       afterRender: () => {
         this.scheduleFit();
         // Also re-fit once the layout has settled. Closing/adding a window
@@ -1067,6 +1094,12 @@ export class App {
         const host = front.el.querySelector(".term-host") as HTMLElement | null;
         if (front.kind === "terminal" && host && host.clientWidth > 0) {
           if (!front.started && front.term) {
+            // Fit the terminal to its cell BEFORE spawning, so the shell/prompt
+            // starts at the real size. Spawning at the default 80×24 and resizing
+            // after can make a prompt (e.g. p10k) probe the cursor at the wrong
+            // size and spin on `\e[6n`/CPR replies — the "blank + pegged CPU"
+            // terminal. Correct size up front avoids that handshake loop.
+            fitLayer(front);
             startLayer(front, front.term.cols, front.term.rows)
               .then(() => fitLayer(front))
               .catch(() => front.term?.write(`\r\n\x1b[31m${t("spawn.fail")}\x1b[0m\r\n`));
