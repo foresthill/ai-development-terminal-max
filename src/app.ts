@@ -16,6 +16,7 @@ import {
   dbgLog,
   dbgOn,
   toggleDbg,
+  dumpLayerBuffer,
 } from "./agent";
 import { Project } from "./project";
 import { handleSubagentEvent, clearSubagentLayers } from "./subagent";
@@ -882,7 +883,17 @@ export class App {
       KeyX: () => this.closeAgentObj(this.agents[this.focused]),
       KeyP: () => this.switchProject(1),
       KeyM: () => this.toggleMacro(),
-      KeyD: () => toast(`debug ${toggleDbg() ? "on" : "off"}`), // TEMP: vi-render tracer overlay
+      KeyD: () => {
+        // Alt+Shift+D: dump the focused terminal's alt-screen buffer (vim
+        // diagnostic — "populated but not painted" vs "empty"). Plain Alt+D
+        // toggles the input tracer overlay.
+        if (e.shiftKey) {
+          const f = this.agents[this.focused]?.layers[this.agents[this.focused].active];
+          if (f?.kind === "terminal") toast(`vim-dump: ${dumpLayerBuffer(f)}`);
+          return;
+        }
+        toast(`debug ${toggleDbg() ? "on" : "off"}`);
+      },
       KeyR: () => {
         if (e.shiftKey) return this.launchAll();
         const a = this.agents[this.focused];
