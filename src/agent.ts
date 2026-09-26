@@ -640,21 +640,6 @@ export function createSubagentLayer(agentType: string, subId: string): Layer {
 export async function startLayer(layer: Layer, cols: number, rows: number) {
   if (layer.started || layer.kind !== "terminal" || !layer.term) return;
   layer.started = true;
-  // Coalesced forced repaint (one per frame) — WKWebView drops xterm's own
-  // renders, so we re-issue after each write (see onData).
-  let repaintQueued = false;
-  const scheduleRepaint = () => {
-    if (repaintQueued || !layer.term) return;
-    repaintQueued = true;
-    requestAnimationFrame(() => {
-      repaintQueued = false;
-      try {
-        layer.term?.refresh(0, Math.max(0, (layer.term.rows || 1) - 1));
-      } catch {
-        /* ignore */
-      }
-    });
-  };
   layer.pty = await spawnPty({
     id: layer.id,
     shell: layer.shell!,
@@ -665,12 +650,7 @@ export async function startLayer(layer: Layer, cols: number, rows: number) {
     onData: (bytes) => {
       if (dbgOn()) dbgLog(`OUT[${Array.from(bytes).slice(0, 48).join(",")}]${bytes.length > 48 ? "…" : ""} ${layer.title}`); // TEMP
       layer.lastOutput = performance.now();
-      // Force a repaint after the write is parsed. WKWebView skips xterm's own
-      // renders often enough that live TUI updates (vim cursor/insert/colours)
-      // and even a window's first paint don't show; an explicit refresh after
-      // each write surfaces them. Coalesced to one per animation frame, so it's
-      // cheap even under heavy output. Fixes: paints once but not on updates.
-      layer.term!.write(bytes, () => scheduleRepaint());
+      layer.term!.write(bytes);
     },
   });
   // Type the agent command into the freshly-started interactive shell so it runs
