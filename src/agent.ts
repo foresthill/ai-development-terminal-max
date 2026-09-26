@@ -206,7 +206,13 @@ export function createTerminalLayer(opts: {
   });
   const fit = new FitAddon();
   term.loadAddon(fit);
-  term.open(host);
+  // term.open() is DEFERRED to startLayer (when the host is attached to the DOM
+  // and has a real size). Opening here — while `el` is still detached / zero-size
+  // — makes xterm's RenderService IntersectionObserver mark the screen "hidden"
+  // and PAUSE all rendering (verified in xterm.js RenderService.ts: `_isPaused`
+  // drops every refreshRows). That is the root of the "first frame then frozen /
+  // blank until reset" bug (vim live updates, blank new windows). Opening while
+  // visible keeps the renderer live.
 
   // Swallow focus reporting (DECSET/DECRST 1004). Precautionary: a focus thrash
   // here would flood the app with focus in/out events, and we never use the
@@ -640,13 +646,28 @@ export function createSubagentLayer(agentType: string, subId: string): Layer {
 export async function startLayer(layer: Layer, cols: number, rows: number) {
   if (layer.started || layer.kind !== "terminal" || !layer.term) return;
   layer.started = true;
+  // Open the terminal now that its host is attached and sized (callers gate on
+  // clientWidth>0). Opening while visible keeps xterm's RenderService unpaused,
+  // so live TUI updates (vim cursor/insert/colours) actually paint; opening while
+  // detached/hidden pauses it forever. Then fit so the PTY spawns at the real size.
+  const host = layer.el.querySelector(".term-host") as HTMLElement | null;
+  if (host && !layer.term.element) {
+    layer.term.open(host);
+    try {
+      layer.fit?.fit();
+    } catch {
+      /* host not laid out yet — a later fitLayer catches up */
+    }
+  }
+  const spawnCols = layer.term.cols || cols;
+  const spawnRows = layer.term.rows || rows;
   layer.pty = await spawnPty({
     id: layer.id,
     shell: layer.shell!,
     args: layer.args ?? [],
     cwd: layer.cwd ?? null,
-    cols,
-    rows,
+    cols: spawnCols,
+    rows: spawnRows,
     onData: (bytes) => {
       if (dbgOn()) dbgLog(`OUT[${Array.from(bytes).slice(0, 48).join(",")}]${bytes.length > 48 ? "…" : ""} ${layer.title}`); // TEMP
       layer.lastOutput = performance.now();
