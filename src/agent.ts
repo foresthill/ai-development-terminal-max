@@ -218,12 +218,23 @@ export function createTerminalLayer(opts: {
   const only1004 = (params: (number | number[])[]) => params.length === 1 && params[0] === 1004;
   term.parser.registerCsiHandler({ prefix: "?", final: "h" }, only1004);
   term.parser.registerCsiHandler({ prefix: "?", final: "l" }, only1004);
-  try {
-    term.loadAddon(new WebglAddon());
-  } catch {
-    // WebGL unavailable (rare) — xterm falls back to its built-in DOM renderer.
-    // (The canvas addon is deprecated and gone in @xterm/xterm v6, so DOM is the
-    // only fallback: https://github.com/xtermjs/xterm.js/issues/3271)
+  // Renderer: DOM (default) vs WebGL. The WebGL canvas does NOT re-composite the
+  // alternate screen in WKWebView — vim's buffer is provably populated
+  // (Alt+Shift+D: `alternate nonEmpty=18/24`) but never paints, and a forced
+  // refresh() doesn't help (the paint is issued but not composited). DOM renders
+  // real spans that WKWebView composites normally, sidestepping the canvas bug.
+  // The earlier "DOM also blank" finding predates the Safari-UA fix (which made
+  // xterm apply its WebKit workarounds and got shells rendering), so DOM+UA is a
+  // fresh combination. Flip back to true to restore the WebGL (GPU) renderer.
+  const USE_WEBGL = false;
+  if (USE_WEBGL) {
+    try {
+      term.loadAddon(new WebglAddon());
+    } catch {
+      // WebGL unavailable (rare) — xterm falls back to its built-in DOM renderer.
+      // (The canvas addon is deprecated and gone in @xterm/xterm v6, so DOM is the
+      // only fallback: https://github.com/xtermjs/xterm.js/issues/3271)
+    }
   }
 
   // Clickable URLs. Plain click opens in the default target (Settings: in-app
