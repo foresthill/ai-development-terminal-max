@@ -8,6 +8,7 @@ import { WebglAddon } from "@xterm/addon-webgl";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { spawnPty, PtyHandle } from "./pty";
+import { findPathSpans } from "./paths";
 import { t } from "./i18n";
 
 export type LayerKind = "terminal" | "browser" | "subagent";
@@ -317,35 +318,9 @@ export function createTerminalLayer(opts: {
     return true;
   });
 
-  // Clickable file paths (web-links only handles http/https). Three families of
-  // inline token, all with at least one slash: a rooted path (`/abs/p.rs`,
-  // `~/n.md`, `./src/a.ts`) which may be a file OR a directory (trailing `/`, no
-  // extension needed); a relative file (`docs/x/foo.md`); and a relative directory
-  // (`src/components/`). An optional `:line[:col]` suffix is kept. Segments allow
-  // Unicode letters (\p{L}) so Japanese parts match; extensions stay ASCII so they
-  // never swallow trailing prose. The leading look-behind stops a mid-word slash
-  // (`read/write`, `and/or`, `TCP/IP`) from being read as an absolute `/write`.
-  // Spaces can't live in a token (a space bounds it), so paths WITH spaces — a very
-  // common macOS case (`~/Obsidian Vault/…`) — are matched two other ways below:
-  // whole-line (FULL_PATH_RE) and quoted (QUOTE_RE). ⌘/Ctrl-click resolves the
-  // match against the cwd and the host opens it (OS default app).
-  const SEG = "[\\p{L}\\p{N}._\\-@+]+";
-  const PATH_RE = new RegExp(
-    "(?<![\\p{L}\\p{N}._\\-@+/~])(?:" +
-      `(?:~\\/|\\.{1,2}\\/|\\/)${SEG}(?:\\/${SEG})*\\/?` + // rooted: file or directory
-      `|${SEG}(?:\\/${SEG})+\\.[A-Za-z0-9]{1,8}` + // relative file  seg/seg.ext
-      `|${SEG}(?:\\/${SEG})+\\/` + // relative directory  seg/seg/
-      ")(?::\\d+(?:[:.]\\d+)?)?",
-    "gu",
-  );
-  // A path is often printed alone on its own line (claude's "フルパス:" output, an
-  // ls/pwd result). When the whole trimmed line is an absolute/home path we take it
-  // verbatim — this is the only way to catch a path containing spaces. Punctuation
-  // that doesn't occur in paths (`,` `!` `?` …) is excluded so prose beginning with
-  // `/` doesn't match.
-  const FULL_PATH_RE = /^(?:~\/|\/)[\p{L}\p{N}\p{M} ._\-@+()&'’/]+?(?::\d+(?:[:.]\d+)?)?$/u;
-  // A quoted rooted path — `"/Users/foo bar/x"` — is unambiguous even with spaces.
-  const QUOTE_RE = /["'`]((?:~\/|\.{1,2}\/|\/)[^"'`\n]{1,512}?)["'`]/gu;
+  // Clickable file paths (web-links only handles http/https). Detection is pure
+  // and unit-tested in paths.ts (findPathSpans); here we only map each returned
+  // span to a terminal cell range and wire ⌘/Ctrl-click → onOpenPath.
   term.registerLinkProvider({
     provideLinks(y, callback) {
       const buf = term.buffer.active;
@@ -382,14 +357,7 @@ export function createTerminalLayer(opts: {
         return { col: colForStrIdx(r.line, i - r.off), y: r.y };
       };
       const links: ILink[] = [];
-      // Reserved spans are already claimed by an earlier, higher-priority matcher;
-      // a later matcher must not also claim an overlapping slice, or one ⌘-click
-      // fires two handlers (the "opens in both" bug — e.g. the `com/a.md` inside
-      // `x.com/a.md`, or an inline fragment inside a quoted/whole-line path).
-      const reserved: Array<[number, number]> = [];
-      const overlaps = (start: number, end: number) =>
-        reserved.some(([rs, re]) => start < re && end > rs);
-      const addPathLink = (start: number, end: number, raw: string) => {
+      for (const { start, end, raw } of findPathSpans(text)) {
         const s = locate(start);
         const e = locate(end); // exclusive
         links.push({
@@ -399,32 +367,6 @@ export function createTerminalLayer(opts: {
             if (ev.metaKey || ev.ctrlKey) opts.onOpenPath?.(raw, layer.cwd ?? null);
           },
         });
-        reserved.push([start, end]);
-      };
-      // 1) URLs own their spans (→ onOpenUrl via web-links) — reserve, don't link.
-      const URL_RE = /https?:\/\/\S+/gu;
-      let um: RegExpExecArray | null;
-      while ((um = URL_RE.exec(text)) !== null) reserved.push([um.index, um.index + um[0].length]);
-      // 2) Whole-line absolute path (the only way to catch spaces in a bare path).
-      const lead = text.length - text.trimStart().length;
-      const body = text.trim();
-      if (body && FULL_PATH_RE.test(body) && !overlaps(lead, lead + body.length))
-        addPathLink(lead, lead + body.length, body);
-      // 3) Quoted rooted paths (spaces allowed) — link the inner text, not the quotes.
-      QUOTE_RE.lastIndex = 0;
-      let qm: RegExpExecArray | null;
-      while ((qm = QUOTE_RE.exec(text)) !== null) {
-        const start = qm.index + 1; // skip the opening quote
-        const inner = qm[1];
-        if (!overlaps(start, start + inner.length)) addPathLink(start, start + inner.length, inner);
-      }
-      // 4) Inline tokens (no spaces) — skip anything already inside a reserved span.
-      PATH_RE.lastIndex = 0;
-      let m: RegExpExecArray | null;
-      while ((m = PATH_RE.exec(text)) !== null) {
-        const start = m.index;
-        const end = start + m[0].length;
-        if (!overlaps(start, end)) addPathLink(start, end, m[0]);
       }
       callback(links);
     },
