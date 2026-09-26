@@ -170,6 +170,29 @@ export function dumpLayerBuffer(layer: Layer): string {
   return summary;
 }
 
+/// Copy the persisted diagnostic logs to the system clipboard in one shot, so the
+/// user can paste the whole trace ONCE instead of scraping the on-screen overlay
+/// (which only shows the last 14 lines). Concatenates the input/output tracer
+/// (`aidt-vidbg`, last 40 lines) and the latest buffer dump (`aidt-vimdump`).
+/// Uses Tauri's clipboard plugin because WKWebView's navigator.clipboard is
+/// unreliable. Returns a short summary for a toast. TEMP (vim diagnostic).
+export async function copyDebugLog(): Promise<string> {
+  const trace = localStorage.getItem("aidt-vidbg") ?? "";
+  const dump = localStorage.getItem("aidt-vimdump") ?? "";
+  if (!trace && !dump) return "no log yet (press Alt+D to enable tracing)";
+  const body = [
+    "=== aidt input/output trace (aidt-vidbg) ===",
+    trace || "(empty)",
+    "",
+    "=== aidt buffer dump (aidt-vimdump) ===",
+    dump || "(empty — press Alt+Shift+D over a terminal)",
+  ].join("\n");
+  await writeText(body);
+  const traceLines = trace ? trace.split("\n").length : 0;
+  const dumpLines = dump ? dump.split("\n").length : 0;
+  return `copied ${traceLines} trace + ${dumpLines} dump lines`;
+}
+
 export function createTerminalLayer(opts: {
   title: string;
   shell: string;
