@@ -17,6 +17,7 @@ import {
   dbgOn,
   toggleDbg,
   dumpLayerBuffer,
+  copyDebugLog,
 } from "./agent";
 import { Project } from "./project";
 import { handleSubagentEvent, clearSubagentLayers } from "./subagent";
@@ -863,6 +864,15 @@ export class App {
       dbgLog(`win:'${e.key}' focus=${ae?.className || ae?.tagName || "?"}`);
     } // TEMP
     if (!e.altKey) return;
+    // Alt+Shift+C: copy the persisted diagnostic logs to the clipboard so the whole
+    // trace pastes in one go (vim diagnostic). Handled before the map so plain
+    // Alt+C still reaches the terminal untouched. TEMP.
+    if (e.shiftKey && e.code === "KeyC") {
+      e.preventDefault();
+      e.stopPropagation();
+      void copyDebugLog().then((s) => toast(`log: ${s}`));
+      return;
+    }
     const handlers: Record<string, () => void> = {
       KeyT: () => this.addAgentToActive(),
       // Focus/depth on H/J/K/L and the arrows. (Trade-off: Alt+arrow is the app
