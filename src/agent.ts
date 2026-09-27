@@ -248,6 +248,17 @@ export function createTerminalLayer(opts: {
   const only1004 = (params: (number | number[])[]) => params.length === 1 && params[0] === 1004;
   term.parser.registerCsiHandler({ prefix: "?", final: "h" }, only1004);
   term.parser.registerCsiHandler({ prefix: "?", final: "l" }, only1004);
+  // Break the runaway cursor-position report loop. The live Alt+D trace shows, at an
+  // IDLE shell prompt (and in claude), a continuous loop:
+  //   OUT  27,91,63,54,110        = ESC [ ? 6 n   → the child requests cursor pos (DECXCPR)
+  //   data 27,91,63,50,53,59,52,82 = ESC [ ? 2 5 ; 4 R → xterm auto-replies, we write it
+  //     back to the PTY, and the child requests again — forever, on every pane.
+  // That flood buries real keystrokes, which is why vim is uncontrollable in-app but
+  // fine in Terminal.app. We swallow ONLY the private `\e[?6n` (DECXCPR) so xterm no
+  // longer auto-replies; the plain `\e[6n` (no `?`, which vim's size probe needs) is
+  // left to xterm's default handler untouched. Returning true = handled, no reply.
+  const swallowDecxcpr = (params: (number | number[])[]) => params.length === 1 && params[0] === 6;
+  term.parser.registerCsiHandler({ prefix: "?", final: "n" }, swallowDecxcpr);
   // Renderer: DOM (default) vs WebGL. The WebGL canvas does NOT re-composite the
   // alternate screen in WKWebView — vim's buffer is provably populated
   // (Alt+Shift+D: `alternate nonEmpty=18/24`) but never paints, and a forced
