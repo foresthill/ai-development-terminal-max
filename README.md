@@ -1,101 +1,91 @@
 # AI Dev Terminal MAX
 
-English ・ [日本語](./README.ja.md)
+日本語 ・ [English](./README.en.md)
 
-A native macOS terminal multiplexer for running many [Claude Code](https://docs.claude.com/en/docs/claude-code) agents **in parallel** and seeing **all of them at once**. Unlike tmux/zellij:
+複数の Claude Code を**並列**で動かし、全エージェントを**一画面で俯瞰**できるネイティブ・ターミナル多重化アプリ（macOS / Tauri）。tmux・zellij と違い、(1) たくさんのエージェントを格子状に総覧でき、(2) 各エージェントは Z 軸の「奥行きスタック」を持ち、claude のターミナルの背後にブラウザや追加ターミナルを縦に格納でき、(3) **Project（リポジトリ）→ Agent（git worktree）→ Layer（奥行き）** の2階層モデルで、1リポを複数エージェントが隔離ブランチで並列に触れる。
 
-1. **Overview grid** — every agent is visible at the same time, not hidden behind tabs.
-2. **Z-axis depth** — each agent owns a vertical stack of layers (the claude terminal, a browser, an extra terminal) shown as a deck.
-3. **Two-level model** — `Project` (a repo) → `Agent` (a **git worktree** on an isolated branch) → `Layer`, so many agents work the same repo in parallel without colliding.
+> ⚠️ ステータス: **MVP / 一部未検証**。ブラウザレイヤーは iframe ベースで、X-Frame-Options で埋め込み拒否するサイトは表示できない（既知の制約）。
 
-> ⚠️ Status: **MVP, partially unverified.** The browser layer is iframe-based, so sites that send `X-Frame-Options` won't embed (known limitation).
+## スタック
 
-## Stack
-
-| Layer | Tech | Role |
+| 層 | 技術 | 役割 |
 |---|---|---|
-| Backend | Rust + [Tauri 2](https://tauri.app) | window, IPC, PTY, git |
-| PTY | [`portable-pty`](https://crates.io/crates/portable-pty) | spawn real processes (claude/shell) in pseudo-terminals |
-| Rendering | [`@xterm/xterm`](https://github.com/xtermjs/xterm.js) + WebGL addon | GPU-accelerated terminal rendering |
-| UI | Vanilla TS (no framework) | overview grid / depth decks / macro spiral |
+| バックエンド | Rust + [Tauri 2](https://tauri.app) | ウィンドウ・IPC・PTY・git |
+| PTY | [`portable-pty`](https://crates.io/crates/portable-pty) | 各ペインで実プロセス(claude/shell)を擬似端末で起動 |
+| 描画 | [`@xterm/xterm`](https://github.com/xtermjs/xterm.js) + WebGL addon | GPU 加速ターミナル描画 |
+| UI | Vanilla TS（フレームワークなし） | 俯瞰グリッド / 奥行き / マクロ螺旋 |
 
-PTY output streams Rust→TS over a per-session Tauri `Channel` (base64).
+PTY 出力は Rust→TS へ per-session の Tauri `Channel`(base64)でストリーム。
 
-## Concepts (two-level model)
+## 概念（2階層モデル）
 
-- **Project** — one repository/folder; a tab in the project strip.
-- **Agent** — a **git worktree** of that repo (isolated branch `feature/yyyymmdd-N`); one card in the grid.
-- **Layer** — an agent's Z-axis stack (`terminal` / `browser`); the front one shows, the rest deck behind it.
-- **Overview / Zoom** — all agents in a grid / focused agent fullscreen.
-- **Macro** — all projects spread on a golden-angle (phyllotaxis) spiral.
+- **Project** = 1リポジトリ/フォルダ。プロジェクト帯のタブ。
+- **Agent** = そのリポの **git worktree**（隔離ブランチ `feature/yyyymmdd-N`）。俯瞰グリッドの1カード。
+- **Layer** = エージェント内の Z 軸スタック（`terminal` / `browser`）。前面1枚＋背後がデッキ状に重なる。
+- **Overview / Zoom** = 全エージェントを格子表示 / フォーカス中を全画面。
+- **Macro** = 全プロジェクトを黄金角螺旋（フィロタキシス）で俯瞰。
 
-**Switching projects:** the grid shows one project's agents at a time. The tabs in the top strip are your open projects — click one, or press `Alt+P` to cycle. With only one project open, `Alt+P` does nothing (nothing to switch to) — add another with **📁 open project** / **⎇ clone project** first. Use **✦ macro** to see all projects at once.
+**プロジェクトの切替**：グリッドには一度に1プロジェクトのエージェントだけが表示されます。上部の帯にあるタブが開いているプロジェクトで、クリックか `Alt+P` で巡回します。**1プロジェクトしか無いと `Alt+P` は何も起きません**（切替先が無いため）。**📁 プロジェクトを開く** / **⎇ clone** で別プロジェクトを追加してから使ってください。**✦ macro** で全プロジェクトを一覧できます。
 
-**Parallel main agents vs subagents vs projects** — three distinct axes:
-- **Main agents in parallel** → add agents (worktrees) within one project (`+ agent` / `⊞ fill`). They run side by side in the grid (one main agent each: claude/codex/…).
-- **Subagents** → spawned automatically when a claude uses the Task tool; they appear as nested 🪆 cards inside that window's Z-stack (turn on **nest**). Not separate windows.
-- **Projects** → separate repos/folders. Switch the whole set with `Alt+P` / tabs / macro.
+**「メイン並列」「サブエージェント」「プロジェクト」の3つの軸**（別物です）：
+- **メインエージェントの並列** → 1プロジェクト内に agent（worktree）を増やす（`+ agent` / `⊞ fill`）。グリッドに横並びで同時稼働（各々が1個のメイン：claude/codex/…）。
+- **サブエージェント** → claude が Task を使うと自動生成。そのウィンドウのZスタックに **🪆入れ子カード**で表示（**nest** ON）。別ウィンドウではない。
+- **プロジェクト** → 別リポ/フォルダ。`Alt+P` / タブ / macro でセットごと切替。
 
-So "parallel display" = many *main* agents of the *current* project at once; "switch project" = jump to a *different* repo's set of agents.
+つまり「並列表示」＝*今の*プロジェクトの*メイン*エージェントを同時表示、「プロジェクト切替」＝*別リポ*のエージェント群へ移動、です。
 
-## Develop
+## 開発
 
 ```bash
 pnpm install
-pnpm tauri dev      # dev window
-pnpm tauri build    # .app / .dmg bundle
+pnpm tauri dev      # 開発ウィンドウ起動
+pnpm tauri build    # .app / .dmg バンドル
 ```
 
-Requirements: Node, Rust/cargo, pnpm, git (macOS). Tauri prerequisites: https://tauri.app/start/prerequisites/
+要件: Node, Rust/cargo, pnpm, git（macOS。Tauri 前提条件: https://tauri.app/start/prerequisites/ ）
 
-## Keyboard (leader = Alt / Option)
+## キーボード（leader = Alt / Option）
 
-| Key | Action |
+| キー | 動作 |
 |---|---|
-| `Alt+T` | New agent (a worktree when the project is a git repo) |
-| `Alt+←/→` (`Alt+H/L`) | Move focus between agents |
-| `Alt+↑/↓` (`Alt+K/J`) | Cycle depth layers |
-| `Alt+Z` | Toggle overview ⇄ zoom |
-| `Alt+P` | Next project |
-| `Alt+M` | Toggle macro spiral view |
-| `Alt+1`–`9` | Jump to agent N + zoom |
-| `Alt+N` / `Alt+B` | Add terminal / browser layer |
-| `Alt+W` / `Alt+X` | Close layer / close agent |
+| `Alt+T` | 新規エージェント（git リポなら worktree 生成） |
+| `Alt+←/→`（`Alt+H/L`）| エージェント間フォーカス移動 |
+| `Alt+↑/↓`（`Alt+K/J`）| 奥行きレイヤーを巡回 |
+| `Alt+Z` | 俯瞰 ⇄ 集中 トグル |
+| `Alt+P` | 次のプロジェクトへ切替 |
+| `Alt+M` | マクロ俯瞰（黄金螺旋）⇄ 通常 |
+| `Alt+1`〜`9` | 番号でエージェントへジャンプ＋集中 |
+| `Alt+N` / `Alt+B` | ターミナル / ブラウザ レイヤー追加 |
+| `Alt+W` / `Alt+X` | レイヤーを閉じる / エージェントを閉じる |
 
-Mouse: click a card to focus, double-click to zoom. Header dots switch layers. Double-click the title to rename (auto-named from the working directory, fixed once edited). 📁 opens a folder picker; you can also type a path.
+マウス: カードをクリックでフォーカス、ダブルクリックで集中。ヘッダのドットでレイヤー切替。タイトルはダブルクリックで改名（cwd 名から自動命名、改名後は固定）。📁 でフォルダ選択、パス欄に直接入力も可。
 
-## Toolbar
+## ツールバー
 
-- **📁 folder / ⎇ clone** — open an existing folder / `git clone` a new project.
-- **⊞ fill 9** — populate the active project with 9 agents (9 worktrees for a git repo).
-- **▦ 3×3 / fit** — fixed square grid (count kept) ⇄ width-packed grid.
-- **perm** — claude permission mode (`auto` / `normal` / `bypass ⚠`), default `auto`; switch to `normal` if claude won't start.
-- **🛡 guard** — write a deny-list into each cwd's `.claude/settings.local.json` (added to `.git/info/exclude` so it is never committed). Configure the rules in Settings.
-- **⚙ settings** — agent command, default permission mode, and the deny-list (preset toggles + custom lines).
-- **✦ macro** — the golden-spiral project overview.
+- **📁 folder / ⎇ clone**: 既存フォルダを開く / `git clone` でプロジェクト作成。
+- **⊞ fill 9**: アクティブプロジェクトに 9 体（git なら 9 worktree）。
+- **▦ 3×3 / fit**: 個数固定の正方グリッド ⇄ 横幅fit。
+- **perm**: パーミッションモード（`auto` / `normal` / `bypass ⚠`）。既定 `auto`。起動しない場合は `normal`。
+- **🛡 guard**: deny-list を各 cwd の `.claude/settings.local.json` に書込（`.git/info/exclude` で非コミット）。内容は **⚙ 設定**で構成。
+- **⚙ 設定**: エージェント起動コマンド・パーミッション既定・deny-list（プリセット＋カスタム行）。
+- **✦ macro**: マクロ螺旋ビュー。
 
-## Persistence & resume
+## 永続化と再開（resume）
 
-- **Workspace auto-save/restore.** Projects, agents, their cwd (paths), titles, layers, layout, perm/guard/nest, agent presets all auto-save to localStorage and restore on launch — close and reopen the app and your paths/layout come back.
-- **Saved project bookmarks** (`aidt-projects`): every folder you open / repo you clone is saved as a bookmark (path + editable label, save-data style), reopenable from the empty state — ✎ rename, × remove.
-- **Conversation resume.** Agents launch `claude --continue`, so reopening (or respawning) a window **resumes that worktree's most recent conversation** (starts fresh if there is none). Close a window (× / `Alt+X`) and reopen later to pick up where you left off. Resume is per-directory; each worktree keeps its own thread. (Non-claude agents launch as-is.)
+- **ワークスペース自動保存・復元**：プロジェクト/エージェント/cwd（パス）/タイトル/レイヤー/レイアウト/perm/guard/nest/プリセットを localStorage に自動保存し、起動時に復元。**閉じて開いてもパス・レイアウトはそのまま**。
+- **保存プロジェクト（セーブデータ式）**（`aidt-projects`）：開いたフォルダ/cloneしたリポは**ラベル＋パス**で保存され、空状態の一覧から再オープン（✎で改名・×で削除）。
+- **会話の再開（resume）**：エージェントは `claude --continue` で起動するため、**ウィンドウを閉じて再度開く（再spawn）とそのworktreeの直近の会話を再開**します（無ければ自動で新規）。`×`／`Alt+X` で閉じて、後で開けば続きから。resumeは**ディレクトリ単位**で、worktreeごとに別スレッドを保持します。（claude以外のエージェントはそのまま起動）
 
-## Permissions & guardrails
+## 構成
 
-`perm: auto` runs `claude --permission-mode auto`; a classifier reviews each action ([docs](https://code.claude.com/docs/en/permission-modes.md)). It needs a supported account/model (Opus/Sonnet 4.6+) — fall back to `normal` if claude refuses to start. `bypass` runs `--dangerously-skip-permissions` and is intended for isolated environments only.
+`CLAUDE.md` のモジュールマップ参照。`src/app.ts`（状態・ライフサイクル）/ `render.ts`（描画）/ `persistence.ts`（保存）/ `agent.ts`・`project.ts`（モデル）/ `guard.ts`（deny-list プリセット）/ `ui.ts`（モーダル等）、`src-tauri/src/pty.rs`・`git.rs`。
 
-Guardrails write a deny-list (e.g. no push to main/master, no force-push, no sudo, no curl/wget — all toggleable). The presets in `src/guard.ts` are **opinions**, not baked-in policy, so the tool stays neutral. The deny-list file is tagged `"_aidt": true`; the app updates only files it wrote and never clobbers a user-authored `settings.local.json`, and skips the home directory.
+## 既知の制約
 
-## Layout
+- ブラウザレイヤーは iframe（X-Frame-Options 不可）。ネイティブ子 WebView 化の余地あり。
+- `auto` パーミッションはアカウント/モデル依存（Opus/Sonnet 4.6+）。
+- guard は再起動した claude から有効。
 
-See the module map in [`CLAUDE.md`](./CLAUDE.md). Briefly: `src/app.ts` (state/lifecycle), `render.ts` (DOM rendering), `persistence.ts` (snapshot/storage), `agent.ts` & `project.ts` (models), `guard.ts` (deny-list presets), `ui.ts` (modals/toast/picker/settings); `src-tauri/src/pty.rs` & `git.rs` (Rust commands).
-
-## Roadmap / known limits
-
-- Browser layer is an iframe; a native child WebView could bypass `X-Frame-Options`.
-- Named/multiple saved workspaces and switching.
-- Macro view pan/zoom.
-
-## License
+## ライセンス
 
 [MIT](./LICENSE)

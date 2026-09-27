@@ -136,7 +136,7 @@ cookie banner is ever needed (there shouldn't be one).
   - overview grid with several agent windows (hero),
   - the macro golden-spiral view,
   - one zoomed window showing the layer tabs + badges (CPU·RAM, branch).
-- The README (`README.md` / `README.ja.md`) is the source of truth for feature
+- The README (`README.md` (日本語) / `README.en.md` (English)) is the source of truth for feature
   copy — pull wording from there, don't invent.
 
 If screenshots aren't available yet, the builder may render a faithful **mock**
