@@ -9,6 +9,7 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { spawnPty, PtyHandle } from "./pty";
 import { findPathSpans } from "./paths";
+import { registerCsiGuards } from "./terminal-guards";
 import { t } from "./i18n";
 
 export type LayerKind = "terminal" | "browser" | "subagent";
@@ -238,27 +239,11 @@ export function createTerminalLayer(opts: {
   // blank until reset" bug (vim live updates, blank new windows). Opening while
   // visible keeps the renderer live.
 
-  // Swallow focus reporting (DECSET/DECRST 1004). Precautionary: a focus thrash
-  // here would flood the app with focus in/out events, and we never use the
-  // reports. NOTE: this was first added on the theory that it caused the "vim
-  // input jams" bug — it did not; the real cause was the PTY reader treating a
-  // transient read error as exit and SIGHUP-ing the shell (fixed in pty.rs).
-  // Unverified whether it's still needed now; kept as cheap insurance.
-  // Other ?-prefixed modes fall through to xterm's default handling untouched.
-  const only1004 = (params: (number | number[])[]) => params.length === 1 && params[0] === 1004;
-  term.parser.registerCsiHandler({ prefix: "?", final: "h" }, only1004);
-  term.parser.registerCsiHandler({ prefix: "?", final: "l" }, only1004);
-  // Break the runaway cursor-position report loop. The live Alt+D trace shows, at an
-  // IDLE shell prompt (and in claude), a continuous loop:
-  //   OUT  27,91,63,54,110        = ESC [ ? 6 n   → the child requests cursor pos (DECXCPR)
-  //   data 27,91,63,50,53,59,52,82 = ESC [ ? 2 5 ; 4 R → xterm auto-replies, we write it
-  //     back to the PTY, and the child requests again — forever, on every pane.
-  // That flood buries real keystrokes, which is why vim is uncontrollable in-app but
-  // fine in Terminal.app. We swallow ONLY the private `\e[?6n` (DECXCPR) so xterm no
-  // longer auto-replies; the plain `\e[6n` (no `?`, which vim's size probe needs) is
-  // left to xterm's default handler untouched. Returning true = handled, no reply.
-  const swallowDecxcpr = (params: (number | number[])[]) => params.length === 1 && params[0] === 6;
-  term.parser.registerCsiHandler({ prefix: "?", final: "n" }, swallowDecxcpr);
+  // CSI guards: swallow focus reporting (1004) and break the cursor-report loop
+  // (`\e[?6n` auto-reply) that makes vim uncontrollable in-app. Extracted to
+  // terminal-guards.ts so the identical registration is reproduced + unit-tested
+  // headlessly (terminal-guards.test.ts). See docs/2026-07-15-vim-debugging-journey.md.
+  registerCsiGuards(term.parser);
   // Renderer: DOM (default) vs WebGL. The WebGL canvas does NOT re-composite the
   // alternate screen in WKWebView — vim's buffer is provably populated
   // (Alt+Shift+D: `alternate nonEmpty=18/24`) but never paints, and a forced
