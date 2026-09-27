@@ -95,7 +95,29 @@ jobs:
           # branch, which still produces a harmless draft you can delete.
           tagName: ${{ github.ref_name }}
           releaseName: "AI Dev Terminal MAX ${{ github.ref_name }}"
-          releaseBody: "Download the installer for your OS below. Unsigned builds may show a first-launch security prompt — see docs/RELEASING.md."
+          releaseBody: |
+            複数の Claude Code エージェントを並列で動かし、全部を一画面で俯瞰できる macOS 向けターミナルアプリです。
+            A native terminal app to run many Claude Code agents in parallel and see them all at once.
+
+            ## インストール / Install
+
+            下の **Assets** から、お使いのOSのファイルをダウンロードしてください。
+            Download the file for your OS from **Assets** below.
+
+            | OS | ダウンロードするファイル / File to download |
+            |---|---|
+            | 🍎 **macOS**（Intel / Apple Silicon 共通 / both） | `..._universal.dmg` |
+            | 🪟 **Windows** | `..._x64-setup.exe`（推奨 / recommended）または `..._x64_en-US.msi` |
+            | 🐧 **Linux** | `..._amd64.AppImage`（そのまま実行 / portable）／ `..._amd64.deb`（Debian・Ubuntu）／ `...x86_64.rpm`（Fedora・RHEL） |
+
+            > ⚠️ **未署名ビルド / Unsigned build** — 初回起動時にOSのセキュリティ警告が出ます。 A first-launch security warning is expected.
+            > - **macOS**: アプリを右クリック →「開く」。 Right-click the app → "Open". うまくいかなければ / or run:
+            >   `xattr -dr com.apple.quarantine "/Applications/AI Dev Terminal MAX.app"`
+            > - **Windows**: 「WindowsによってPCが保護されました」→「詳細情報」→「実行」。 SmartScreen → "More info" → "Run anyway".
+
+            ### 既知の制約 / Known limitations
+            - vim など全画面アプリの一部で表示・操作に不具合（修正中）。 Some full-screen apps like vim have display/control issues (fix in progress).
+            - ブラウザレイヤーは iframe（`X-Frame-Options` のサイトは埋め込み不可）。 The browser layer is iframe-based (sites sending `X-Frame-Options` can't embed).
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
