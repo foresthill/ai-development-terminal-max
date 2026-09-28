@@ -160,7 +160,32 @@ export function dumpLayerBuffer(layer: Layer): string {
     if (s.trim()) nonEmpty++;
     lines.push(`${String(y).padStart(2)}|${s}`);
   }
-  const summary = `${buf.type} ${term.cols}x${term.rows} nonEmpty=${nonEmpty}/${rows}`;
+  // DOM side: is xterm's renderer actually writing rows into the DOM, and do they
+  // have geometry? This is the last open question for the alt-screen repaint bug —
+  // it separates "DOM updated but WKWebView didn't composite" (→ compositor fix)
+  // from "DOM never updated" (→ xterm renderer bug). The buffer dump above proves
+  // the DATA is there; this proves whether the rendered DOM reflects it.
+  const el = (term as unknown as { element?: HTMLElement }).element;
+  const q = (sel: string) => (el ? (el.querySelector(sel) as HTMLElement | null) : null);
+  const screen = q(".xterm-screen");
+  const domRows = q(".xterm-rows");
+  const geo = (n: HTMLElement | null | undefined) => (n ? `${n.offsetWidth}x${n.offsetHeight}` : "none");
+  let domNonEmpty = 0;
+  const kids = domRows ? Array.from(domRows.children) : [];
+  for (const k of kids) if ((k.textContent ?? "").trim()) domNonEmpty++;
+  lines.push("--- DOM ---");
+  lines.push(
+    `el=${geo(el)} screen=${geo(screen)} rows=${geo(domRows)} rowDivs=${kids.length} domNonEmpty=${domNonEmpty}`,
+  );
+  if (domRows) {
+    const cs = getComputedStyle(domRows);
+    lines.push(
+      `rows.css transform=${cs.transform} visibility=${cs.visibility} opacity=${cs.opacity} content-visibility=${cs.getPropertyValue("content-visibility") || "?"}`,
+    );
+  }
+  kids.slice(0, 10).forEach((k, i) => lines.push(`DOM${String(i).padStart(2)}|${(k.textContent ?? "").slice(0, 80)}`));
+
+  const summary = `buf ${buf.type} nonEmpty=${nonEmpty}/${rows} | DOM rows=${kids.length} nonEmpty=${domNonEmpty}`;
   lines.unshift(`SUMMARY ${summary}`);
   try {
     localStorage.setItem("aidt-vimdump", lines.join("\n"));
