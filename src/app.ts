@@ -200,7 +200,7 @@ export class App {
         const li = a.layers.findIndex((l) => l.pty?.id === id);
         if (li < 0) continue;
         if (a.layers.length > 1) this.closeLayerAt(a, li);
-        else this.closeAgentObj(a);
+        else this.closeAgent(a); // shell exited (user typed `exit`) → close, no confirm
         return;
       }
   }
@@ -698,18 +698,12 @@ export class App {
     toast(t("toast.reset"));
   }
 
-  private async closeAgentObj(agent: Agent | undefined) {
+  /// Remove the agent and its window immediately, no prompt. Used when the shell
+  /// exited on its own — the user typed `exit`, which is already an explicit
+  /// request to close, so nagging with a confirm would be wrong (this is the
+  /// tmux-style "last pane closes the window" path from onPtyExit).
+  private closeAgent(agent: Agent | undefined) {
     if (!agent) return;
-    // Closing kills the agent's process(es) and removes the window — easy to hit
-    // by accident (Alt+X is right next to terminal/editor keys like nano's
-    // Ctrl+X). Confirm first so a stray keystroke can't nuke a running agent.
-    const ok = await confirmModal({
-      title: t("confirm.closeAgent.title"),
-      body: t("confirm.closeAgent.body", agent.title),
-      confirm: t("confirm.closeAgent.ok"),
-      danger: true,
-    });
-    if (!ok) return;
     for (const p of this.projects) {
       const i = p.agents.indexOf(agent);
       if (i < 0) continue;
@@ -722,6 +716,21 @@ export class App {
       this.render();
       return;
     }
+  }
+
+  /// Confirm, then close. Used by the MANUAL close paths (Alt+X, the ✕ button),
+  /// which are easy to hit by accident (Alt+X sits next to nano's Ctrl+X), so a
+  /// stray keystroke can't nuke a running agent.
+  private async closeAgentObj(agent: Agent | undefined) {
+    if (!agent) return;
+    const ok = await confirmModal({
+      title: t("confirm.closeAgent.title"),
+      body: t("confirm.closeAgent.body", agent.title),
+      confirm: t("confirm.closeAgent.ok"),
+      danger: true,
+    });
+    if (!ok) return;
+    this.closeAgent(agent);
   }
 
   private observeLayer(layer: Layer) {
