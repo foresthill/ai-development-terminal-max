@@ -613,7 +613,22 @@ export async function startLayer(layer: Layer, cols: number, rows: number) {
   // detached/hidden pauses it forever. Then fit so the PTY spawns at the real size.
   const host = layer.el.querySelector(".term-host") as HTMLElement | null;
   if (host && !layer.term.element) {
-    layer.term.open(host);
+    // Disable xterm's RenderService render-pause for this terminal. xterm installs
+    // an IntersectionObserver on `.xterm-screen` and hard-stops rendering while it
+    // reads as "not visible"; WKWebView does not reliably fire the become-visible
+    // callback, so once paused (notably on vim's alt-screen) the terminal keeps its
+    // first frame but never repaints again — you see vim's initial screen but typed
+    // edits don't paint. xterm only installs that observer when `IntersectionObserver`
+    // exists at open() time, so we hide it just across open() (the app itself uses
+    // ResizeObserver, not IO) and restore it after. Result: terminals keep rendering.
+    const win = window as unknown as { IntersectionObserver?: unknown };
+    const savedIO = win.IntersectionObserver;
+    try {
+      win.IntersectionObserver = undefined;
+      layer.term.open(host);
+    } finally {
+      win.IntersectionObserver = savedIO;
+    }
     try {
       layer.fit?.fit();
     } catch {
