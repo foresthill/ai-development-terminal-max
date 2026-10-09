@@ -21,6 +21,8 @@ arranges all projects on a golden-angle (phyllotaxis) spiral.
 | `src/agent.ts` | Agent/Layer model, xterm/browser layer factories, title edit |
 | `src/project.ts` | Project model + golden-spiral geometry |
 | `src/guard.ts` | Guardrail deny-list **presets** (user policy, not baked-in) |
+| `src/paths.ts` | Pure clickable-path detection for terminal output (unit-tested) |
+| `src/terminal-guards.ts` | Pure CSI guard registration (focus-report + cursor-report-loop break) — reproduced/verified headlessly in `terminal-guards.test.ts` |
 | `src/ui.ts` | Modal / toast / folder picker / settings dialog |
 | `src/pty.ts`, `src/git.ts` | Bridges to Rust commands |
 | `src-tauri/src/pty.rs` | portable-pty: spawn/write/resize/kill, default_shell, home_dir |

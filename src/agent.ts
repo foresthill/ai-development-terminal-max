@@ -9,6 +9,7 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { spawnPty, PtyHandle } from "./pty";
 import { findPathSpans } from "./paths";
+import { registerCsiGuards } from "./terminal-guards";
 import { t } from "./i18n";
 
 export type LayerKind = "terminal" | "browser" | "subagent";
@@ -159,7 +160,32 @@ export function dumpLayerBuffer(layer: Layer): string {
     if (s.trim()) nonEmpty++;
     lines.push(`${String(y).padStart(2)}|${s}`);
   }
-  const summary = `${buf.type} ${term.cols}x${term.rows} nonEmpty=${nonEmpty}/${rows}`;
+  // DOM side: is xterm's renderer actually writing rows into the DOM, and do they
+  // have geometry? This is the last open question for the alt-screen repaint bug —
+  // it separates "DOM updated but WKWebView didn't composite" (→ compositor fix)
+  // from "DOM never updated" (→ xterm renderer bug). The buffer dump above proves
+  // the DATA is there; this proves whether the rendered DOM reflects it.
+  const el = (term as unknown as { element?: HTMLElement }).element;
+  const q = (sel: string) => (el ? (el.querySelector(sel) as HTMLElement | null) : null);
+  const screen = q(".xterm-screen");
+  const domRows = q(".xterm-rows");
+  const geo = (n: HTMLElement | null | undefined) => (n ? `${n.offsetWidth}x${n.offsetHeight}` : "none");
+  let domNonEmpty = 0;
+  const kids = domRows ? Array.from(domRows.children) : [];
+  for (const k of kids) if ((k.textContent ?? "").trim()) domNonEmpty++;
+  lines.push("--- DOM ---");
+  lines.push(
+    `el=${geo(el)} screen=${geo(screen)} rows=${geo(domRows)} rowDivs=${kids.length} domNonEmpty=${domNonEmpty}`,
+  );
+  if (domRows) {
+    const cs = getComputedStyle(domRows);
+    lines.push(
+      `rows.css transform=${cs.transform} visibility=${cs.visibility} opacity=${cs.opacity} content-visibility=${cs.getPropertyValue("content-visibility") || "?"}`,
+    );
+  }
+  kids.slice(0, 10).forEach((k, i) => lines.push(`DOM${String(i).padStart(2)}|${(k.textContent ?? "").slice(0, 80)}`));
+
+  const summary = `buf ${buf.type} nonEmpty=${nonEmpty}/${rows} | DOM rows=${kids.length} nonEmpty=${domNonEmpty}`;
   lines.unshift(`SUMMARY ${summary}`);
   try {
     localStorage.setItem("aidt-vimdump", lines.join("\n"));
@@ -238,16 +264,11 @@ export function createTerminalLayer(opts: {
   // blank until reset" bug (vim live updates, blank new windows). Opening while
   // visible keeps the renderer live.
 
-  // Swallow focus reporting (DECSET/DECRST 1004). Precautionary: a focus thrash
-  // here would flood the app with focus in/out events, and we never use the
-  // reports. NOTE: this was first added on the theory that it caused the "vim
-  // input jams" bug — it did not; the real cause was the PTY reader treating a
-  // transient read error as exit and SIGHUP-ing the shell (fixed in pty.rs).
-  // Unverified whether it's still needed now; kept as cheap insurance.
-  // Other ?-prefixed modes fall through to xterm's default handling untouched.
-  const only1004 = (params: (number | number[])[]) => params.length === 1 && params[0] === 1004;
-  term.parser.registerCsiHandler({ prefix: "?", final: "h" }, only1004);
-  term.parser.registerCsiHandler({ prefix: "?", final: "l" }, only1004);
+  // CSI guards: swallow focus reporting (1004) and break the cursor-report loop
+  // (`\e[?6n` auto-reply) that makes vim uncontrollable in-app. Extracted to
+  // terminal-guards.ts so the identical registration is reproduced + unit-tested
+  // headlessly (terminal-guards.test.ts). See docs/2026-07-15-vim-debugging-journey.md.
+  registerCsiGuards(term.parser);
   // Renderer: DOM (default) vs WebGL. The WebGL canvas does NOT re-composite the
   // alternate screen in WKWebView — vim's buffer is provably populated
   // (Alt+Shift+D: `alternate nonEmpty=18/24`) but never paints, and a forced
@@ -617,7 +638,22 @@ export async function startLayer(layer: Layer, cols: number, rows: number) {
   // detached/hidden pauses it forever. Then fit so the PTY spawns at the real size.
   const host = layer.el.querySelector(".term-host") as HTMLElement | null;
   if (host && !layer.term.element) {
-    layer.term.open(host);
+    // Disable xterm's RenderService render-pause for this terminal. xterm installs
+    // an IntersectionObserver on `.xterm-screen` and hard-stops rendering while it
+    // reads as "not visible"; WKWebView does not reliably fire the become-visible
+    // callback, so once paused (notably on vim's alt-screen) the terminal keeps its
+    // first frame but never repaints again — you see vim's initial screen but typed
+    // edits don't paint. xterm only installs that observer when `IntersectionObserver`
+    // exists at open() time, so we hide it just across open() (the app itself uses
+    // ResizeObserver, not IO) and restore it after. Result: terminals keep rendering.
+    const win = window as unknown as { IntersectionObserver?: unknown };
+    const savedIO = win.IntersectionObserver;
+    try {
+      win.IntersectionObserver = undefined;
+      layer.term.open(host);
+    } finally {
+      win.IntersectionObserver = savedIO;
+    }
     try {
       layer.fit?.fit();
     } catch {
