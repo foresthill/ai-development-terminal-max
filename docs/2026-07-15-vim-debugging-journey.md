@@ -237,7 +237,7 @@ vim が使う素の `\e[6n`（`?` なし）は既定ハンドラのまま温存�
 
 **地雷リスト追加**：
 - ❌ `set t_ti= t_te=`（インライン描画）＝ループ解消後も**更新は描かれない**ので回避策にならない
-- ❌ IntersectionObserver 描画停止の無効化（#53）＝**効果なし**
+- ❌☠️ **IntersectionObserver 無効化 #53（`window.IntersectionObserver = undefined`）は回帰バグ**。`DOM rows=0`／**全ターミナル黒**を引き起こした。原因：xterm の `_registerIntersectionObserver` は `"IntersectionObserver" in window` で判定するため、`= undefined` でもキーは残り true → `new undefined(...)` で**例外**→ `term.open()` が失敗してレンダラが起動しない。**revert 済み。** もし将来 render-pause を切るなら `delete window.IntersectionObserver`（キーごと消す）で、かつ skip 時の `_isPaused` 既定値を確認してから。ただし「render-pause が vim 代替画面の原因」はまだ**未確認**（この `DOM rows=0` は #53 のバグ由来で、vim 本来の状態ではない）。revert 後にクリーンな状態で再計測すること。
 
 ---
 
