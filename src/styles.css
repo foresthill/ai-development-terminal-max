@@ -1114,8 +1114,13 @@ body {
   position: relative;
   flex: 1;
   min-height: 0;
-  perspective: 1400px;
-  transform-style: preserve-3d;
+  /* NO 3D context. `perspective` + `transform-style: preserve-3d` were vestigial —
+     the layers only use 2D transforms (translateY/scale on .layer.behind), never
+     translateZ — yet the 3D rendering context they created stopped WKWebView from
+     re-compositing xterm's DOM row updates (the alt-screen "DOM populated but not
+     painted" bug: Alt+Shift+D showed `DOM rows=27 nonEmpty=21` with a blank screen).
+     Depth is kept via the 2D transforms + z-index below, which also fixes paint
+     order (front stays above the offset "behind" layers). */
 }
 .layer {
   position: absolute;
