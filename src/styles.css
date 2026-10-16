@@ -35,7 +35,7 @@ body {
   flex-direction: column;
   gap: 6px;
   padding: 7px 14px;
-  background: linear-gradient(180deg, #0c1120, #080b14);
+  background: linear-gradient(180deg, var(--panel-2), var(--bg));
   border-bottom: 1px solid var(--border);
   user-select: none;
 }
@@ -213,7 +213,7 @@ body {
   align-items: center;
   gap: 12px;
   padding: 4px 14px;
-  background: linear-gradient(0deg, #0c1120, #080b14);
+  background: linear-gradient(0deg, var(--panel-2), var(--bg));
   border-top: 1px solid var(--border);
   user-select: none;
 }

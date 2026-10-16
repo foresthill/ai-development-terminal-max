@@ -10,6 +10,7 @@ import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { spawnPty, PtyHandle } from "./pty";
 import { findPathSpans } from "./paths";
 import { registerCsiGuards } from "./terminal-guards";
+import { getTermTheme } from "./theme";
 import { t } from "./i18n";
 
 export type LayerKind = "terminal" | "browser" | "subagent";
@@ -97,12 +98,8 @@ function colForStrIdx(line: IBufferLine, strIdx: number): number {
   return line.length;
 }
 
-const TERM_THEME = {
-  background: "#0b0e14",
-  foreground: "#c8d3f5",
-  cursor: "#7aa2f7",
-  selectionBackground: "#2d3f76",
-};
+// Terminal colours come from the active theme (theme.ts); getTermTheme() is read
+// when each terminal is created, and the app updates open terminals on a switch.
 
 // TEMP vi-input tracer — logs where a keystroke is lost (window → xterm → data →
 // pty) plus what's focused, in a corner overlay. Remove after the bug is found.
@@ -247,7 +244,7 @@ export function createTerminalLayer(opts: {
     cursorBlink: true,
     allowProposedApi: true,
     scrollback: 5000,
-    theme: TERM_THEME,
+    theme: getTermTheme(),
     // Apps that capture the mouse (claude's TUI enables tracking) otherwise eat
     // click/drag, so text can't be selected. On macOS xterm's force-selection
     // modifier is Option (Shift isn't honored here), so let ⌥-drag / ⌥-click

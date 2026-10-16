@@ -112,6 +112,7 @@ export function confirmModal(opts: {
 }
 
 import { GUARD_PRESETS } from "./guard";
+import { ThemeId } from "./theme";
 import { t, Lang, getLang } from "./i18n";
 
 const HELP_JA = `
@@ -219,6 +220,7 @@ export function openHelp() {
 
 export interface SettingsValues {
   lang: Lang;
+  theme: ThemeId;
   agentCmd: string;
   permMode: "auto" | "normal" | "bypass";
   enabled: Set<string>;
@@ -255,6 +257,12 @@ export function openSettings(cur: SettingsValues): Promise<SettingsValues | null
       <label class="set-row"><span>${t("set.lang")}</span>
         <select class="modal-input" id="set-lang">
           <option value="en">English</option><option value="ja">日本語</option>
+        </select></label>
+      <label class="set-row"><span>${t("set.theme")}</span>
+        <select class="modal-input" id="set-theme">
+          <option value="default">Default (Night)</option>
+          <option value="solarized-dark">Solarized Dark</option>
+          <option value="solarized-light">Solarized Light</option>
         </select></label>
       <label class="set-row"><span>${t("set.agentCmd")}</span>
         <input class="modal-input" id="set-cmd" spellcheck="false"></label>
@@ -295,6 +303,7 @@ export function openSettings(cur: SettingsValues): Promise<SettingsValues | null
     document.body.append(back);
 
     const langSel = box.querySelector<HTMLSelectElement>("#set-lang")!;
+    const themeSel = box.querySelector<HTMLSelectElement>("#set-theme")!;
     const cmd = box.querySelector<HTMLInputElement>("#set-cmd")!;
     const agents = box.querySelector<HTMLTextAreaElement>("#set-agents")!;
     const perm = box.querySelector<HTMLSelectElement>("#set-perm")!;
@@ -304,6 +313,7 @@ export function openSettings(cur: SettingsValues): Promise<SettingsValues | null
     const custom = box.querySelector<HTMLTextAreaElement>("#set-custom")!;
     const presetsEl = box.querySelector<HTMLElement>("#set-presets")!;
     langSel.value = cur.lang;
+    themeSel.value = cur.theme;
     cmd.value = cur.agentCmd;
     agents.value = cur.agentPresets.map((p) => `${p.label} = ${p.cmd}`).join("\n");
     perm.value = cur.permMode;
@@ -341,6 +351,7 @@ export function openSettings(cur: SettingsValues): Promise<SettingsValues | null
       for (const id of Object.keys(boxes)) if (boxes[id].checked) enabled.add(id);
       done({
         lang: langSel.value as Lang,
+        theme: themeSel.value as ThemeId,
         agentCmd: cmd.value.trim() || "claude",
         permMode: perm.value as SettingsValues["permMode"],
         enabled,
