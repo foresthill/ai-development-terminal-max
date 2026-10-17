@@ -1011,6 +1011,9 @@ body {
   color: var(--accent);
   border-color: var(--accent);
 }
+.agent-pick svg {
+  display: block; /* monochrome folder icon inherits color via currentColor */
+}
 .agent-path {
   flex: 1;
   min-width: 0;
