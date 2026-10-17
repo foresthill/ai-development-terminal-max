@@ -777,19 +777,9 @@ export function createAgent(index: number): Agent {
   const runGroup = document.createElement("div");
   runGroup.className = "run-group";
   runGroup.append(runEl, agentSel);
-  titleRow.appendChild(prioEl);
-  titleRow.appendChild(colorEl);
-  titleRow.appendChild(titleEl);
-  titleRow.appendChild(pickEl); // folder buttons sit right next to the agent name
-  titleRow.appendChild(openDirEl);
-  titleRow.appendChild(branchEl);
-  titleRow.appendChild(runGroup);
-  titleRow.appendChild(closeEl);
-
-  const pathRow = document.createElement("div");
-  pathRow.className = "agent-path-row";
   // Monochrome folder icons (stroke = currentColor, so they follow the theme) —
   // replaces the colourful 📁/📂 emoji. pick = choose folder, openDir = reveal.
+  // Declared before the title row since the buttons now sit next to the name.
   const FOLDER_SVG =
     '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M1.75 4.25h3.8l1.2 1.4h7.5v6.6a1 1 0 0 1-1 1H2.75a1 1 0 0 1-1-1z"/></svg>';
   const FOLDER_OPEN_SVG =
@@ -802,6 +792,18 @@ export function createAgent(index: number): Agent {
   openDirEl.className = "agent-pick"; // same compact button style
   openDirEl.innerHTML = FOLDER_OPEN_SVG;
   openDirEl.title = t("tip.openDir");
+
+  titleRow.appendChild(prioEl);
+  titleRow.appendChild(colorEl);
+  titleRow.appendChild(titleEl);
+  titleRow.appendChild(pickEl); // folder buttons sit right next to the agent name
+  titleRow.appendChild(openDirEl);
+  titleRow.appendChild(branchEl);
+  titleRow.appendChild(runGroup);
+  titleRow.appendChild(closeEl);
+
+  const pathRow = document.createElement("div");
+  pathRow.className = "agent-path-row";
   const pathEl = document.createElement("input");
   pathEl.className = "agent-path";
   pathEl.placeholder = t("agent.pathPlaceholder");
