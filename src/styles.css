@@ -1072,11 +1072,15 @@ body {
   color: var(--accent);
   border-color: var(--accent);
   background: var(--accent-dim); /* themed: navy on dark, pale blue on Solarized Light */
-  /* Glue the active tab to the front (working) pane: bleed 1px over the stack's top
-     edge so the seam disappears, and sit in front of the behind-stack. */
+  /* Glue the active tab to the front (working) pane. The header has padding-bottom
+     5px + border-bottom 1px between the tabs and the stack; the active tab grows
+     down past that (extra bottom padding) and the negative margin lands it 1px onto
+     the pane, so the seam vanishes and the tab reads as attached to the window in
+     use. z-index keeps it above the header border and the behind-stack. */
   position: relative;
   z-index: 2;
-  margin-bottom: -1px;
+  padding-bottom: 8px;
+  margin-bottom: -7px;
 }
 .ltab-ico {
   width: 11px;
