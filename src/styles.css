@@ -1150,6 +1150,26 @@ body {
   box-shadow: 0 -6px 16px rgba(0, 0, 0, 0.5);
 }
 
+/* Glass skin (opt-in via Settings → Theme). Frost ONLY the stacked-behind panes;
+   the front pane and tab strip stay opaque/crisp (tabs are above via z-index).
+   Strictly 2D — no translateZ/preserve-3d, so vim's compositing fix is untouched. */
+:root[data-theme="glass"] .layer.behind {
+  filter: brightness(0.8) saturate(0.85);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+  border: 1px solid color-mix(in srgb, #ffffff 14%, transparent);
+  box-shadow:
+    0 -6px 20px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 color-mix(in srgb, #ffffff 12%, transparent);
+}
+:root[data-theme="glass"] .layer.behind::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(160deg, color-mix(in srgb, #ffffff 8%, transparent) 0%, transparent 40%);
+}
+
 .term-host {
   position: absolute;
   inset: 0;

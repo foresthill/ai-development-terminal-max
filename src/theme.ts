@@ -4,7 +4,7 @@
 // snapshot. Kept data-first so the palette table is unit-testable (theme.test.ts);
 // only applyTheme() touches the DOM.
 
-export type ThemeId = "default" | "solarized-dark" | "solarized-light";
+export type ThemeId = "default" | "solarized-dark" | "solarized-light" | "glass";
 
 export interface TermTheme {
   background: string;
@@ -84,6 +84,25 @@ export const THEMES: Record<ThemeId, Theme> = {
       muted: "#93a1a1", // base1
     },
     term: { background: "#fdf6e3", foreground: "#657b83", cursor: "#586e75", selectionBackground: "#eee8d5" },
+  },
+  // Cool monochrome "glass" skin. The frosted/translucent deck look is opt-in: it
+  // lives in CSS scoped to :root[data-theme="glass"] (styles.css), applied only to
+  // the stacked-BEHIND panes — the front pane and the tab strip stay crisp.
+  glass: {
+    id: "glass",
+    label: "Glass (Mono)",
+    dark: true,
+    tokens: {
+      bg: "#0f141a",
+      panel: "#161d26",
+      panel2: "#1b2531",
+      border: "#2a3644",
+      accent: "#8fb3cc",
+      accentDim: "#223243",
+      text: "#c4d2de",
+      muted: "#6b7a8a",
+    },
+    term: { background: "#0f141a", foreground: "#c4d2de", cursor: "#8fb3cc", selectionBackground: "#223243" },
   },
 };
 

@@ -263,6 +263,7 @@ export function openSettings(cur: SettingsValues): Promise<SettingsValues | null
           <option value="default">Default (Night)</option>
           <option value="solarized-dark">Solarized Dark</option>
           <option value="solarized-light">Solarized Light</option>
+          <option value="glass">Glass (Mono)</option>
         </select></label>
       <label class="set-row"><span>${t("set.agentCmd")}</span>
         <input class="modal-input" id="set-cmd" spellcheck="false"></label>
