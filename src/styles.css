@@ -662,10 +662,17 @@ body {
   border-color: var(--accent);
   box-shadow:
     0 0 0 3px var(--accent),
-    0 0 22px rgba(122, 162, 247, 0.45);
+    0 0 22px color-mix(in srgb, var(--accent) 45%, transparent);
 }
+/* Focus tint: blend the theme accent INTO the panel (not a hardcoded blue over an
+   unknown base). On light themes this keeps the header warm instead of washing the
+   Solarized beige to cool grey; on dark themes it looks as before. */
 .agent.focused .agent-header {
-  background: linear-gradient(180deg, rgba(122, 162, 247, 0.22), rgba(122, 162, 247, 0.06));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 20%, var(--panel-2)),
+    color-mix(in srgb, var(--accent) 6%, var(--panel-2))
+  );
 }
 /* waiting for input: amber tint — shown when NOT focused. */
 .agent.waiting:not(.focused) {
