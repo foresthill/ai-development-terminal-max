@@ -72,7 +72,7 @@ body {
 .proj-tab.active {
   color: var(--accent);
   border-color: var(--accent);
-  background: #0e1733;
+  background: var(--accent-dim); /* themed (was a hardcoded navy that stayed dark on Light) */
 }
 .proj-actions {
   display: flex;
@@ -310,7 +310,7 @@ body {
 }
 .sendbar select,
 .sendbar input {
-  background: #05070d;
+  background: var(--bg);
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -362,7 +362,7 @@ body {
 }
 .modal-input {
   width: 100%;
-  background: #05070d;
+  background: var(--bg); /* themed: near-black on dark, cream on Solarized Light */
   border: 1px solid var(--border);
   border-radius: 6px;
   color: var(--text);
@@ -981,7 +981,7 @@ body {
   background: rgba(247, 118, 142, 0.12);
 }
 .agent-title[contenteditable="true"] {
-  background: #05070d;
+  background: var(--bg);
   box-shadow: 0 0 0 1px var(--accent);
   cursor: text;
 }
@@ -1069,7 +1069,7 @@ body {
 .ltab.active {
   color: var(--accent);
   border-color: var(--accent);
-  background: #0e1733;
+  background: var(--accent-dim); /* themed: navy on dark, pale blue on Solarized Light */
 }
 .ltab-ico {
   width: 11px;
