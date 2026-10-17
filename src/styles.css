@@ -674,6 +674,13 @@ body {
     color-mix(in srgb, var(--accent) 6%, var(--panel-2))
   );
 }
+/* Solarized Light is the only light theme: a blue accent blended into the warm
+   beige always desaturates to cool grey, so the accent wash above reads as a grey
+   slab here. Instead mark focus by brightening the header toward the light base
+   (base3 → base2) — stays warm, no grey. The 3px accent ring still carries focus. */
+:root[data-theme="solarized-light"] .agent.focused .agent-header {
+  background: linear-gradient(180deg, var(--bg), var(--panel));
+}
 /* waiting for input: amber tint — shown when NOT focused. */
 .agent.waiting:not(.focused) {
   border-color: #e0af68;
