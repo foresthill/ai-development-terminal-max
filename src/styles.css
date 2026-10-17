@@ -1123,7 +1123,9 @@ body {
 }
 .ltab-add {
   flex: 0 0 auto;
-  background: transparent;
+  /* A faint plate so the +terminal / +browser / ⟳ buttons read as real (if
+     secondary) controls, not transparent dashed ghosts floating on the header. */
+  background: color-mix(in srgb, var(--panel) 55%, transparent);
   color: var(--muted);
   border: 1px dashed var(--border);
   border-radius: 5px;
@@ -1134,6 +1136,7 @@ body {
 .ltab-add:hover {
   color: var(--accent);
   border-color: var(--accent);
+  background: var(--panel); /* solidify on hover */
 }
 
 /* ---- depth stack ---- */
