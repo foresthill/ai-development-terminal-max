@@ -1072,6 +1072,11 @@ body {
   color: var(--accent);
   border-color: var(--accent);
   background: var(--accent-dim); /* themed: navy on dark, pale blue on Solarized Light */
+  /* Glue the active tab to the front (working) pane: bleed 1px over the stack's top
+     edge so the seam disappears, and sit in front of the behind-stack. */
+  position: relative;
+  z-index: 2;
+  margin-bottom: -1px;
 }
 .ltab-ico {
   width: 11px;
@@ -1168,6 +1173,12 @@ body {
   inset: 0;
   pointer-events: none;
   background: linear-gradient(160deg, color-mix(in srgb, #ffffff 8%, transparent) 0%, transparent 40%);
+}
+
+/* Angular / skeleton window shape (Settings → Window shape). Sharp 0-radius corners
+   across the UI for a crisp, abstract look. Opt-in, independent of the colour theme. */
+:root[data-pattern="angular"] * {
+  border-radius: 0 !important;
 }
 
 .term-host {

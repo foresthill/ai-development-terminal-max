@@ -113,6 +113,7 @@ export function confirmModal(opts: {
 
 import { GUARD_PRESETS } from "./guard";
 import { ThemeId } from "./theme";
+import { WindowStyle } from "./window-style";
 import { t, Lang, getLang } from "./i18n";
 
 const HELP_JA = `
@@ -221,6 +222,7 @@ export function openHelp() {
 export interface SettingsValues {
   lang: Lang;
   theme: ThemeId;
+  windowStyle: WindowStyle;
   agentCmd: string;
   permMode: "auto" | "normal" | "bypass";
   enabled: Set<string>;
@@ -265,6 +267,11 @@ export function openSettings(cur: SettingsValues): Promise<SettingsValues | null
           <option value="solarized-light">Solarized Light</option>
           <option value="glass">Glass (Mono)</option>
         </select></label>
+      <label class="set-row"><span>${t("set.windowStyle")}</span>
+        <select class="modal-input" id="set-winstyle">
+          <option value="rounded">${t("set.shapeRounded")}</option>
+          <option value="angular">${t("set.shapeAngular")}</option>
+        </select></label>
       <label class="set-row"><span>${t("set.agentCmd")}</span>
         <input class="modal-input" id="set-cmd" spellcheck="false"></label>
       <label class="set-row col"><span>${t("set.presets")}</span>
@@ -305,6 +312,7 @@ export function openSettings(cur: SettingsValues): Promise<SettingsValues | null
 
     const langSel = box.querySelector<HTMLSelectElement>("#set-lang")!;
     const themeSel = box.querySelector<HTMLSelectElement>("#set-theme")!;
+    const winStyleSel = box.querySelector<HTMLSelectElement>("#set-winstyle")!;
     const cmd = box.querySelector<HTMLInputElement>("#set-cmd")!;
     const agents = box.querySelector<HTMLTextAreaElement>("#set-agents")!;
     const perm = box.querySelector<HTMLSelectElement>("#set-perm")!;
@@ -315,6 +323,7 @@ export function openSettings(cur: SettingsValues): Promise<SettingsValues | null
     const presetsEl = box.querySelector<HTMLElement>("#set-presets")!;
     langSel.value = cur.lang;
     themeSel.value = cur.theme;
+    winStyleSel.value = cur.windowStyle;
     cmd.value = cur.agentCmd;
     agents.value = cur.agentPresets.map((p) => `${p.label} = ${p.cmd}`).join("\n");
     perm.value = cur.permMode;
@@ -353,6 +362,7 @@ export function openSettings(cur: SettingsValues): Promise<SettingsValues | null
       done({
         lang: langSel.value as Lang,
         theme: themeSel.value as ThemeId,
+        windowStyle: winStyleSel.value as WindowStyle,
         agentCmd: cmd.value.trim() || "claude",
         permMode: perm.value as SettingsValues["permMode"],
         enabled,
