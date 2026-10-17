@@ -239,6 +239,34 @@ vim が使う素の `\e[6n`（`?` なし）は既定ハンドラのまま温存�
 - ❌ `set t_ti= t_te=`（インライン描画）＝ループ解消後も**更新は描かれない**ので回避策にならない
 - ❌☠️ **IntersectionObserver 無効化 #53（`window.IntersectionObserver = undefined`）は回帰バグ**。`DOM rows=0`／**全ターミナル黒**を引き起こした。原因：xterm の `_registerIntersectionObserver` は `"IntersectionObserver" in window` で判定するため、`= undefined` でもキーは残り true → `new undefined(...)` で**例外**→ `term.open()` が失敗してレンダラが起動しない。**revert 済み。** もし将来 render-pause を切るなら `delete window.IntersectionObserver`（キーごと消す）で、かつ skip 時の `_isPaused` 既定値を確認してから。ただし「render-pause が vim 代替画面の原因」はまだ**未確認**（この `DOM rows=0` は #53 のバグ由来で、vim 本来の状態ではない）。revert 後にクリーンな状態で再計測すること。
 
+## 2026-10-11 追記：合成問題と確定 → 3Dコンテキスト撤去を検証
+
+#53 を revert してクリーンな状態で `Alt+Shift+D` を再計測：
+
+- インライン（通常画面）: `buf normal nonEmpty=21/27 | DOM rows=27 nonEmpty=21`
+- 代替画面: `buf alternate nonEmpty=21/27 | DOM rows=27 nonEmpty=21`
+
+**両方とも DOM に行が埋まっている（27行・21行に中身）のに画面に出ない／操作できない。**
+→ 真因は **「DOMには描けているが WKWebView がそのDOM更新を再合成(composite)しない」合成問題**と**計測で確定**。バッファでもレンダラ起動でもない。
+
+**対処（検証中）**: `styles.css` の `.stack` から `perspective` / `transform-style: preserve-3d` を撤去。
+- 根拠：`.layer.behind` の変形は `translateY`+`scale` の**2Dのみ**で `translateZ` 等の3Dは不使用。つまり 3D レンダリングコンテキストは**実質無駄**なのに、WebKit で子要素(xterm行)の再ラスタライズを止める副作用だけを持っていた。
+- 期待：見た目のデッキは 2D 変形＋`z-index` で維持され、`front`(z20) が `behind`(z≈9) の上に来るので「黒が上に来る」も解消見込み。
+- 注意：CLAUDE.md 地雷リストに「3D CSS 削除＝効果なし」とあるが、当時はループ未修正・#53混入で条件が異なり、かつ今回「DOMは埋まっている＝合成問題」という計測証拠が揃った上での**根拠つき再検証**。これで駄目なら合成強制(`translateZ(0)` トグル等)かネイティブ描画へ。
+
+## 2026-10-16 ✅ 解決（実機確認）
+
+`pnpm tauri dev` の devビルド（`.stack` の3Dコンテキスト撤去入り）で、**代替画面vimが表示・操作できることを実機確認**。`i`→入力→`:wq` が通り、Solarized Dark も正常。長期未解決だった「display side」はこれでクローズ。
+
+**最終的な真因（2つ）**：
+1. **入力**：カーソルレポートのループ（`\e[?6n`→`\e[?25;4R`自動応答→PTY書き戻し→無限）が打鍵を埋もれさせていた → `terminal-guards.ts` で私的 `\e[?6n` を握りつぶし。
+2. **描画**：`.stack` の `perspective`/`preserve-3d`（2D変形しか使わない**無駄な3Dコンテキスト**）内で、WKWebViewが xterm の DOM 更新を再合成しなかった → 撤去。`Alt+Shift+D` の `DOM rows=27 nonEmpty=21`＋黒画面が「合成問題」の決定的証拠だった。
+
+**教訓**：
+- 「3D CSS 削除」は過去に地雷認定されていたが**実は正解**。当時はループ（入力側）がまだ生きていて効果が覆い隠されていた＝**複合バグは一つずつ潰してから再評価する**。
+- 再現不能な WKWebView バグは、盲目リビルドより **`Alt+Shift+D` の DOM 計測**＋**`pnpm tauri dev` の DevTools/HMR 生検証**が圧倒的に速い。
+- #53 の教訓：`window.IntersectionObserver = undefined` は `new undefined()` 例外で全黒。消すなら `delete`。
+
 ---
 
 *関連 PR: [#34](https://github.com/foresthill/ai-development-terminal-max/pull/34)*

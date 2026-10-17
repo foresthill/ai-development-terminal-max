@@ -35,7 +35,7 @@ body {
   flex-direction: column;
   gap: 6px;
   padding: 7px 14px;
-  background: linear-gradient(180deg, #0c1120, #080b14);
+  background: linear-gradient(180deg, var(--panel-2), var(--bg));
   border-bottom: 1px solid var(--border);
   user-select: none;
 }
@@ -72,7 +72,7 @@ body {
 .proj-tab.active {
   color: var(--accent);
   border-color: var(--accent);
-  background: #0e1733;
+  background: var(--accent-dim); /* themed (was a hardcoded navy that stayed dark on Light) */
 }
 .proj-actions {
   display: flex;
@@ -213,7 +213,7 @@ body {
   align-items: center;
   gap: 12px;
   padding: 4px 14px;
-  background: linear-gradient(0deg, #0c1120, #080b14);
+  background: linear-gradient(0deg, var(--panel-2), var(--bg));
   border-top: 1px solid var(--border);
   user-select: none;
 }
@@ -310,7 +310,7 @@ body {
 }
 .sendbar select,
 .sendbar input {
-  background: #05070d;
+  background: var(--bg);
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -362,7 +362,7 @@ body {
 }
 .modal-input {
   width: 100%;
-  background: #05070d;
+  background: var(--bg); /* themed: near-black on dark, cream on Solarized Light */
   border: 1px solid var(--border);
   border-radius: 6px;
   color: var(--text);
@@ -662,10 +662,24 @@ body {
   border-color: var(--accent);
   box-shadow:
     0 0 0 3px var(--accent),
-    0 0 22px rgba(122, 162, 247, 0.45);
+    0 0 22px color-mix(in srgb, var(--accent) 45%, transparent);
 }
+/* Focus tint: blend the theme accent INTO the panel (not a hardcoded blue over an
+   unknown base). On light themes this keeps the header warm instead of washing the
+   Solarized beige to cool grey; on dark themes it looks as before. */
 .agent.focused .agent-header {
-  background: linear-gradient(180deg, rgba(122, 162, 247, 0.22), rgba(122, 162, 247, 0.06));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 20%, var(--panel-2)),
+    color-mix(in srgb, var(--accent) 6%, var(--panel-2))
+  );
+}
+/* Solarized Light is the only light theme: a blue accent blended into the warm
+   beige always desaturates to cool grey, so the accent wash above reads as a grey
+   slab here. Instead mark focus by brightening the header toward the light base
+   (base3 → base2) — stays warm, no grey. The 3px accent ring still carries focus. */
+:root[data-theme="solarized-light"] .agent.focused .agent-header {
+  background: linear-gradient(180deg, var(--bg), var(--panel));
 }
 /* waiting for input: amber tint — shown when NOT focused. */
 .agent.waiting:not(.focused) {
@@ -831,9 +845,10 @@ body {
   display: flex;
   flex-direction: column;
   gap: 3px;
-  padding: 5px 10px;
+  padding: 5px 10px 0; /* no bottom padding: the tab strip sits flush on the stack */
   background: var(--panel-2);
-  border-bottom: 1px solid var(--border);
+  /* no border-bottom: the tabs (folder shape) provide the boundary, so the active
+     tab can connect to its pane with no 6px gap/line between them */
   font-size: 11px;
 }
 .agent-title-row {
@@ -981,7 +996,7 @@ body {
   background: rgba(247, 118, 142, 0.12);
 }
 .agent-title[contenteditable="true"] {
-  background: #05070d;
+  background: var(--bg);
   box-shadow: 0 0 0 1px var(--accent);
   cursor: text;
 }
@@ -1009,6 +1024,9 @@ body {
 .agent-pick:hover {
   color: var(--accent);
   border-color: var(--accent);
+}
+.agent-pick svg {
+  display: block; /* monochrome folder icon inherits color via currentColor */
 }
 .agent-path {
   flex: 1;
@@ -1043,6 +1061,8 @@ body {
   gap: 4px;
   overflow-x: auto;
   scrollbar-width: none;
+  position: relative;
+  z-index: 1; /* keep the tab strip above the .stack (z-index:0) so layers never bleed over it */
 }
 .layer-tabs::-webkit-scrollbar {
   display: none;
@@ -1069,7 +1089,14 @@ body {
 .ltab.active {
   color: var(--accent);
   border-color: var(--accent);
-  background: #0e1733;
+  background: var(--accent-dim); /* themed: navy on dark, pale blue on Solarized Light */
+  /* Glue the active tab to the front (working) pane. The header's bottom padding +
+     border were removed (see .agent-header) so the tab strip sits flush on the
+     stack; shifting the active tab down 1px overlaps the pane's own top border so
+     the seam vanishes and it reads as attached to the window in use. */
+  position: relative;
+  z-index: 2;
+  bottom: -1px;
 }
 .ltab-ico {
   width: 11px;
@@ -1096,7 +1123,9 @@ body {
 }
 .ltab-add {
   flex: 0 0 auto;
-  background: transparent;
+  /* A faint plate so the +terminal / +browser / ⟳ buttons read as real (if
+     secondary) controls, not transparent dashed ghosts floating on the header. */
+  background: color-mix(in srgb, var(--panel) 55%, transparent);
   color: var(--muted);
   border: 1px dashed var(--border);
   border-radius: 5px;
@@ -1107,6 +1136,7 @@ body {
 .ltab-add:hover {
   color: var(--accent);
   border-color: var(--accent);
+  background: var(--panel); /* solidify on hover */
 }
 
 /* ---- depth stack ---- */
@@ -1114,8 +1144,17 @@ body {
   position: relative;
   flex: 1;
   min-height: 0;
-  perspective: 1400px;
-  transform-style: preserve-3d;
+  /* NO 3D context. `perspective` + `transform-style: preserve-3d` were vestigial —
+     the layers only use 2D transforms (translateY/scale on .layer.behind), never
+     translateZ — yet the 3D rendering context they created stopped WKWebView from
+     re-compositing xterm's DOM row updates (the alt-screen "DOM populated but not
+     painted" bug: Alt+Shift+D showed `DOM rows=27 nonEmpty=21` with a blank screen).
+     Depth is kept via the 2D transforms + z-index below. */
+  /* `z-index: 0` re-establishes a (2D, non-3D) stacking context so the layers'
+     z-indexes (up to 20) stay CONTAINED here instead of escaping and painting over
+     the sibling tab strip / header. preserve-3d used to provide this context for
+     free; removing it (the vim fix) is why layers started bleeding over the tabs. */
+  z-index: 0;
 }
 .layer {
   position: absolute;
@@ -1137,6 +1176,32 @@ body {
   filter: brightness(0.6);
   transform: translateY(calc(var(--d, 1) * -10px)) scale(calc(1 - var(--d, 1) * 0.035));
   box-shadow: 0 -6px 16px rgba(0, 0, 0, 0.5);
+}
+
+/* Glass skin (opt-in via Settings → Theme). Frost ONLY the stacked-behind panes;
+   the front pane and tab strip stay opaque/crisp (tabs are above via z-index).
+   Strictly 2D — no translateZ/preserve-3d, so vim's compositing fix is untouched. */
+:root[data-theme="glass"] .layer.behind {
+  filter: brightness(0.8) saturate(0.85);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+  border: 1px solid color-mix(in srgb, #ffffff 14%, transparent);
+  box-shadow:
+    0 -6px 20px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 color-mix(in srgb, #ffffff 12%, transparent);
+}
+:root[data-theme="glass"] .layer.behind::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(160deg, color-mix(in srgb, #ffffff 8%, transparent) 0%, transparent 40%);
+}
+
+/* Angular / skeleton window shape (Settings → Window shape). Sharp 0-radius corners
+   across the UI for a crisp, abstract look. Opt-in, independent of the colour theme. */
+:root[data-pattern="angular"] * {
+  border-radius: 0 !important;
 }
 
 .term-host {

@@ -38,6 +38,8 @@ import {
 } from "./ui";
 import { GUARD_PRESETS, effectiveDeny } from "./guard";
 import { t, getLang, setLang } from "./i18n";
+import { applyTheme, getThemeId } from "./theme";
+import { applyWindowStyle, getWindowStyle } from "./window-style";
 import { renderAll, RenderCtx, Mode, View, PermMode } from "./render";
 import {
   buildSnapshot,
@@ -127,6 +129,8 @@ export class App {
   private resizeObs: ResizeObserver;
 
   constructor(root: HTMLElement) {
+    applyTheme(getThemeId()); // restore the saved colour theme before first render
+    applyWindowStyle(getWindowStyle()); // restore the saved window shape (rounded/angular)
     this.grid = root.querySelector("#grid")!;
     this.macroEl = root.querySelector("#macro")!;
     this.stripEl = root.querySelector("#project-strip")!;
@@ -754,6 +758,8 @@ export class App {
   private async openSettingsDialog() {
     const res = await openSettings({
       lang: getLang(),
+      theme: getThemeId(),
+      windowStyle: getWindowStyle(),
       agentCmd: this.agentCmd,
       permMode: this.permMode,
       enabled: new Set(this.presets),
@@ -765,6 +771,14 @@ export class App {
     });
     if (!res) return;
     if (res.lang !== getLang()) setLang(res.lang); // re-applies static labels
+    if (res.windowStyle !== getWindowStyle()) applyWindowStyle(res.windowStyle);
+    if (res.theme !== getThemeId()) {
+      const tt = applyTheme(res.theme); // swap CSS tokens + persist
+      // Repaint open terminals with the new palette.
+      for (const p of this.projects)
+        for (const a of p.agents)
+          for (const l of a.layers) if (l.term) l.term.options.theme = tt;
+    }
     this.agentCmd = res.agentCmd;
     this.permMode = res.permMode;
     this.presets = res.enabled;

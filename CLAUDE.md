@@ -77,20 +77,28 @@ Full write-up: `docs/2026-07-15-vim-debugging-journey.md`.
   alive; vim's startup terminal queries trigger them, **nano's don't** — that
   asymmetry is what made this look like an alt-screen/xterm bug for ~30 build
   cycles. Fixed in `pty.rs` with a `libc::kill(pid, 0)` liveness check.
-- **Display side: STILL OPEN.** vim's alternate screen doesn't repaint. Internal
-  state is provably fine (`buf=alternate 47x22 el=346x310 vis=Y`) — the renderer
-  just doesn't paint alt-buffer writes. Leading theory: **xterm.js × WKWebView**
-  (Electron-based xterm.js terminals don't hit it; cmux avoids it by rendering
-  natively instead of with xterm.js). Next diagnostic: **dump the buffer contents**
-  (`getLine().translateToString()`) to separate "not painted" from "buffer empty" —
-  a forced full repaint did *not* help, so don't assume the buffer is populated.
-- **Dead ends — do NOT retry** (each cost a build+swap): refit-on-toggle; DECSET
-  1004 suppression (kept as insurance, *not* the fix); disabling WebGL; removing
-  the `.stack` 3D CSS; forced `refresh()`; `options.theme` re-assign repaint;
-  xterm 5.5 downgrade (symptom predates 6.0 — not a regression);
-  `@xterm/addon-canvas` (**deprecated, removed in @xterm/xterm v6** — DOM/WebGL
-  are the only renderers).
-- Workaround for users: `set t_ti= t_te=` in `.vimrc` (renders inline), or nano.
+- **Display side: SOLVED (2026-10, on-device confirmed).** vim's alternate screen
+  never repainted because `.stack` set `transform-style: preserve-3d` + `perspective`,
+  creating a 3D rendering context. WKWebView does not re-rasterize DOM children
+  (xterm's rows) inside such a context — `Alt+Shift+D` proved the DOM was *populated*
+  (`DOM rows=27 nonEmpty=21`) while the screen stayed blank, i.e. a **compositing**
+  failure, not a buffer or renderer one. The 3D context was **vestigial** (layers only
+  use 2D transforms — `translateY`/`scale`, never `translateZ`), so removing
+  `perspective`/`preserve-3d` from `.stack` fixed it with no visual change (depth is
+  kept by `z-index` + the 2D transforms). A second, independent cause was on the input
+  side: a cursor-report loop (`\e[?6n` → xterm auto-replies `\e[?25;4R` → written back
+  to the PTY → repeat) flooded the terminal and buried keystrokes; fixed by swallowing
+  the private `\e[?6n` in `terminal-guards.ts`. **Both** had to land for vim to be usable.
+- **Dead ends — do NOT retry** (each cost a build+swap): refit-on-toggle; DECSET 1004
+  suppression (kept as insurance); disabling WebGL; forced `refresh()`; `options.theme`
+  re-assign repaint; xterm 5.5 downgrade; `@xterm/addon-canvas` (removed in v6);
+  disabling xterm's IntersectionObserver via `window.IntersectionObserver = undefined`
+  (it throws inside `open()` → blanks every terminal; if ever needed, `delete` the key
+  instead). NOTE: "removing the `.stack` 3D CSS" was once listed here as a dead-end —
+  it was in fact the fix; the earlier attempt only failed because the cursor-report
+  loop was still active and masked it.
+- Workaround (no longer required): `set t_ti= t_te=` renders vim in the normal buffer;
+  nano also works.
 - **Debug tracers** live behind `Alt+D` (off by default — when off they don't run
   at all, including the per-output-byte tracer).
 

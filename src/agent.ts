@@ -10,6 +10,7 @@ import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { spawnPty, PtyHandle } from "./pty";
 import { findPathSpans } from "./paths";
 import { registerCsiGuards } from "./terminal-guards";
+import { getTermTheme } from "./theme";
 import { t } from "./i18n";
 
 export type LayerKind = "terminal" | "browser" | "subagent";
@@ -97,12 +98,8 @@ function colForStrIdx(line: IBufferLine, strIdx: number): number {
   return line.length;
 }
 
-const TERM_THEME = {
-  background: "#0b0e14",
-  foreground: "#c8d3f5",
-  cursor: "#7aa2f7",
-  selectionBackground: "#2d3f76",
-};
+// Terminal colours come from the active theme (theme.ts); getTermTheme() is read
+// when each terminal is created, and the app updates open terminals on a switch.
 
 // TEMP vi-input tracer — logs where a keystroke is lost (window → xterm → data →
 // pty) plus what's focused, in a corner overlay. Remove after the bug is found.
@@ -247,7 +244,7 @@ export function createTerminalLayer(opts: {
     cursorBlink: true,
     allowProposedApi: true,
     scrollback: 5000,
-    theme: TERM_THEME,
+    theme: getTermTheme(),
     // Apps that capture the mouse (claude's TUI enables tracking) otherwise eat
     // click/drag, so text can't be selected. On macOS xterm's force-selection
     // modifier is Option (Shift isn't honored here), so let ⌥-drag / ⌥-click
@@ -780,29 +777,40 @@ export function createAgent(index: number): Agent {
   const runGroup = document.createElement("div");
   runGroup.className = "run-group";
   runGroup.append(runEl, agentSel);
+  // Monochrome folder icons (stroke = currentColor, so they follow the theme) —
+  // replaces the colourful 📁/📂 emoji. pick = choose folder, openDir = reveal.
+  // Declared before the title row since the buttons now sit next to the name.
+  const FOLDER_SVG =
+    '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M1.75 4.25h3.8l1.2 1.4h7.5v6.6a1 1 0 0 1-1 1H2.75a1 1 0 0 1-1-1z"/></svg>';
+  const FOLDER_OPEN_SVG =
+    '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"><path d="M1.75 4.25h3.8l1.2 1.4h7.5v6.6a1 1 0 0 1-1 1H2.75a1 1 0 0 1-1-1z"/><path d="M6.6 9.4 10 6M10 6H7.7M10 6v2.3"/></svg>';
+  const pickEl = document.createElement("button");
+  pickEl.className = "agent-pick";
+  pickEl.innerHTML = FOLDER_SVG;
+  pickEl.title = t("tip.pick");
+  const openDirEl = document.createElement("button");
+  openDirEl.className = "agent-pick"; // same compact button style
+  openDirEl.innerHTML = FOLDER_OPEN_SVG;
+  openDirEl.title = t("tip.openDir");
+
   titleRow.appendChild(prioEl);
   titleRow.appendChild(colorEl);
   titleRow.appendChild(titleEl);
+  titleRow.appendChild(pickEl); // folder buttons sit right next to the agent name
+  titleRow.appendChild(openDirEl);
   titleRow.appendChild(branchEl);
   titleRow.appendChild(runGroup);
   titleRow.appendChild(closeEl);
 
   const pathRow = document.createElement("div");
   pathRow.className = "agent-path-row";
-  const pickEl = document.createElement("button");
-  pickEl.className = "agent-pick";
-  pickEl.textContent = t("agent.pick");
-  pickEl.title = t("tip.pick");
-  const openDirEl = document.createElement("button");
-  openDirEl.className = "agent-pick"; // same compact button style
-  openDirEl.textContent = t("agent.openDir");
-  openDirEl.title = t("tip.openDir");
   const pathEl = document.createElement("input");
   pathEl.className = "agent-path";
   pathEl.placeholder = t("agent.pathPlaceholder");
   pathEl.spellcheck = false;
-  // Path row: 📁 choose folder, 📂 reveal folder in Finder, then the cwd + status.
-  pathRow.append(pickEl, openDirEl, pathEl, cpuEl);
+  // Path row: just the cwd + CPU/status now (the folder buttons moved to the title
+  // row, next to the agent name).
+  pathRow.append(pathEl, cpuEl);
 
   // Z-axis layer tabs, sitting directly above the terminal.
   const tabsEl = document.createElement("div");
