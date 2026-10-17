@@ -831,9 +831,10 @@ body {
   display: flex;
   flex-direction: column;
   gap: 3px;
-  padding: 5px 10px;
+  padding: 5px 10px 0; /* no bottom padding: the tab strip sits flush on the stack */
   background: var(--panel-2);
-  border-bottom: 1px solid var(--border);
+  /* no border-bottom: the tabs (folder shape) provide the boundary, so the active
+     tab can connect to its pane with no 6px gap/line between them */
   font-size: 11px;
 }
 .agent-title-row {
@@ -1072,15 +1073,13 @@ body {
   color: var(--accent);
   border-color: var(--accent);
   background: var(--accent-dim); /* themed: navy on dark, pale blue on Solarized Light */
-  /* Glue the active tab to the front (working) pane. The header has padding-bottom
-     5px + border-bottom 1px between the tabs and the stack; the active tab grows
-     down past that (extra bottom padding) and the negative margin lands it 1px onto
-     the pane, so the seam vanishes and the tab reads as attached to the window in
-     use. z-index keeps it above the header border and the behind-stack. */
+  /* Glue the active tab to the front (working) pane. The header's bottom padding +
+     border were removed (see .agent-header) so the tab strip sits flush on the
+     stack; shifting the active tab down 1px overlaps the pane's own top border so
+     the seam vanishes and it reads as attached to the window in use. */
   position: relative;
   z-index: 2;
-  padding-bottom: 8px;
-  margin-bottom: -7px;
+  bottom: -1px;
 }
 .ltab-ico {
   width: 11px;
