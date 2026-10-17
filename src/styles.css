@@ -1043,6 +1043,8 @@ body {
   gap: 4px;
   overflow-x: auto;
   scrollbar-width: none;
+  position: relative;
+  z-index: 1; /* keep the tab strip above the .stack (z-index:0) so layers never bleed over it */
 }
 .layer-tabs::-webkit-scrollbar {
   display: none;
@@ -1119,8 +1121,12 @@ body {
      translateZ — yet the 3D rendering context they created stopped WKWebView from
      re-compositing xterm's DOM row updates (the alt-screen "DOM populated but not
      painted" bug: Alt+Shift+D showed `DOM rows=27 nonEmpty=21` with a blank screen).
-     Depth is kept via the 2D transforms + z-index below, which also fixes paint
-     order (front stays above the offset "behind" layers). */
+     Depth is kept via the 2D transforms + z-index below. */
+  /* `z-index: 0` re-establishes a (2D, non-3D) stacking context so the layers'
+     z-indexes (up to 20) stay CONTAINED here instead of escaping and painting over
+     the sibling tab strip / header. preserve-3d used to provide this context for
+     free; removing it (the vim fix) is why layers started bleeding over the tabs. */
+  z-index: 0;
 }
 .layer {
   position: absolute;
