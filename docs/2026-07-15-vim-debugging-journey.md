@@ -326,3 +326,22 @@ Inspector がやっている「再ラスタライズの強制」をコード側�
 ---
 
 *2026-10-18 時点: 表示側は OPEN。入力側は CLOSED。リリース 0.1.3 のノートにある「vim 修正中」は正しい。*
+
+### テストベンチ（2026-10-18 追加）— 1ビルドで複数の再描画戦略を試す
+
+release の実機検証は1回約8分と高価なので、`agent.ts` に**再描画(recomposite)戦略ベンチ**を仕込んだ。
+各ターミナルの `term.onRender` でアクティブ戦略を実行し、**Alt+Shift+V** で戦略を巡回できる（トーストに番号表示）。
+
+戦略一覧（すべて 2D のみ。`translateZ`/3D は厳禁＝元の詰まりが復活する）：
+- `0 off` … ベースライン（素の状態。まず黒いことを確認）
+- `1 screen opacity` … `.xterm-screen` の opacity を 1↔0.9999
+- `2 screen translateY(2D)` … `.xterm-screen` に微小 translateY
+- `3 screen filter` … `.xterm-screen` に `opacity(0.999)` フィルタ
+- `4 screen will-change:contents` … キャッシュ抑制ヒント（静的）
+- `5 screen display reflow` … 毎フレーム reflow 強制（ちらつく＝最終手段の切り分け用）
+- `6 layer opacity` / `7 layer translateY(2D)` … 合成の親候補 `.layer-terminal` 側を叩く
+
+**手順（release .app で）**：vim を開く → 黒い → Alt+Shift+V を押して戦略を1つずつ試す →
+vim が見える番号を記録 → その戦略を正式実装（毎renderは重いので必要なら間引く）に昇格。
+効く番号が分かれば「どの要素のどの性質を変えると WKWebView が再ラスタライズするか」も分かる。
+ベンチは TEMP。正式修正が決まったら撤去する。

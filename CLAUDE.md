@@ -84,12 +84,15 @@ Full write-up: `docs/2026-07-15-vim-debugging-journey.md`.
   populated, not composited (not a buffer or renderer fault). Removing the vestigial
   3D context (`perspective`/`preserve-3d`) from `.stack` **is in the shipped bundle**
   (verified in `dist` CSS) but did **not** fix it on its own.
-  - **Why it "worked" in dev — the trap:** `tauri = { features = [] }` (no `devtools`
-    feature), so the WKWebView Web Inspector is **on in `tauri dev` (debug), off in a
-    `tauri build` release**. An available/attached inspector forces WKWebView to keep
-    re-rasterizing layers, which **masks the compositing bug**. The 2026-10-16
-    "on-device confirmed" was a dev build → a false positive. In a real release the
-    bug returns.
+  - **Confirmed facts:** (a) the CSS fix is in the shipped bundle; (b) a release
+    `.app` shows DOM-populated-but-blank; (c) `tauri dev` renders vim fine. So the
+    dev/release behaviour genuinely differs — the 2026-10-16 "on-device confirmed"
+    was a **dev build**, so it did not actually prove the release case.
+  - **Leading hypothesis (NOT yet proven — we don't fully understand it yet):**
+    `tauri = { features = [] }` (no `devtools`), so the WKWebView Web Inspector is on
+    in `tauri dev` (debug) and off in release; an attached inspector *may* keep forcing
+    layer re-rasterization and thereby hide the bug. Plausible but unverified — treat
+    the real cause as still OPEN, not settled.
   - **⚠️ PROCESS RULE: validate any terminal-rendering change in a RELEASE build
     (`pnpm tauri build` → open the .app), NEVER only in `tauri dev`.** This reverses
     the earlier advice to lean on `tauri dev`/DevTools — for *compositing* bugs DevTools

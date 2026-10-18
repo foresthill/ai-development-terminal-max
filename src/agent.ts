@@ -117,6 +117,80 @@ export function toggleDbg(): boolean {
   setDbg(!_dbgOn);
   return _dbgOn;
 }
+
+// ---- vim compositing-bug TEST BENCH (TEMP, 2026-10-18) ----
+// The alt-screen is painted into the DOM but WKWebView doesn't re-rasterize it in a
+// RELEASE build (dev renders it — DevTools likely masks it). To find a fix without one
+// rebuild per idea, each terminal's onRender runs the ACTIVE strategy below; cycle the
+// strategy live with Alt+Shift+V and report which index makes vim visible. MUST be tried
+// in a `pnpm tauri build` release (dev hides the bug). All nudges are 2D only — NEVER a
+// 3D transform (translateZ/perspective), that reintroduces the original stuck context.
+// See docs/2026-07-15-vim-debugging-journey.md.
+const RECOMP_NAMES = [
+  "0 off (baseline)",
+  "1 screen opacity",
+  "2 screen translateY(2D)",
+  "3 screen filter",
+  "4 screen will-change:contents",
+  "5 screen display reflow",
+  "6 layer opacity",
+  "7 layer translateY(2D)",
+];
+let _recomp = 0;
+let _recompTick = 0;
+export function recompositeName(): string {
+  return RECOMP_NAMES[_recomp];
+}
+/// Advance to the next strategy, clearing any inline styles the previous one left on
+/// every terminal/layer so strategies don't stack. Returns the new strategy's name.
+export function cycleRecomposite(): string {
+  _recomp = (_recomp + 1) % RECOMP_NAMES.length;
+  document.querySelectorAll<HTMLElement>(".xterm-screen, .layer-terminal").forEach((e) => {
+    e.style.transform = "";
+    e.style.opacity = "";
+    e.style.filter = "";
+    e.style.willChange = "";
+    e.style.display = e.style.display === "none" ? "" : e.style.display;
+  });
+  return RECOMP_NAMES[_recomp];
+}
+/// Run the active strategy once (called from each terminal's onRender). `layerEl` is the
+/// `.layer-terminal` host (a candidate composited ancestor); the `.xterm-screen` is the
+/// inner paint surface. Odd/even tick toggles the nudged value so the property changes.
+function applyRecomposite(term: Terminal, layerEl: HTMLElement): void {
+  if (_recomp === 0) return;
+  const el = (term as unknown as { element?: HTMLElement }).element;
+  const screen = el?.querySelector(".xterm-screen") as HTMLElement | null;
+  if (!screen) return;
+  const odd = ++_recompTick % 2 === 1;
+  switch (_recomp) {
+    case 1:
+      screen.style.opacity = odd ? "0.9999" : "1";
+      break;
+    case 2:
+      screen.style.transform = odd ? "translateY(0.02px)" : "translateY(0px)";
+      break;
+    case 3:
+      screen.style.filter = odd ? "opacity(0.999)" : "none";
+      break;
+    case 4:
+      screen.style.willChange = "contents"; // static hint: contents change often, don't over-cache
+      break;
+    case 5: {
+      const d = screen.style.display;
+      screen.style.display = "none";
+      void screen.offsetHeight; // force reflow
+      screen.style.display = d;
+      break;
+    }
+    case 6:
+      layerEl.style.opacity = odd ? "0.9999" : "1";
+      break;
+    case 7:
+      layerEl.style.transform = odd ? "translateY(0.02px)" : "translateY(0px)";
+      break;
+  }
+}
 export function dbgLog(msg: string) {
   if (!_dbgOn) return; // gated: no overlay, no localStorage, no per-byte cost when off
   _dbg.push(msg);
@@ -253,6 +327,9 @@ export function createTerminalLayer(opts: {
   });
   const fit = new FitAddon();
   term.loadAddon(fit);
+  // vim compositing TEST BENCH: each render runs the active recomposite strategy
+  // (Alt+Shift+V to cycle). No-op when strategy 0 / off. TEMP — see the bench above.
+  term.onRender(() => applyRecomposite(term, el));
   // term.open() is DEFERRED to startLayer (when the host is attached to the DOM
   // and has a real size). Opening here — while `el` is still detached / zero-size
   // — makes xterm's RenderService IntersectionObserver mark the screen "hidden"

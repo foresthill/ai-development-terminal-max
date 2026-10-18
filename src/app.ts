@@ -18,6 +18,7 @@ import {
   toggleDbg,
   dumpLayerBuffer,
   copyDebugLog,
+  cycleRecomposite,
 } from "./agent";
 import { Project } from "./project";
 import { handleSubagentEvent, clearSubagentLayers } from "./subagent";
@@ -894,6 +895,14 @@ export class App {
       e.preventDefault();
       e.stopPropagation();
       void copyDebugLog().then((s) => toast(`log: ${s}`));
+      return;
+    }
+    // Alt+Shift+V: cycle the vim compositing TEST BENCH strategy (TEMP). Open vim in a
+    // RELEASE build and press this until the alt-screen paints; report the index.
+    if (e.shiftKey && e.code === "KeyV") {
+      e.preventDefault();
+      e.stopPropagation();
+      toast(`recomposite: ${cycleRecomposite()}`);
       return;
     }
     const handlers: Record<string, () => void> = {
