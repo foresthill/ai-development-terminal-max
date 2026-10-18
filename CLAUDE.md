@@ -67,7 +67,7 @@ app.ts before that follow-up lands** — put new concerns in their own module.
 - Worktrees enforce the user's feature-branch / no-main-push workflow physically.
 - **Persistence**: workspace (projects/agents/cwd/layout/toggles) auto-saves to `aidt-workspace`; opened/cloned projects bookmark to `aidt-projects` (label+path). **Resume**: claude agents launch `claude --continue` (resumes the cwd's last conversation, fresh if none) — interactive login shell types the command (so `.zshrc` PATH is correct). Resume facts sourced from code.claude.com/docs/en/sessions.md.
 
-## Known issue: vim (2026-07) — read before touching the terminal renderer
+## Known issue: vim (2026-07, REOPENED 2026-10-18) — read before touching the terminal renderer
 
 Full write-up: `docs/2026-07-15-vim-debugging-journey.md`.
 
@@ -77,26 +77,40 @@ Full write-up: `docs/2026-07-15-vim-debugging-journey.md`.
   alive; vim's startup terminal queries trigger them, **nano's don't** — that
   asymmetry is what made this look like an alt-screen/xterm bug for ~30 build
   cycles. Fixed in `pty.rs` with a `libc::kill(pid, 0)` liveness check.
-- **Display side: SOLVED (2026-10, on-device confirmed).** vim's alternate screen
-  never repainted because `.stack` set `transform-style: preserve-3d` + `perspective`,
-  creating a 3D rendering context. WKWebView does not re-rasterize DOM children
-  (xterm's rows) inside such a context — `Alt+Shift+D` proved the DOM was *populated*
-  (`DOM rows=27 nonEmpty=21`) while the screen stayed blank, i.e. a **compositing**
-  failure, not a buffer or renderer one. The 3D context was **vestigial** (layers only
-  use 2D transforms — `translateY`/`scale`, never `translateZ`), so removing
-  `perspective`/`preserve-3d` from `.stack` fixed it with no visual change (depth is
-  kept by `z-index` + the 2D transforms). A second, independent cause was on the input
-  side: a cursor-report loop (`\e[?6n` → xterm auto-replies `\e[?25;4R` → written back
-  to the PTY → repeat) flooded the terminal and buried keystrokes; fixed by swallowing
-  the private `\e[?6n` in `terminal-guards.ts`. **Both** had to land for vim to be usable.
-- **Dead ends — do NOT retry** (each cost a build+swap): refit-on-toggle; DECSET 1004
-  suppression (kept as insurance); disabling WebGL; forced `refresh()`; `options.theme`
-  re-assign repaint; xterm 5.5 downgrade; `@xterm/addon-canvas` (removed in v6);
-  disabling xterm's IntersectionObserver via `window.IntersectionObserver = undefined`
-  (it throws inside `open()` → blanks every terminal; if ever needed, `delete` the key
-  instead). NOTE: "removing the `.stack` 3D CSS" was once listed here as a dead-end —
-  it was in fact the fix; the earlier attempt only failed because the cursor-report
-  loop was still active and masked it.
+- **Display side: NOT solved in a release build (2026-10-18).** The alt-screen is
+  a **WKWebView compositing bug**: xterm writes the rows into the DOM but WKWebView
+  does not re-rasterize them, so the screen stays blank. `Alt+Shift+D` proves it —
+  `buf alternate nonEmpty=21/27 | DOM rows=27 nonEmpty=21` with a black screen = DOM
+  populated, not composited (not a buffer or renderer fault). Removing the vestigial
+  3D context (`perspective`/`preserve-3d`) from `.stack` **is in the shipped bundle**
+  (verified in `dist` CSS) but did **not** fix it on its own.
+  - **Why it "worked" in dev — the trap:** `tauri = { features = [] }` (no `devtools`
+    feature), so the WKWebView Web Inspector is **on in `tauri dev` (debug), off in a
+    `tauri build` release**. An available/attached inspector forces WKWebView to keep
+    re-rasterizing layers, which **masks the compositing bug**. The 2026-10-16
+    "on-device confirmed" was a dev build → a false positive. In a real release the
+    bug returns.
+  - **⚠️ PROCESS RULE: validate any terminal-rendering change in a RELEASE build
+    (`pnpm tauri build` → open the .app), NEVER only in `tauri dev`.** This reverses
+    the earlier advice to lean on `tauri dev`/DevTools — for *compositing* bugs DevTools
+    lies to you. (HMR/DevTools is still fine for logic, layout, and theming work.)
+- **Input side: still SOLVED** independent of the above — the cursor-report loop
+  (`\e[?6n` → xterm auto-replies `\e[?25;4R` → written back to the PTY → repeat) that
+  buried keystrokes is swallowed in `terminal-guards.ts`. Keep it.
+- **Next, to actually fix the compositing bug (must be release-validated):** force
+  WKWebView to re-rasterize the front terminal (replicate what the inspector does).
+  Candidates, cheapest first: (1) `will-change` / de-promote the front `.layer` so its
+  text isn't cached in a stale composited layer; (2) a per-`onRender` raster-invalidation
+  nudge on `.xterm-screen` (a *2D* transform/opacity/filter toggle — **never** `translateZ`
+  or any 3D, that reintroduces the original context); (3) last resort, native rendering.
+- **Dead ends** (keep for safety): `window.IntersectionObserver = undefined` throws
+  inside `open()` → blanks **every** terminal (`DOM rows=0`); if render-pause ever needs
+  disabling use `delete` on the key, not `= undefined`. `set t_ti= t_te=` only moves vim
+  to the normal buffer, it doesn't repaint updates. **CAVEAT:** every other display-side
+  "dead end" once listed here (refit-on-toggle, DECSET 1004, disabling WebGL, forced
+  `refresh()`, `options.theme` re-assign, xterm 5.5 downgrade, `@xterm/addon-canvas`) was
+  judged in a **dev build under DevTools masking**, so those verdicts are **unreliable
+  for the compositing bug** — re-test in a release build before trusting them.
 - Workaround (no longer required): `set t_ti= t_te=` renders vim in the normal buffer;
   nano also works.
 - **Debug tracers** live behind `Alt+D` (off by default — when off they don't run

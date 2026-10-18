@@ -266,6 +266,11 @@ export function createTerminalLayer(opts: {
   // terminal-guards.ts so the identical registration is reproduced + unit-tested
   // headlessly (terminal-guards.test.ts). See docs/2026-07-15-vim-debugging-journey.md.
   registerCsiGuards(term.parser);
+  // ⚠️ RELEASE-VALIDATE RENDERER CHANGES. vim's alt-screen is a WKWebView compositing
+  // bug (DOM populated, not re-rasterized). `tauri dev` enables the Web Inspector, which
+  // forces re-rasterization and HIDES the bug — so it looks fixed in dev and is still
+  // broken in a `tauri build` release. Verify any change here by building the .app, not
+  // in `tauri dev`. Full story: docs/2026-07-15-vim-debugging-journey.md (2026-10-18).
   // Renderer: DOM (default) vs WebGL. The WebGL canvas does NOT re-composite the
   // alternate screen in WKWebView — vim's buffer is provably populated
   // (Alt+Shift+D: `alternate nonEmpty=18/24`) but never paints, and a forced

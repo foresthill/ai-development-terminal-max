@@ -270,3 +270,59 @@ vim が使う素の `\e[6n`（`?` なし）は既定ハンドラのまま温存�
 ---
 
 *関連 PR: [#34](https://github.com/foresthill/ai-development-terminal-max/pull/34)*
+
+## 2026-10-18 ⚠️ 再オープン：release で再発 — devビルドの DevTools がバグを隠していた
+
+0.1.3 を**リリースビルド（`pnpm tauri build`）**して配布物で動かしたら、**vim がまた黒い**。
+`pnpm tauri dev` では動くのに、`.app`（release）では動かない。
+
+### 切り分け（リビルド不要でやれた）
+
+1. **本番バンドルの CSS を確認** → `dist/assets/*.css` に `.stack{...z-index:0}` のみ。
+   `preserve-3d`/`perspective` は**ちゃんと消えている**＝ 3Dコンテキスト撤去の修正は release にも入っている。CSS は犯人ではない。
+2. **release 実機でダンプ**（`Alt+Shift+D` → `Alt+Shift+C`）：
+   ```
+   vim-dump: buf alternate nonEmpty=21/27 | DOM rows=27 nonEmpty=21
+   ```
+   → **DOM は 21 行埋まっているのに画面は黒**。dev のときと**同じ合成問題が release でも起きている**。
+3. **dev と release の差**：`src-tauri/Cargo.toml` の `tauri = { version = "2", features = [] }`
+   → `devtools` フィーチャ無し。Tauri 2 は **debug（`tauri dev`）では WKWebView の Web Inspector が有効、release では無効**。
+
+### 結論（2026-10-16「解決」は偽陽性だった）
+
+**WKWebView は Web Inspector が有効なあいだ、レイヤーを再ラスタライズし続ける。** これが合成バグを
+**隠していた**。だから dev では vim が動いて見えた。release では Inspector が無い → バグが素のまま出る。
+
+- `.stack` の 3Dコンテキスト撤去は**必要**だったかもしれないが、**それだけでは不十分**。
+- 入力側（カーソルレポートのループ → `terminal-guards.ts`）の修正は依然として有効・独立。
+- **真因（表示側）は未解決の WKWebView 合成バグ**。`DOM rows=27 nonEmpty=21`＋黒 がその決定的証拠。
+
+### いちばん大事な教訓（過去の教訓を上書き）
+
+> **端末描画の修正は、必ず `pnpm tauri build` の release（.app）で検証する。`tauri dev` で確認してはいけない。**
+> `tauri dev` の DevTools が合成バグを隠すため、dev での「直った」は信用できない。
+> （ロジック・レイアウト・テーマ配色の確認には dev/HMR/DevTools は今でも有効。）
+
+これは 10-16 の「`tauri dev` の DevTools/HMR 生検証が圧倒的に速い」を**合成バグに関しては撤回**する。
+速いが、嘘をつく。
+
+### 旧 dead-end リストの扱い
+
+表示側の「dead-end」判定（refit-on-toggle / DECSET 1004 / WebGL 無効化 / 強制 `refresh()` /
+`options.theme` 再代入 / xterm 5.5 ダウングレード / `@xterm/addon-canvas`）は**すべて dev ビルド＝
+DevTools マスク下での評価**だった。合成バグに対しては**判定が無効**。再挑戦するなら **release で**。
+（`window.IntersectionObserver = undefined` の全黒＝`new undefined()` 例外、`set t_ti= t_te=` が
+更新を描かない、の2点は機構的に確かなので dead-end のまま。）
+
+### 次の一手（release で検証すること）
+
+Inspector がやっている「再ラスタライズの強制」をコード側で再現する。安い順：
+1. 前面 `.layer`（または `.xterm-rows`/`.xterm-screen`）を**合成レイヤーにキャッシュさせない**
+   （`will-change` 調整・レイヤー昇格要因の除去）。
+2. `term.onRender` ごとに `.xterm-screen` へ**ラスタ無効化のナッジ**（**2D の** transform/opacity/
+   filter トグル。`translateZ` 等の 3D は**厳禁**＝元のコンテキストが復活する）。
+3. 最終手段：ネイティブ描画（cmux 方式）。
+
+---
+
+*2026-10-18 時点: 表示側は OPEN。入力側は CLOSED。リリース 0.1.3 のノートにある「vim 修正中」は正しい。*
