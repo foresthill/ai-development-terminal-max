@@ -1268,7 +1268,7 @@ body {
 .layer-browser {
   display: flex;
   flex-direction: column;
-  background: #0d1018;
+  background: var(--panel); /* themed toolbar strip (was hardcoded near-black) */
 }
 .url-bar {
   display: flex;
@@ -1299,7 +1299,7 @@ body {
 .browser-title {
   flex: 0 0 auto;
   width: 84px;
-  background: #05070d;
+  background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 5px;
   color: var(--muted);
@@ -1310,7 +1310,7 @@ body {
 .browser-url {
   flex: 1;
   min-width: 0;
-  background: #05070d;
+  background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 5px;
   color: var(--text);
@@ -1360,7 +1360,7 @@ body {
   color: var(--muted);
 }
 .browser-fallback-btn {
-  background: var(--accent-dim);
+  background: var(--accent); /* solid accent so white text stays legible on light themes */
   color: #fff;
   border: 1px solid var(--accent);
   border-radius: 7px;
