@@ -1123,9 +1123,9 @@ body {
 }
 .ltab-add {
   flex: 0 0 auto;
-  /* A faint plate so the +terminal / +browser / ⟳ buttons read as real (if
-     secondary) controls, not transparent dashed ghosts floating on the header. */
-  background: color-mix(in srgb, var(--panel) 55%, transparent);
+  /* Solid plate (same surface as the inactive tabs) so the +terminal / +browser /
+     ⟳ buttons read as real controls rather than transparent dashed ghosts. */
+  background: var(--panel);
   color: var(--muted);
   border: 1px dashed var(--border);
   border-radius: 5px;
