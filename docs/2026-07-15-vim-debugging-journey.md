@@ -345,3 +345,33 @@ release の実機検証は1回約8分と高価なので、`agent.ts` に**再描
 vim が見える番号を記録 → その戦略を正式実装（毎renderは重いので必要なら間引く）に昇格。
 効く番号が分かれば「どの要素のどの性質を変えると WKWebView が再ラスタライズするか」も分かる。
 ベンチは TEMP。正式修正が決まったら撤去する。
+
+### 2026-10-18（続き）根本原因に踏み込む — 「devは描けてbuildは黒」の差を特定しにいく
+
+ベンチ（1-7）は対症療法（再描画の強制）であって**根本原因の特定ではない**、という指摘を受けて、
+dev と release の**実際の差**を2系統、具体的に詰める。
+
+**差その1：DevTools(WebInspector) の有無（決定実験）**
+`tauri = { features = [] }` なので debug(`tauri dev`)はInspector有効・release無効。Inspectorは
+WKWebViewに常時再描画を強制しうる＝バグを隠しうる。→ **release に `features=["devtools"]` を付けてビルド**し、
+- vim が描ける → 「Inspector/`isInspectable` 非搭載時に再ラスタライズしない」で**原因確定**。
+- vim が黒いまま → Inspector は原因ではない → 差その2へ。
+（この実験のため Cargo.toml を一時的に `features=["devtools"]` に。**出荷前に `[]` へ戻す**。）
+
+**差その2：前面レイヤーの合成昇格（本番CSSを精査して判明した筋の良い容疑者）**
+`dist` の本番CSSで `.layer`（前面vimのコンテナ）に：
+```css
+.layer{ overflow:hidden; border-radius:6px; transition: transform .18s, opacity .18s, filter .18s }
+```
+`transition`（transform/opacity/filter）も `overflow:hidden + border-radius` のクリップも、WebKitで
+**要素を合成レイヤーへ昇格**させる典型要因。昇格した合成レイヤーは**子孫テキストの変更だけでは
+再ラスタライズされない**ことがある＝今回の症状と一致。dev では Inspector がそれを隠していた、で筋が通る。
+→ ベンチに**de-promote 戦略**を追加：
+- `8 layer no-transition` … 前面 `.layer` の `transition` を切る
+- `9 layer no-clip` … 前面 `.layer` の `overflow/border-radius` を外す
+これは 1-7 の「毎フレーム叩いて再描画させる」対症療法と違い、**昇格要因そのものを除く根治候補**。
+
+**次ビルドの読み筋**
+1. まず **devtools 付き release** で vim が出るか（差その1の判定）。
+2. 出るなら原因確定 → 次は devtools を外し、8/9（de-promote）で**出荷可能な根治**ができるか。
+3. devtools 付きでも黒いなら Inspector は無関係 → 8/9 や配信プロトコル（`tauri://` 独自スキーム）を追う。

@@ -135,6 +135,13 @@ const RECOMP_NAMES = [
   "5 screen display reflow",
   "6 layer opacity",
   "7 layer translateY(2D)",
+  // 8-9 are root-cause de-promotion (static, not per-frame): the `.layer` transition
+  // and overflow+radius clip both promote the front pane to a composited layer that a
+  // release WKWebView won't re-rasterize on text changes. Remove the promoter so the
+  // terminal paints inline with normal document painting. These are the principled fix
+  // candidates (vs. the 1-7 repaint nudges).
+  "8 layer no-transition (de-promote)",
+  "9 layer no-clip (overflow/radius)",
 ];
 let _recomp = 0;
 let _recompTick = 0;
@@ -150,6 +157,9 @@ export function cycleRecomposite(): string {
     e.style.opacity = "";
     e.style.filter = "";
     e.style.willChange = "";
+    e.style.transition = "";
+    e.style.overflow = "";
+    e.style.borderRadius = "";
     e.style.display = e.style.display === "none" ? "" : e.style.display;
   });
   return RECOMP_NAMES[_recomp];
@@ -188,6 +198,13 @@ function applyRecomposite(term: Terminal, layerEl: HTMLElement): void {
       break;
     case 7:
       layerEl.style.transform = odd ? "translateY(0.02px)" : "translateY(0px)";
+      break;
+    case 8:
+      layerEl.style.transition = "none"; // drop the transform/opacity/filter transition promoter
+      break;
+    case 9:
+      layerEl.style.overflow = "visible"; // drop the clip that forces a compositing layer
+      layerEl.style.borderRadius = "0";
       break;
   }
 }
