@@ -1168,6 +1168,14 @@ body {
   transform: none;
   opacity: 1;
   z-index: 20;
+  /* Display root cause (confirmed in a RELEASE build via the Alt+Shift+V bench,
+     strategy 8): the `.layer` transition promotes the pane to a composited layer
+     that release WKWebView won't re-rasterize on descendant text changes — vim's
+     alt-screen stays black. Dropping the transition on the FRONT (active, settled)
+     pane de-promotes it so it repaints normally; behind panes keep their transition
+     for the depth animation. Minor cost: the front pane no longer animates IN on a
+     layer switch (it was already settled anyway). See the vim journey doc. */
+  transition: none;
 }
 .layer.behind {
   z-index: calc(10 - var(--d, 1));

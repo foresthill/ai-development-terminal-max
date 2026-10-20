@@ -375,3 +375,22 @@ WKWebViewに常時再描画を強制しうる＝バグを隠しうる。→ **re
 1. まず **devtools 付き release** で vim が出るか（差その1の判定）。
 2. 出るなら原因確定 → 次は devtools を外し、8/9（de-promote）で**出荷可能な根治**ができるか。
 3. devtools 付きでも黒いなら Inspector は無関係 → 8/9 や配信プロトコル（`tauri://` 独自スキーム）を追う。
+
+### 2026-10-20 ✅（表示side・release実機で確定）／入力sideは未解決
+
+release .app（devtools付き）で **Alt+Shift+V** のベンチを回した結果：
+- **devtools を載せても vim は黒（B）** → 「Inspector搭載で直る」説は否定（＝dev/buildの差はInspector有無ではない）。
+- **戦略 8（layer transition除去）でも 9（layer clip除去）でも vim が“見える”** → **表示の真因は
+  前面 `.layer` の合成レイヤー昇格で確定**。`.layer` の `transition`（transform/opacity/filter）と
+  `overflow:hidden+border-radius` が前面paneを合成レイヤーに昇格させ、release WKWebView が
+  子孫テキストの変更で再ラスタライズしない、という機構。dev では（理由は別として）この昇格が
+  問題化していなかった。
+
+**恒久修正（表示）**: `.layer.front { transition: none }` を追加。前面（アクティブで静止している）paneの
+transition を切って de-promote。角丸・クリップは維持（9の「角丸が消える」副作用を避けられる）。
+behind paneは transition を残すのでデプスのアニメは保持。副作用は「前面paneが切替時にアニメINしない」
+程度。→ 次の release ビルドで再確認する（PROCESS RULE）。
+
+**ただし入力sideは未解決**: 8/9 で**見えるが打てない**。vim(代替画面)にキーが届いていない。
+通常シェルは打てる＝alt-screen固有。入力トレーサ（Alt+D → 打鍵 → Alt+Shift+C）で
+「window→xterm→onData→pty」のどこで消えるかを特定して追う。
