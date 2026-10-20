@@ -14,13 +14,10 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-# TEMP (2026-10-18, vim root-cause probe): `devtools` enables the WKWebView Web
-# Inspector in a RELEASE build too. dev (debug) has it on, release has it off — the
-# leading theory for "vim renders in `tauri dev`, black in `tauri build`". If a
-# release built WITH this flag renders vim, the inspector/`isInspectable` path is the
-# root cause; if it's still black, the cause is elsewhere (custom-scheme protocol,
-# etc.). REVERT to `features = []` before shipping. See the vim journey doc.
-tauri = { version = "2", features = ["devtools"] }
+# (2026-10-18 probe RESULT: a release built with `features=["devtools"]` was STILL
+# black, so the inspector/`isInspectable` path is NOT the cause — reverted to []. The
+# real display cause was the front layer's compositing promotion; see the vim doc.)
+tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }

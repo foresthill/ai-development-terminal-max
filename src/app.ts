@@ -443,6 +443,18 @@ export class App {
       this.ap = this.projects.indexOf(project);
       this.focus(idx());
     });
+    // Keyboard focus is the source of truth. A click into a terminal focuses xterm's
+    // own textarea directly, which may NOT update `this.focused`; then the next render
+    // calls term.focus() on the (stale) focused agent and yanks DOM focus back there,
+    // so keystrokes land in the wrong agent — the "typed into vim but it went to the
+    // claude window" bug (confirmed: keys reached vim, then focus bounced to a 47x11
+    // claude pane). Syncing this.focused to whatever card actually holds focus keeps
+    // focus from being stolen back. focus() early-returns when the index is unchanged,
+    // so the programmatic term.focus() in render() can't loop here.
+    agent.cardEl.addEventListener("focusin", () => {
+      this.ap = this.projects.indexOf(project);
+      this.focus(idx());
+    });
     // Double-click to zoom — handy on the terminal and the header, so it lives on
     // the whole card. EXCEPT inside the in-app browser (URL bar / page), where a
     // double-click is for selecting text or interacting, not zooming.

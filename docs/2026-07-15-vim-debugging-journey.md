@@ -394,3 +394,26 @@ behind paneは transition を残すのでデプスのアニメは保持。副作
 **ただし入力sideは未解決**: 8/9 で**見えるが打てない**。vim(代替画面)にキーが届いていない。
 通常シェルは打てる＝alt-screen固有。入力トレーサ（Alt+D → 打鍵 → Alt+Shift+C）で
 「window→xterm→onData→pty」のどこで消えるかを特定して追う。
+
+### 2026-10-20（続き）入力トレースの決着 — 「打てない」の正体はフォーカス奪い返し
+
+release でクリック→打鍵のトレースを取得。判明：
+- **入力は完全に生きている**。キーは pty まで届き（`data pty=Y`）、クリックで前面 vim(99x27) に入ると
+  **vim は `-- INSERT --` を返し、`f d i s` をエコー**＝受信して応答している。
+- しかしトレース末尾で **`win:'Alt' buf=alternate 47x11`** ＝ **フォーカスが別エージェント(claude 47x11)へ
+  “戻って”いる**。
+
+**機構**：端末クリックは xterm の textarea に**DOMフォーカス**を直接当てるが、アプリ状態 `this.focused` は
+更新されないことがある。すると**次の render が `term.focus()` で `this.focused`（古いまま）の端末を再フォーカス**し、
+DOMフォーカスを奪い返す。結果、「vim に入れたのに気づくと外れて別窓(claude)に入る」＝“vimが打てない”。
+
+**修正**：`agent.cardEl` に `focusin` リスナを追加し、**どの端末にフォーカスが入っても `this.focused` が追従**
+するように（app.ts）。`focus()` は同一indexなら早期return なので、render の programmatic focus とループしない。
+これで「見ている窓＝キーが入る窓」が常に一致する。
+
+**devtools プローブの結果**：`features=["devtools"]` の release でも vim は黒だったため、Inspector 説は**否定**。
+Cargo.toml を `features=[]` に戻した。表示の真因は前面レイヤーの合成昇格（修正済み）。
+
+**次ビルドで検証（表示修正＋フォーカス修正の合わせ技）**：
+release を `pnpm tauri build` → vim を開く → **クリックして打つ → 文字が見えて、フォーカスが外れない** か。
+これで表示・入力・フォーカスが揃うはず。
