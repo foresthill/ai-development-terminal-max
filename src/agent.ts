@@ -373,10 +373,20 @@ export function createTerminalLayer(opts: {
   // The earlier "DOM also blank" finding predates the Safari-UA fix (which made
   // xterm apply its WebKit workarounds and got shells rendering), so DOM+UA is a
   // fresh combination. Flip back to true to restore the WebGL (GPU) renderer.
-  const USE_WEBGL = false;
+  // 2026-10-21: RE-TEST WebGL in a RELEASE build. The DOM renderer is now PROVEN to
+  // fail in release — vim's edits reach the DOM (Alt+Shift+D: DOM row 0 = "HELLO") and
+  // the file is saved (cat test.txt = HELLO), but WKWebView never re-rasterizes the
+  // frozen first frame, and NOTHING forces it (opacity/transform/filter/reflow/
+  // de-promote nudges 1-9, nor a window resize). WebGL draws into a <canvas> (GPU
+  // texture, per-draw dirty) instead of DOM spans, so its repaint path is entirely
+  // different and may sidestep the freeze. The old "WebGL also fails" note was judged
+  // in a DevTools-masked dev build, so it's unreliable. Validate in `tauri build`.
+  const USE_WEBGL = true;
   if (USE_WEBGL) {
     try {
-      term.loadAddon(new WebglAddon());
+      const gl = new WebglAddon();
+      gl.onContextLoss(() => gl.dispose()); // free the GL context cleanly if WKWebView drops it
+      term.loadAddon(gl);
     } catch {
       // WebGL unavailable (rare) — xterm falls back to its built-in DOM renderer.
       // (The canvas addon is deprecated and gone in @xterm/xterm v6, so DOM is the
