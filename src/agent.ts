@@ -373,15 +373,13 @@ export function createTerminalLayer(opts: {
   // The earlier "DOM also blank" finding predates the Safari-UA fix (which made
   // xterm apply its WebKit workarounds and got shells rendering), so DOM+UA is a
   // fresh combination. Flip back to true to restore the WebGL (GPU) renderer.
-  // 2026-10-21: RE-TEST WebGL in a RELEASE build. The DOM renderer is now PROVEN to
-  // fail in release — vim's edits reach the DOM (Alt+Shift+D: DOM row 0 = "HELLO") and
-  // the file is saved (cat test.txt = HELLO), but WKWebView never re-rasterizes the
-  // frozen first frame, and NOTHING forces it (opacity/transform/filter/reflow/
-  // de-promote nudges 1-9, nor a window resize). WebGL draws into a <canvas> (GPU
-  // texture, per-draw dirty) instead of DOM spans, so its repaint path is entirely
-  // different and may sidestep the freeze. The old "WebGL also fails" note was judged
-  // in a DevTools-masked dev build, so it's unreliable. Validate in `tauri build`.
-  const USE_WEBGL = true;
+  // Renderer: DOM. WebGL was re-tested in a macOS 26 release build and did NOT fix
+  // the freeze either (the bug is the WKWebView compositor not presenting alt-screen
+  // frames — wry#1848 — not the renderer), and one WebGL context per terminal risks
+  // hitting WebKit's ~16-context limit with many agents. So stay on DOM; the real fix
+  // is swallowing the alt-screen switch (terminal-guards.ts) so TUIs paint on the
+  // normal buffer. See docs/2026-07-15-vim-debugging-journey.md.
+  const USE_WEBGL = false;
   if (USE_WEBGL) {
     try {
       const gl = new WebglAddon();

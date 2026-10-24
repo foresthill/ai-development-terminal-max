@@ -26,6 +26,34 @@ pub struct AgentStat {
                 // (claude/aider/…) is still running, ==1 ⇒ back at an idle shell
 }
 
+/// Whether this host hits the macOS 26 (Tahoe) WKWebView compositor bug (wry#1848)
+/// where the alternate screen stops presenting frames in a RELEASE build — vim/less/
+/// htop draw into the DOM but the screen freezes on the first frame. The frontend
+/// uses this to disable the alt-screen ONLY where the bug exists, so dev builds,
+/// older macOS, Linux (WebKitGTK) and Windows (WebView2) keep normal full-screen TUIs.
+///
+/// True only on: macOS, release build (`not(debug_assertions)`), product version >= 26.
+#[tauri::command]
+pub fn alt_screen_broken() -> bool {
+    #[cfg(all(target_os = "macos", not(debug_assertions)))]
+    {
+        // `sw_vers -productVersion` → e.g. "26.6.2"; compare the major component.
+        let major = std::process::Command::new("sw_vers")
+            .arg("-productVersion")
+            .output()
+            .ok()
+            .and_then(|o| String::from_utf8(o.stdout).ok())
+            .and_then(|s| s.trim().split('.').next().and_then(|m| m.parse::<u32>().ok()));
+        // If detection fails, assume affected — a degraded-but-usable TUI beats a
+        // frozen one. On a correctly reported version, gate strictly on >= 26.
+        return major.map(|n| n >= 26).unwrap_or(true);
+    }
+    #[cfg(not(all(target_os = "macos", not(debug_assertions))))]
+    {
+        false
+    }
+}
+
 #[tauri::command]
 pub fn agent_stats(state: tauri::State<'_, SysState>, pids: Vec<u32>) -> Vec<AgentStat> {
     let mut sys = state.0.lock().unwrap();

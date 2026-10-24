@@ -92,6 +92,7 @@ See the module map in [`CLAUDE.md`](./CLAUDE.md). Briefly: `src/app.ts` (state/l
 
 ## Roadmap / known limits
 
+- **macOS 26 (Tahoe):** a WKWebView compositor bug ([wry#1848](https://github.com/tauri-apps/wry/issues/1848)) freezes the alternate screen in release builds, so full-screen TUIs (vim, less, htop, …) are rendered on the **normal scrolling buffer** instead (their output stays in the scrollback on exit). Applied automatically only on affected hosts; dev builds, older macOS, Linux and Windows are unaffected. See `docs/2026-10-24-macos26-wkwebview-altscreen.md`.
 - Browser layer is an iframe; a native child WebView could bypass `X-Frame-Options`.
 - Named/multiple saved workspaces and switching.
 - Macro view pan/zoom.

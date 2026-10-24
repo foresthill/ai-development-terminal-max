@@ -417,3 +417,25 @@ Cargo.toml を `features=[]` に戻した。表示の真因は前面レイヤー
 **次ビルドで検証（表示修正＋フォーカス修正の合わせ技）**：
 release を `pnpm tauri build` → vim を開く → **クリックして打つ → 文字が見えて、フォーカスが外れない** か。
 これで表示・入力・フォーカスが揃うはず。
+
+## 2026-10-24 ✅ 決着 — macOS 26 WKWebView のコンポジタバグ（wry#1848）と確定、alt-screen無効化で回避
+
+release 実機で決定的データが揃った：
+- `cat test.txt` = **HELLO**（入力・vim・保存は全部正常）／`Alt+Shift+D` = `DOM 0|HELLO`（DOMも最新）
+  なのに画面は空のまま＝**ピクセルだけ古い＝WKWebViewが新フレームを提示していない**。
+- DOM/WebGL 両レンダラ、レイヤー1枚、ウィンドウリサイズ、devtools有効化——**すべてで固まる**。
+- 通常画面は正常（`printf '\rcount: $i'` が 1→5 で動く）。**固まるのは alt-screen だけ**。
+- 環境: MacBook Pro M3 Pro / **macOS 26.6.2 (Tahoe)** / wry 0.55.1 / tauri 2.11.2。
+- 上流 **[wry#1848](https://github.com/tauri-apps/wry/issues/1848)** と症状・OS・版が一致。**macOS 26 の WebKit リグレッション**＝アプリのバグではない。上流修正なし。
+
+**対策（確定・実装済み）**: alt-screen 切替（DECSET 47/1047/1049）を `terminal-guards.ts` で握りつぶし、
+全画面TUIを通常画面で描かせる（通常画面は再描画OK）。**macOS 26 の release のときだけ**自動適用
+（`sys::alt_screen_broken` → `main.ts` → `setDisableAltScreen`）。dev・旧macOS・Linux・Windows は従来どおり。
+
+詳細レポート: `docs/2026-10-24-macos26-wkwebview-altscreen.md`。
+
+**教訓の総括**：
+- 「DOMは埋まるのに画面が出ない」は**合成/提示の問題**。`cat <file>` で「実体は編集されている」を確かめると、
+  入力問題と描画問題を一瞬で切り分けられた（もっと早くやるべきだった）。
+- **release でしか出ない描画バグは dev で検証しても無駄**（dev=debug は条件が違う）。実機release＋オンデバイス計測が最短。
+- 最後はコードではなく**プラットフォーム（OS/WebView）側**だった。`navigator`ではなくOS/版まで疑うこと。

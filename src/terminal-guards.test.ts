@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { Terminal } from "@xterm/headless";
-import { registerCsiGuards } from "./terminal-guards";
+import { registerCsiGuards, setDisableAltScreen } from "./terminal-guards";
 
 // Headless test bench for the cursor-report loop that makes vim uncontrollable
 // in-app. @xterm/headless shares xterm's parser/DSR core but needs no DOM or
@@ -58,11 +58,41 @@ describe("cursor-report loop guard", () => {
     expect(replies.text()).toBe("");
   });
 
-  it("leaves other private modes (e.g. 1049 alt-screen) alone", async () => {
-    // We must not accidentally swallow the alternate-screen switch — only 1004.
+  it("keeps the alt-screen by default (unaffected platforms are not degraded)", async () => {
+    setDisableAltScreen(false); // default
     const t = newTerm();
     registerCsiGuards(t.parser);
     await write(t, `${ESC}[?1049h`);
     expect(t.buffer.active.type).toBe("alternate");
+  });
+
+  it("swallows the alt-screen switch (47/1047/1049) when the macOS 26 workaround is on", async () => {
+    // WORKAROUND for wry#1848: on macOS 26 the alt-screen never repaints in a release
+    // WKWebView, so (only there) we keep full-screen TUIs on the normal (scrolling)
+    // buffer, which does paint. The buffer must stay "normal" after ?1049h.
+    try {
+      setDisableAltScreen(true);
+      for (const mode of [47, 1047, 1049]) {
+        const t = newTerm();
+        registerCsiGuards(t.parser);
+        await write(t, `${ESC}[?${mode}h`);
+        expect(t.buffer.active.type).toBe("normal");
+      }
+    } finally {
+      setDisableAltScreen(false); // don't leak the flag to other tests
+    }
+  });
+
+  it("stays surgical: a non-swallowed private mode (2004 bracketed paste) still applies", async () => {
+    // Guard against over-swallowing: only our set is intercepted, others fall through.
+    setDisableAltScreen(true);
+    try {
+      const t = newTerm();
+      registerCsiGuards(t.parser);
+      await write(t, `${ESC}[?2004h`);
+      expect(t.modes.bracketedPasteMode).toBe(true);
+    } finally {
+      setDisableAltScreen(false);
+    }
   });
 });

@@ -28,6 +28,7 @@ pub fn run() {
             git::create_worktree,
             git::write_aidt_settings,
             sys::agent_stats,
+            sys::alt_screen_broken,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -67,7 +67,7 @@ app.ts before that follow-up lands** — put new concerns in their own module.
 - Worktrees enforce the user's feature-branch / no-main-push workflow physically.
 - **Persistence**: workspace (projects/agents/cwd/layout/toggles) auto-saves to `aidt-workspace`; opened/cloned projects bookmark to `aidt-projects` (label+path). **Resume**: claude agents launch `claude --continue` (resumes the cwd's last conversation, fresh if none) — interactive login shell types the command (so `.zshrc` PATH is correct). Resume facts sourced from code.claude.com/docs/en/sessions.md.
 
-## Known issue: vim (2026-07, REOPENED 2026-10-18) — read before touching the terminal renderer
+## vim / full-screen TUIs (2026-07 … RESOLVED 2026-10-24) — read before touching the terminal renderer
 
 Full write-up: `docs/2026-07-15-vim-debugging-journey.md`.
 
@@ -77,45 +77,38 @@ Full write-up: `docs/2026-07-15-vim-debugging-journey.md`.
   alive; vim's startup terminal queries trigger them, **nano's don't** — that
   asymmetry is what made this look like an alt-screen/xterm bug for ~30 build
   cycles. Fixed in `pty.rs` with a `libc::kill(pid, 0)` liveness check.
-- **Display side: NOT solved in a release build (2026-10-18).** The alt-screen is
-  a **WKWebView compositing bug**: xterm writes the rows into the DOM but WKWebView
-  does not re-rasterize them, so the screen stays blank. `Alt+Shift+D` proves it —
-  `buf alternate nonEmpty=21/27 | DOM rows=27 nonEmpty=21` with a black screen = DOM
-  populated, not composited (not a buffer or renderer fault). Removing the vestigial
-  3D context (`perspective`/`preserve-3d`) from `.stack` **is in the shipped bundle**
-  (verified in `dist` CSS) but did **not** fix it on its own.
-  - **Confirmed facts:** (a) the CSS fix is in the shipped bundle; (b) a release
-    `.app` shows DOM-populated-but-blank; (c) `tauri dev` renders vim fine. So the
-    dev/release behaviour genuinely differs — the 2026-10-16 "on-device confirmed"
-    was a **dev build**, so it did not actually prove the release case.
-  - **Leading hypothesis (NOT yet proven — we don't fully understand it yet):**
-    `tauri = { features = [] }` (no `devtools`), so the WKWebView Web Inspector is on
-    in `tauri dev` (debug) and off in release; an attached inspector *may* keep forcing
-    layer re-rasterization and thereby hide the bug. Plausible but unverified — treat
-    the real cause as still OPEN, not settled.
-  - **⚠️ PROCESS RULE: validate any terminal-rendering change in a RELEASE build
-    (`pnpm tauri build` → open the .app), NEVER only in `tauri dev`.** This reverses
-    the earlier advice to lean on `tauri dev`/DevTools — for *compositing* bugs DevTools
-    lies to you. (HMR/DevTools is still fine for logic, layout, and theming work.)
-- **Input side: still SOLVED** independent of the above — the cursor-report loop
-  (`\e[?6n` → xterm auto-replies `\e[?25;4R` → written back to the PTY → repeat) that
-  buried keystrokes is swallowed in `terminal-guards.ts`. Keep it.
-- **Next, to actually fix the compositing bug (must be release-validated):** force
-  WKWebView to re-rasterize the front terminal (replicate what the inspector does).
-  Candidates, cheapest first: (1) `will-change` / de-promote the front `.layer` so its
-  text isn't cached in a stale composited layer; (2) a per-`onRender` raster-invalidation
-  nudge on `.xterm-screen` (a *2D* transform/opacity/filter toggle — **never** `translateZ`
-  or any 3D, that reintroduces the original context); (3) last resort, native rendering.
-- **Dead ends** (keep for safety): `window.IntersectionObserver = undefined` throws
-  inside `open()` → blanks **every** terminal (`DOM rows=0`); if render-pause ever needs
-  disabling use `delete` on the key, not `= undefined`. `set t_ti= t_te=` only moves vim
-  to the normal buffer, it doesn't repaint updates. **CAVEAT:** every other display-side
-  "dead end" once listed here (refit-on-toggle, DECSET 1004, disabling WebGL, forced
-  `refresh()`, `options.theme` re-assign, xterm 5.5 downgrade, `@xterm/addon-canvas`) was
-  judged in a **dev build under DevTools masking**, so those verdicts are **unreliable
-  for the compositing bug** — re-test in a release build before trusting them.
-- Workaround (no longer required): `set t_ti= t_te=` renders vim in the normal buffer;
-  nano also works.
+- **Display side: ROOT-CAUSED & WORKED AROUND (2026-10-24).** The frozen vim was a
+  **macOS 26 (Tahoe) WKWebView compositor bug — [wry#1848](https://github.com/tauri-apps/wry/issues/1848)**:
+  on an Apple-Silicon RELEASE build the compositor stops presenting new frames for the
+  alt-screen while the DOM keeps updating. Proof: `Alt+Shift+D` showed `DOM rows=27
+  nonEmpty=27` with row 0 = `HELLO` while the screen still showed the empty first frame,
+  and `cat test.txt` = `HELLO` — input, xterm, the DOM and the file were all correct;
+  only the painted pixels were stale. **Not our code:** it reproduces with the DOM
+  renderer AND WebGL, with a single layer, and survives a window resize. The NORMAL
+  (scrolling) buffer repaints fine (`printf '\rcount: $i'` animates); only the
+  alt-screen freezes. Our versions (wry 0.55.1 / tauri 2.11.2) match the report.
+  Full write-up: `docs/2026-10-24-macos26-wkwebview-altscreen.md`.
+  - **Fix:** `terminal-guards.ts` swallows the alt-screen switch (DECSET 47/1047/1049)
+    so full-screen TUIs (vim/less/htop/man/tmux) render on the normal buffer, which
+    paints — like vim's `set t_ti= t_te=`, applied at the terminal. Trade-off: their
+    output stays in the scrollback instead of being restored on exit.
+  - **Gated so only affected hosts are degraded:** `sys::alt_screen_broken` (Rust)
+    returns true only on **macOS + release build + product version ≥ 26**; `main.ts`
+    calls it once at boot and flips `setDisableAltScreen(...)` before any terminal is
+    created. Dev builds, older macOS, Linux (WebKitGTK) and Windows (WebView2/Chromium)
+    are unaffected and keep a normal alt-screen.
+  - **⚠️ PROCESS RULE: validate terminal-rendering changes in a RELEASE build
+    (`pnpm tauri build`), NEVER only `tauri dev`** — dev never showed this bug (the
+    regression is release-only), which cost many cycles. HMR/DevTools stays fine for
+    logic/layout/theming.
+- **Dead ends — do NOT retry on this bug** (all confirmed useless for the macOS 26
+  compositor freeze, in a real release): removing `.stack`'s 3D context; de-promoting
+  `.layer` (drop transition/clip); per-render repaint nudges on `.xterm-screen`/`.layer`
+  (opacity/transform/filter/`display`-reflow); a window resize; enabling the `devtools`
+  feature; switching DOM↔WebGL. Still true generally: `window.IntersectionObserver =
+  undefined` throws inside `open()` → blanks every terminal (use `delete`, not
+  `= undefined`). If the workaround is ever revisited: a newer wry/WebKit with the bug
+  fixed, or native rendering.
 - **Debug tracers** live behind `Alt+D` (off by default — when off they don't run
   at all, including the per-output-byte tracer).
 
