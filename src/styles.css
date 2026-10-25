@@ -1123,9 +1123,9 @@ body {
 }
 .ltab-add {
   flex: 0 0 auto;
-  /* A faint plate so the +terminal / +browser / ⟳ buttons read as real (if
-     secondary) controls, not transparent dashed ghosts floating on the header. */
-  background: color-mix(in srgb, var(--panel) 55%, transparent);
+  /* Solid plate (same surface as the inactive tabs) so the +terminal / +browser /
+     ⟳ buttons read as real controls rather than transparent dashed ghosts. */
+  background: var(--panel);
   color: var(--muted);
   border: 1px dashed var(--border);
   border-radius: 5px;
@@ -1168,6 +1168,14 @@ body {
   transform: none;
   opacity: 1;
   z-index: 20;
+  /* Display root cause (confirmed in a RELEASE build via the Alt+Shift+V bench,
+     strategy 8): the `.layer` transition promotes the pane to a composited layer
+     that release WKWebView won't re-rasterize on descendant text changes — vim's
+     alt-screen stays black. Dropping the transition on the FRONT (active, settled)
+     pane de-promotes it so it repaints normally; behind panes keep their transition
+     for the depth animation. Minor cost: the front pane no longer animates IN on a
+     layer switch (it was already settled anyway). See the vim journey doc. */
+  transition: none;
 }
 .layer.behind {
   z-index: calc(10 - var(--d, 1));
@@ -1268,7 +1276,7 @@ body {
 .layer-browser {
   display: flex;
   flex-direction: column;
-  background: #0d1018;
+  background: var(--panel); /* themed toolbar strip (was hardcoded near-black) */
 }
 .url-bar {
   display: flex;
@@ -1299,7 +1307,7 @@ body {
 .browser-title {
   flex: 0 0 auto;
   width: 84px;
-  background: #05070d;
+  background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 5px;
   color: var(--muted);
@@ -1310,7 +1318,7 @@ body {
 .browser-url {
   flex: 1;
   min-width: 0;
-  background: #05070d;
+  background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 5px;
   color: var(--text);
@@ -1360,7 +1368,7 @@ body {
   color: var(--muted);
 }
 .browser-fallback-btn {
-  background: var(--accent-dim);
+  background: var(--accent); /* solid accent so white text stays legible on light themes */
   color: #fff;
   border: 1px solid var(--accent);
   border-radius: 7px;

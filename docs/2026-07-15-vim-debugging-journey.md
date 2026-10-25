@@ -270,3 +270,184 @@ vim が使う素の `\e[6n`（`?` なし）は既定ハンドラのまま温存�
 ---
 
 *関連 PR: [#34](https://github.com/foresthill/ai-development-terminal-max/pull/34)*
+
+## 2026-10-18 ⚠️ 再オープン：release で再発 — devビルドの DevTools がバグを隠していた
+
+0.1.3 を**リリースビルド（`pnpm tauri build`）**して配布物で動かしたら、**vim がまた黒い**。
+`pnpm tauri dev` では動くのに、`.app`（release）では動かない。
+
+### 切り分け（リビルド不要でやれた）
+
+1. **本番バンドルの CSS を確認** → `dist/assets/*.css` に `.stack{...z-index:0}` のみ。
+   `preserve-3d`/`perspective` は**ちゃんと消えている**＝ 3Dコンテキスト撤去の修正は release にも入っている。CSS は犯人ではない。
+2. **release 実機でダンプ**（`Alt+Shift+D` → `Alt+Shift+C`）：
+   ```
+   vim-dump: buf alternate nonEmpty=21/27 | DOM rows=27 nonEmpty=21
+   ```
+   → **DOM は 21 行埋まっているのに画面は黒**。dev のときと**同じ合成問題が release でも起きている**。
+3. **dev と release の差**：`src-tauri/Cargo.toml` の `tauri = { version = "2", features = [] }`
+   → `devtools` フィーチャ無し。Tauri 2 は **debug（`tauri dev`）では WKWebView の Web Inspector が有効、release では無効**。
+
+### 結論（2026-10-16「解決」は偽陽性だった）
+
+**WKWebView は Web Inspector が有効なあいだ、レイヤーを再ラスタライズし続ける。** これが合成バグを
+**隠していた**。だから dev では vim が動いて見えた。release では Inspector が無い → バグが素のまま出る。
+
+- `.stack` の 3Dコンテキスト撤去は**必要**だったかもしれないが、**それだけでは不十分**。
+- 入力側（カーソルレポートのループ → `terminal-guards.ts`）の修正は依然として有効・独立。
+- **真因（表示側）は未解決の WKWebView 合成バグ**。`DOM rows=27 nonEmpty=21`＋黒 がその決定的証拠。
+
+### いちばん大事な教訓（過去の教訓を上書き）
+
+> **端末描画の修正は、必ず `pnpm tauri build` の release（.app）で検証する。`tauri dev` で確認してはいけない。**
+> `tauri dev` の DevTools が合成バグを隠すため、dev での「直った」は信用できない。
+> （ロジック・レイアウト・テーマ配色の確認には dev/HMR/DevTools は今でも有効。）
+
+これは 10-16 の「`tauri dev` の DevTools/HMR 生検証が圧倒的に速い」を**合成バグに関しては撤回**する。
+速いが、嘘をつく。
+
+### 旧 dead-end リストの扱い
+
+表示側の「dead-end」判定（refit-on-toggle / DECSET 1004 / WebGL 無効化 / 強制 `refresh()` /
+`options.theme` 再代入 / xterm 5.5 ダウングレード / `@xterm/addon-canvas`）は**すべて dev ビルド＝
+DevTools マスク下での評価**だった。合成バグに対しては**判定が無効**。再挑戦するなら **release で**。
+（`window.IntersectionObserver = undefined` の全黒＝`new undefined()` 例外、`set t_ti= t_te=` が
+更新を描かない、の2点は機構的に確かなので dead-end のまま。）
+
+### 次の一手（release で検証すること）
+
+Inspector がやっている「再ラスタライズの強制」をコード側で再現する。安い順：
+1. 前面 `.layer`（または `.xterm-rows`/`.xterm-screen`）を**合成レイヤーにキャッシュさせない**
+   （`will-change` 調整・レイヤー昇格要因の除去）。
+2. `term.onRender` ごとに `.xterm-screen` へ**ラスタ無効化のナッジ**（**2D の** transform/opacity/
+   filter トグル。`translateZ` 等の 3D は**厳禁**＝元のコンテキストが復活する）。
+3. 最終手段：ネイティブ描画（cmux 方式）。
+
+---
+
+*2026-10-18 時点: 表示側は OPEN。入力側は CLOSED。リリース 0.1.3 のノートにある「vim 修正中」は正しい。*
+
+### テストベンチ（2026-10-18 追加）— 1ビルドで複数の再描画戦略を試す
+
+release の実機検証は1回約8分と高価なので、`agent.ts` に**再描画(recomposite)戦略ベンチ**を仕込んだ。
+各ターミナルの `term.onRender` でアクティブ戦略を実行し、**Alt+Shift+V** で戦略を巡回できる（トーストに番号表示）。
+
+戦略一覧（すべて 2D のみ。`translateZ`/3D は厳禁＝元の詰まりが復活する）：
+- `0 off` … ベースライン（素の状態。まず黒いことを確認）
+- `1 screen opacity` … `.xterm-screen` の opacity を 1↔0.9999
+- `2 screen translateY(2D)` … `.xterm-screen` に微小 translateY
+- `3 screen filter` … `.xterm-screen` に `opacity(0.999)` フィルタ
+- `4 screen will-change:contents` … キャッシュ抑制ヒント（静的）
+- `5 screen display reflow` … 毎フレーム reflow 強制（ちらつく＝最終手段の切り分け用）
+- `6 layer opacity` / `7 layer translateY(2D)` … 合成の親候補 `.layer-terminal` 側を叩く
+
+**手順（release .app で）**：vim を開く → 黒い → Alt+Shift+V を押して戦略を1つずつ試す →
+vim が見える番号を記録 → その戦略を正式実装（毎renderは重いので必要なら間引く）に昇格。
+効く番号が分かれば「どの要素のどの性質を変えると WKWebView が再ラスタライズするか」も分かる。
+ベンチは TEMP。正式修正が決まったら撤去する。
+
+### 2026-10-18（続き）根本原因に踏み込む — 「devは描けてbuildは黒」の差を特定しにいく
+
+ベンチ（1-7）は対症療法（再描画の強制）であって**根本原因の特定ではない**、という指摘を受けて、
+dev と release の**実際の差**を2系統、具体的に詰める。
+
+**差その1：DevTools(WebInspector) の有無（決定実験）**
+`tauri = { features = [] }` なので debug(`tauri dev`)はInspector有効・release無効。Inspectorは
+WKWebViewに常時再描画を強制しうる＝バグを隠しうる。→ **release に `features=["devtools"]` を付けてビルド**し、
+- vim が描ける → 「Inspector/`isInspectable` 非搭載時に再ラスタライズしない」で**原因確定**。
+- vim が黒いまま → Inspector は原因ではない → 差その2へ。
+（この実験のため Cargo.toml を一時的に `features=["devtools"]` に。**出荷前に `[]` へ戻す**。）
+
+**差その2：前面レイヤーの合成昇格（本番CSSを精査して判明した筋の良い容疑者）**
+`dist` の本番CSSで `.layer`（前面vimのコンテナ）に：
+```css
+.layer{ overflow:hidden; border-radius:6px; transition: transform .18s, opacity .18s, filter .18s }
+```
+`transition`（transform/opacity/filter）も `overflow:hidden + border-radius` のクリップも、WebKitで
+**要素を合成レイヤーへ昇格**させる典型要因。昇格した合成レイヤーは**子孫テキストの変更だけでは
+再ラスタライズされない**ことがある＝今回の症状と一致。dev では Inspector がそれを隠していた、で筋が通る。
+→ ベンチに**de-promote 戦略**を追加：
+- `8 layer no-transition` … 前面 `.layer` の `transition` を切る
+- `9 layer no-clip` … 前面 `.layer` の `overflow/border-radius` を外す
+これは 1-7 の「毎フレーム叩いて再描画させる」対症療法と違い、**昇格要因そのものを除く根治候補**。
+
+**次ビルドの読み筋**
+1. まず **devtools 付き release** で vim が出るか（差その1の判定）。
+2. 出るなら原因確定 → 次は devtools を外し、8/9（de-promote）で**出荷可能な根治**ができるか。
+3. devtools 付きでも黒いなら Inspector は無関係 → 8/9 や配信プロトコル（`tauri://` 独自スキーム）を追う。
+
+### 2026-10-20 ✅（表示side・release実機で確定）／入力sideは未解決
+
+release .app（devtools付き）で **Alt+Shift+V** のベンチを回した結果：
+- **devtools を載せても vim は黒（B）** → 「Inspector搭載で直る」説は否定（＝dev/buildの差はInspector有無ではない）。
+- **戦略 8（layer transition除去）でも 9（layer clip除去）でも vim が“見える”** → **表示の真因は
+  前面 `.layer` の合成レイヤー昇格で確定**。`.layer` の `transition`（transform/opacity/filter）と
+  `overflow:hidden+border-radius` が前面paneを合成レイヤーに昇格させ、release WKWebView が
+  子孫テキストの変更で再ラスタライズしない、という機構。dev では（理由は別として）この昇格が
+  問題化していなかった。
+
+**恒久修正（表示）**: `.layer.front { transition: none }` を追加。前面（アクティブで静止している）paneの
+transition を切って de-promote。角丸・クリップは維持（9の「角丸が消える」副作用を避けられる）。
+behind paneは transition を残すのでデプスのアニメは保持。副作用は「前面paneが切替時にアニメINしない」
+程度。→ 次の release ビルドで再確認する（PROCESS RULE）。
+
+**ただし入力sideは未解決**: 8/9 で**見えるが打てない**。vim(代替画面)にキーが届いていない。
+通常シェルは打てる＝alt-screen固有。入力トレーサ（Alt+D → 打鍵 → Alt+Shift+C）で
+「window→xterm→onData→pty」のどこで消えるかを特定して追う。
+
+### 2026-10-20（続き）入力トレースの決着 — 「打てない」の正体はフォーカス奪い返し
+
+release でクリック→打鍵のトレースを取得。判明：
+- **入力は完全に生きている**。キーは pty まで届き（`data pty=Y`）、クリックで前面 vim(99x27) に入ると
+  **vim は `-- INSERT --` を返し、`f d i s` をエコー**＝受信して応答している。
+- しかしトレース末尾で **`win:'Alt' buf=alternate 47x11`** ＝ **フォーカスが別エージェント(claude 47x11)へ
+  “戻って”いる**。
+
+**機構**：端末クリックは xterm の textarea に**DOMフォーカス**を直接当てるが、アプリ状態 `this.focused` は
+更新されないことがある。すると**次の render が `term.focus()` で `this.focused`（古いまま）の端末を再フォーカス**し、
+DOMフォーカスを奪い返す。結果、「vim に入れたのに気づくと外れて別窓(claude)に入る」＝“vimが打てない”。
+
+**修正**：`agent.cardEl` に `focusin` リスナを追加し、**どの端末にフォーカスが入っても `this.focused` が追従**
+するように（app.ts）。`focus()` は同一indexなら早期return なので、render の programmatic focus とループしない。
+これで「見ている窓＝キーが入る窓」が常に一致する。
+
+**devtools プローブの結果**：`features=["devtools"]` の release でも vim は黒だったため、Inspector 説は**否定**。
+Cargo.toml を `features=[]` に戻した。表示の真因は前面レイヤーの合成昇格（修正済み）。
+
+**次ビルドで検証（表示修正＋フォーカス修正の合わせ技）**：
+release を `pnpm tauri build` → vim を開く → **クリックして打つ → 文字が見えて、フォーカスが外れない** か。
+これで表示・入力・フォーカスが揃うはず。
+
+## 2026-10-24 ✅ 決着 — macOS 26 WKWebView のコンポジタバグ（wry#1848）と確定、alt-screen無効化で回避
+
+release 実機で決定的データが揃った：
+- `cat test.txt` = **HELLO**（入力・vim・保存は全部正常）／`Alt+Shift+D` = `DOM 0|HELLO`（DOMも最新）
+  なのに画面は空のまま＝**ピクセルだけ古い＝WKWebViewが新フレームを提示していない**。
+- DOM/WebGL 両レンダラ、レイヤー1枚、ウィンドウリサイズ、devtools有効化——**すべてで固まる**。
+- 通常画面は正常（`printf '\rcount: $i'` が 1→5 で動く）。**固まるのは alt-screen だけ**。
+- 環境: MacBook Pro M3 Pro / **macOS 26.6.2 (Tahoe)** / wry 0.55.1 / tauri 2.11.2。
+- 上流 **[wry#1848](https://github.com/tauri-apps/wry/issues/1848)** と症状・OS・版が一致。**macOS 26 の WebKit リグレッション**＝アプリのバグではない。上流修正なし。
+
+**対策（確定・実装済み）**: alt-screen 切替（DECSET 47/1047/1049）を `terminal-guards.ts` で握りつぶし、
+全画面TUIを通常画面で描かせる（通常画面は再描画OK）。**macOS 26 の release のときだけ**自動適用
+（`sys::alt_screen_broken` → `main.ts` → `setDisableAltScreen`）。dev・旧macOS・Linux・Windows は従来どおり。
+
+詳細レポート: `docs/2026-10-24-macos26-wkwebview-altscreen.md`。
+
+**教訓の総括**：
+- 「DOMは埋まるのに画面が出ない」は**合成/提示の問題**。`cat <file>` で「実体は編集されている」を確かめると、
+  入力問題と描画問題を一瞬で切り分けられた（もっと早くやるべきだった）。
+- **release でしか出ない描画バグは dev で検証しても無駄**（dev=debug は条件が違う）。実機release＋オンデバイス計測が最短。
+- 最後はコードではなく**プラットフォーム（OS/WebView）側**だった。`navigator`ではなくOS/版まで疑うこと。
+
+## 2026-10-25 追記：alt-screen 無効化は不発 → 方針転換（DOMエディタレイヤー）
+
+`type=normal`（alt-screen無効化が効いた状態）でも、**DOMは埋まっているのに画面は固まったまま**。
+＝ macOS 26 は代替/通常どちらのバッファでも「全画面の一括書き換え」を提示しない。alt-screenは本質でなかった。
+→ `sys::alt_screen_broken` を `false` 固定で撤回。
+
+**方針転換**：webviewの端末描画では macOS 26 の全画面TUIは直せない（上流修正 or ネイティブ描画のみ）。
+ただし**編集用途**は、端末に頼らず **DOMベースのエディタ・レイヤー**（通常HTML＝再描画される）を追加して解決する。
+これはユーザーの「エディタも入れたい」という要望そのもので、プラットフォームバグを回避できる正攻法。
+
+なお **Windows は別バグ**（`default_shell` が `/bin/zsh` を返して spawn 失敗）を修正済み。Windows/Linux/旧macOSでは vim は従来どおり動く。

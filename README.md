@@ -82,6 +82,7 @@ pnpm tauri build    # .app / .dmg バンドル
 
 ## 既知の制約
 
+- **macOS 26 (Tahoe)**：WKWebView のコンポジタ不具合（[wry#1848](https://github.com/tauri-apps/wry/issues/1848)）で、release ビルドでは vim/less/htop など**全画面TUIが表示されない**（DOMは更新されるが画面が固まる）。これは macOS 26 固有で、**Windows / Linux / 旧macOS では正常**。macOS 26 での編集は、今後追加予定の**エディタ・レイヤー**で対応予定。詳細: `docs/2026-10-24-macos26-wkwebview-altscreen.md`。
 - ブラウザレイヤーは iframe（X-Frame-Options 不可）。ネイティブ子 WebView 化の余地あり。
 - `auto` パーミッションはアカウント/モデル依存（Opus/Sonnet 4.6+）。
 - guard は再起動した claude から有効。

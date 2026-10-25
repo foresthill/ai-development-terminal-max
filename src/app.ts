@@ -18,10 +18,11 @@ import {
   toggleDbg,
   dumpLayerBuffer,
   copyDebugLog,
+  cycleRecomposite,
 } from "./agent";
 import { Project } from "./project";
 import { handleSubagentEvent, clearSubagentLayers } from "./subagent";
-import { defaultShell, homeDir, agentStats } from "./pty";
+import { defaultShell, shellLoginArgs, homeDir, agentStats } from "./pty";
 import { createWorktree, writeAidtSettings, currentBranch } from "./git";
 import { listen } from "@tauri-apps/api/event";
 import { openPath, openUrl as openExternalUrl } from "@tauri-apps/plugin-opener";
@@ -96,6 +97,7 @@ export class App {
   private autoResume = false; // false ⇒ restored agents come up idle (click ▶ to run)
   private autoStart = true; // false ⇒ Alt+T opens an idle shell (click ▶ to launch the CLI)
   private shell = "/bin/zsh";
+  private shellArgs: string[] = ["-l"]; // login-shell args per platform (set in init)
   private home = "";
   private agentSeq = 1;
   private resizeTimer: number | undefined;
@@ -183,6 +185,7 @@ export class App {
 
   async init() {
     this.shell = await defaultShell();
+    this.shellArgs = await shellLoginArgs();
     this.home = await homeDir();
     this.saved = loadProjects();
     this.restore(); // start empty if nothing saved — the empty state guides setup
@@ -303,7 +306,7 @@ export class App {
     return createTerminalLayer({
       title: this.agentLabel(cmd),
       shell: this.shell,
-      args: ["-l"],
+      args: this.shellArgs,
       cwd,
       autoRun: autoRun ? this.buildCmd(cmd) : undefined,
       onOpenUrl: (url, mod) => this.openUrl(url, mod),
@@ -340,7 +343,7 @@ export class App {
     return createTerminalLayer({
       title: "shell",
       shell: this.shell,
-      args: ["-l"],
+      args: this.shellArgs,
       cwd,
       onOpenUrl: (url, mod) => this.openUrl(url, mod),
       onOpenPath: (raw, cwd2) => this.openPathLink(raw, cwd2),
@@ -439,6 +442,18 @@ export class App {
 
     const idx = () => project.agents.indexOf(agent);
     agent.cardEl.addEventListener("mousedown", () => {
+      this.ap = this.projects.indexOf(project);
+      this.focus(idx());
+    });
+    // Keyboard focus is the source of truth. A click into a terminal focuses xterm's
+    // own textarea directly, which may NOT update `this.focused`; then the next render
+    // calls term.focus() on the (stale) focused agent and yanks DOM focus back there,
+    // so keystrokes land in the wrong agent — the "typed into vim but it went to the
+    // claude window" bug (confirmed: keys reached vim, then focus bounced to a 47x11
+    // claude pane). Syncing this.focused to whatever card actually holds focus keeps
+    // focus from being stolen back. focus() early-returns when the index is unchanged,
+    // so the programmatic term.focus() in render() can't loop here.
+    agent.cardEl.addEventListener("focusin", () => {
       this.ap = this.projects.indexOf(project);
       this.focus(idx());
     });
@@ -894,6 +909,14 @@ export class App {
       e.preventDefault();
       e.stopPropagation();
       void copyDebugLog().then((s) => toast(`log: ${s}`));
+      return;
+    }
+    // Alt+Shift+V: cycle the vim compositing TEST BENCH strategy (TEMP). Open vim in a
+    // RELEASE build and press this until the alt-screen paints; report the index.
+    if (e.shiftKey && e.code === "KeyV") {
+      e.preventDefault();
+      e.stopPropagation();
+      toast(`recomposite: ${cycleRecomposite()}`);
       return;
     }
     const handlers: Record<string, () => void> = {

@@ -21,6 +21,7 @@ pub fn run() {
             pty::resize_pty,
             pty::kill_pty,
             pty::default_shell,
+            pty::shell_login_args,
             pty::home_dir,
             git::is_git_repo,
             git::current_branch,
@@ -28,6 +29,7 @@ pub fn run() {
             git::create_worktree,
             git::write_aidt_settings,
             sys::agent_stats,
+            sys::alt_screen_broken,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

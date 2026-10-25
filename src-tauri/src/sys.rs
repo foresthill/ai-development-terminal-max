@@ -26,6 +26,25 @@ pub struct AgentStat {
                 // (claude/aider/…) is still running, ==1 ⇒ back at an idle shell
 }
 
+/// Whether this host hits the macOS 26 (Tahoe) WKWebView compositor bug (wry#1848)
+/// where the alternate screen stops presenting frames in a RELEASE build — vim/less/
+/// htop draw into the DOM but the screen freezes on the first frame. The frontend
+/// uses this to disable the alt-screen ONLY where the bug exists, so dev builds,
+/// older macOS, Linux (WebKitGTK) and Windows (WebView2) keep normal full-screen TUIs.
+///
+/// DISABLED (2026-10-25): on-device testing proved the alt-screen workaround does NOT
+/// help — with the alt-screen swallowed, vim renders on the NORMAL buffer (dump showed
+/// `type=normal`, DOM fully populated) yet the screen is STILL frozen, because the
+/// macOS 26 compositor fails to present ANY full-screen in-place redraw, on either
+/// buffer. So we stop disabling the alt-screen (it only added scrollback residue with no
+/// benefit) and return false everywhere. macOS 26 full-screen TUIs are unfixable inside
+/// the webview; the planned answer is a DOM-based editor layer (renders as normal HTML,
+/// which repaints fine). Kept as a no-op for history; see the vim journey doc.
+#[tauri::command]
+pub fn alt_screen_broken() -> bool {
+    false
+}
+
 #[tauri::command]
 pub fn agent_stats(state: tauri::State<'_, SysState>, pids: Vec<u32>) -> Vec<AgentStat> {
     let mut sys = state.0.lock().unwrap();
