@@ -32,26 +32,17 @@ pub struct AgentStat {
 /// uses this to disable the alt-screen ONLY where the bug exists, so dev builds,
 /// older macOS, Linux (WebKitGTK) and Windows (WebView2) keep normal full-screen TUIs.
 ///
-/// True only on: macOS, release build (`not(debug_assertions)`), product version >= 26.
+/// DISABLED (2026-10-25): on-device testing proved the alt-screen workaround does NOT
+/// help — with the alt-screen swallowed, vim renders on the NORMAL buffer (dump showed
+/// `type=normal`, DOM fully populated) yet the screen is STILL frozen, because the
+/// macOS 26 compositor fails to present ANY full-screen in-place redraw, on either
+/// buffer. So we stop disabling the alt-screen (it only added scrollback residue with no
+/// benefit) and return false everywhere. macOS 26 full-screen TUIs are unfixable inside
+/// the webview; the planned answer is a DOM-based editor layer (renders as normal HTML,
+/// which repaints fine). Kept as a no-op for history; see the vim journey doc.
 #[tauri::command]
 pub fn alt_screen_broken() -> bool {
-    #[cfg(all(target_os = "macos", not(debug_assertions)))]
-    {
-        // `sw_vers -productVersion` → e.g. "26.6.2"; compare the major component.
-        let major = std::process::Command::new("sw_vers")
-            .arg("-productVersion")
-            .output()
-            .ok()
-            .and_then(|o| String::from_utf8(o.stdout).ok())
-            .and_then(|s| s.trim().split('.').next().and_then(|m| m.parse::<u32>().ok()));
-        // If detection fails, assume affected — a degraded-but-usable TUI beats a
-        // frozen one. On a correctly reported version, gate strictly on >= 26.
-        return major.map(|n| n >= 26).unwrap_or(true);
-    }
-    #[cfg(not(all(target_os = "macos", not(debug_assertions))))]
-    {
-        false
-    }
+    false
 }
 
 #[tauri::command]

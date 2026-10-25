@@ -67,7 +67,15 @@ app.ts before that follow-up lands** — put new concerns in their own module.
 - Worktrees enforce the user's feature-branch / no-main-push workflow physically.
 - **Persistence**: workspace (projects/agents/cwd/layout/toggles) auto-saves to `aidt-workspace`; opened/cloned projects bookmark to `aidt-projects` (label+path). **Resume**: claude agents launch `claude --continue` (resumes the cwd's last conversation, fresh if none) — interactive login shell types the command (so `.zshrc` PATH is correct). Resume facts sourced from code.claude.com/docs/en/sessions.md.
 
-## vim / full-screen TUIs (2026-07 … RESOLVED 2026-10-24) — read before touching the terminal renderer
+## vim / full-screen TUIs — read before touching the terminal renderer
+
+**Status (2026-10-25): input SOLVED; display UNFIXABLE in-webview on macOS 26.**
+Full-screen TUIs (vim/less/htop) don't display on **macOS 26 (Tahoe) release builds**
+— a WKWebView compositor bug ([wry#1848](https://github.com/tauri-apps/wry/issues/1848))
+that is **not our code**. They work on Windows, Linux and older macOS. The planned way to
+edit on macOS 26 is a **DOM-based editor layer** (normal HTML repaints fine), not the
+terminal. Do NOT spend more cycles on webview/CSS/renderer tricks for this — they are all
+exhausted (see the dead-ends and the journey doc).
 
 Full write-up: `docs/2026-07-15-vim-debugging-journey.md`.
 
@@ -77,26 +85,26 @@ Full write-up: `docs/2026-07-15-vim-debugging-journey.md`.
   alive; vim's startup terminal queries trigger them, **nano's don't** — that
   asymmetry is what made this look like an alt-screen/xterm bug for ~30 build
   cycles. Fixed in `pty.rs` with a `libc::kill(pid, 0)` liveness check.
-- **Display side: ROOT-CAUSED & WORKED AROUND (2026-10-24).** The frozen vim was a
-  **macOS 26 (Tahoe) WKWebView compositor bug — [wry#1848](https://github.com/tauri-apps/wry/issues/1848)**:
-  on an Apple-Silicon RELEASE build the compositor stops presenting new frames for the
-  alt-screen while the DOM keeps updating. Proof: `Alt+Shift+D` showed `DOM rows=27
-  nonEmpty=27` with row 0 = `HELLO` while the screen still showed the empty first frame,
-  and `cat test.txt` = `HELLO` — input, xterm, the DOM and the file were all correct;
-  only the painted pixels were stale. **Not our code:** it reproduces with the DOM
-  renderer AND WebGL, with a single layer, and survives a window resize. The NORMAL
-  (scrolling) buffer repaints fine (`printf '\rcount: $i'` animates); only the
-  alt-screen freezes. Our versions (wry 0.55.1 / tauri 2.11.2) match the report.
-  Full write-up: `docs/2026-10-24-macos26-wkwebview-altscreen.md`.
-  - **Fix:** `terminal-guards.ts` swallows the alt-screen switch (DECSET 47/1047/1049)
-    so full-screen TUIs (vim/less/htop/man/tmux) render on the normal buffer, which
-    paints — like vim's `set t_ti= t_te=`, applied at the terminal. Trade-off: their
-    output stays in the scrollback instead of being restored on exit.
-  - **Gated so only affected hosts are degraded:** `sys::alt_screen_broken` (Rust)
-    returns true only on **macOS + release build + product version ≥ 26**; `main.ts`
-    calls it once at boot and flips `setDisableAltScreen(...)` before any terminal is
-    created. Dev builds, older macOS, Linux (WebKitGTK) and Windows (WebView2/Chromium)
-    are unaffected and keep a normal alt-screen.
+- **Display side: macOS 26 WKWebView compositor bug — [wry#1848](https://github.com/tauri-apps/wry/issues/1848), NOT our code.**
+  On an Apple-Silicon RELEASE build the compositor stops presenting new frames for any
+  full-screen in-place redraw while the DOM keeps updating. Proof: `Alt+Shift+D` showed
+  `DOM rows=27 nonEmpty=27` with row 0 = `HELLO` while the screen still showed the empty
+  first frame, and `cat test.txt` = `HELLO` — input, xterm, the DOM and the file were all
+  correct; only the painted pixels were stale. It reproduces with the DOM renderer AND
+  WebGL, with a single layer, and survives a window resize. Our versions (wry 0.55.1 /
+  tauri 2.11.2) match the report. Full write-up:
+  `docs/2026-10-24-macos26-wkwebview-altscreen.md`.
+  - **The alt-screen workaround did NOT fix it (disabled 2026-10-25).** We tried swallowing
+    the alt-screen switch (DECSET 47/1047/1049) so TUIs render on the normal buffer. On
+    device, the dump then showed `type=normal` with the DOM fully populated — **and the
+    screen was STILL frozen.** The macOS 26 compositor fails to present full-screen in-place
+    redraws on **either** buffer; the alt-screen was never the discriminator. So
+    `sys::alt_screen_broken` now returns `false` (no-op); the swallow code stays only for
+    history. The one update that DID present was single-line scroll/append (`printf
+    '\rcount'`) and shell output — i.e. only the moving/appended region repaints.
+  - **The real plan: a DOM-based editor layer.** A normal-HTML editor (textarea/CodeMirror)
+    repaints fine on macOS 26 (it's not a terminal), so that's how editing works there.
+    vim-in-terminal stays the path on Windows/Linux/older macOS.
   - **⚠️ PROCESS RULE: validate terminal-rendering changes in a RELEASE build
     (`pnpm tauri build`), NEVER only `tauri dev`** — dev never showed this bug (the
     regression is release-only), which cost many cycles. HMR/DevTools stays fine for
@@ -105,10 +113,11 @@ Full write-up: `docs/2026-07-15-vim-debugging-journey.md`.
   compositor freeze, in a real release): removing `.stack`'s 3D context; de-promoting
   `.layer` (drop transition/clip); per-render repaint nudges on `.xterm-screen`/`.layer`
   (opacity/transform/filter/`display`-reflow); a window resize; enabling the `devtools`
-  feature; switching DOM↔WebGL. Still true generally: `window.IntersectionObserver =
-  undefined` throws inside `open()` → blanks every terminal (use `delete`, not
-  `= undefined`). If the workaround is ever revisited: a newer wry/WebKit with the bug
-  fixed, or native rendering.
+  feature; switching DOM↔WebGL; **swallowing the alt-screen (TUIs on the normal buffer
+  freeze the same way)**. Still true generally: `window.IntersectionObserver = undefined`
+  throws inside `open()` → blanks every terminal (use `delete`, not `= undefined`). The
+  only real fixes left: a newer wry/WebKit with the bug fixed, or native rendering — but
+  for *editing* specifically, the DOM editor layer sidesteps all of it.
 - **Debug tracers** live behind `Alt+D` (off by default — when off they don't run
   at all, including the per-output-byte tracer).
 

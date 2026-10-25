@@ -8,8 +8,9 @@
 - **原因**: **macOS 26 (Tahoe) / Apple Silicon の WKWebView のコンポジタ（描画合成）リグレッション**。
   DOM は更新されるのに WKWebView が**新フレームを画面に提示(present)しなくなる**。アプリのコードのバグではない。
   上流 issue: [tauri-apps/wry#1848](https://github.com/tauri-apps/wry/issues/1848)（未修正）。
-- **対策**: **alt-screen（代替画面）を無効化**し、全画面TUIを「通常画面」で描かせる。通常画面は正常に再描画されるため、vim 等が使えるようになる。
-- **範囲**: 対策は **macOS 26 の release のときだけ**自動適用。dev・旧macOS・Linux・Windows は従来どおり（劣化なし）。
+- **試した対策（＝効かなかった）**: alt-screen を無効化して通常画面で描かせたが、**実機で `type=normal`＋DOMは埋まっているのに画面は固まったまま**。macOS 26 は代替/通常どちらのバッファでも「全画面の一括書き換え」を提示しない。→ **2026-10-25 に無効化（no-op化）**。
+- **本当の解決策（予定）**: **DOMベースのエディタ・レイヤー**を追加する（通常HTMLは再描画されるので凍らない）。vim等の端末はWindows/Linux/旧macOSでは従来どおり動く。
+- **範囲**: このバグは **macOS 26（Tahoe）/ Apple Silicon の release 限定**。Windows/Linux/旧macOS は無縁。
 
 ## 環境（再現条件）
 
@@ -79,3 +80,16 @@ macOS 26 の WebKit/WKWebView の**コンポジタが、alt-screen 領域の再�
 - [tauri-apps/wry#1848 — WKWebView stops presenting frames (stale/partial frames)](https://github.com/tauri-apps/wry/issues/1848)
 - 詳細な調査の時系列: `docs/2026-07-15-vim-debugging-journey.md`
 - 関連コード: `src/terminal-guards.ts` / `src/main.ts` / `src-tauri/src/sys.rs`
+
+---
+
+## 2026-10-25 追記：alt-screen 無効化は「効かなかった」ので撤回
+
+実機検証の結果、**この対策では直らない**と判明した：
+- alt-screen を無効化 → vim は通常バッファで描画されるようになった（`Alt+Shift+D` の `type=normal` で確認）。
+- しかし **DOM は埋まっている（`DOM rows=27 nonEmpty=26`）のに、画面は依然として固まったまま**。
+- ＝ macOS 26 の WKWebView は、**代替画面でも通常画面でも「全画面の一括書き換え」を提示しない**。alt-screen かどうかは本質ではなかった。唯一提示されるのは「1行スクロール/追記」（`printf '\rcount'` やシェル出力）のような、動く/増える領域だけ。
+
+**対応**：`sys::alt_screen_broken` を **`false` 固定（no-op）**にして撤回（残骸が出るだけで無益だったため）。握りつぶしコードは履歴として残置。
+
+**結論**：macOS 26 では **webview 内の端末で全画面TUIを表示するのは不可**。編集用途は **DOMベースのエディタ・レイヤー**（通常HTMLなので再描画される）で解決する方針に切替。vim等の端末は Windows/Linux/旧macOS では従来どおり動く。
