@@ -23,6 +23,7 @@ import {
 import { Project } from "./project";
 import { createEditorLayer } from "./editor";
 import { pickFile } from "./files";
+import { checkForUpdates } from "./updater";
 import { handleSubagentEvent, clearSubagentLayers } from "./subagent";
 import { defaultShell, shellLoginArgs, homeDir, agentStats } from "./pty";
 import { createWorktree, writeAidtSettings, currentBranch } from "./git";
@@ -199,6 +200,9 @@ export class App {
     // A terminal layer whose process exited (e.g. `exit`) auto-closes; the last
     // layer closing closes the window (tmux-style).
     listen<string>("pty-exit", (e) => this.onPtyExit(e.payload));
+    // Quiet auto-update check a few seconds after launch (shows a prompt only if an
+    // update exists). Manual check is Alt+U. No-op until the updater key is set up.
+    window.setTimeout(() => void checkForUpdates({ silent: true }), 4000);
   }
 
   private onPtyExit(payload: string) {
@@ -952,6 +956,7 @@ export class App {
       KeyN: () => this.addLayerTo(this.agents[this.focused], "terminal"),
       KeyB: () => this.addLayerTo(this.agents[this.focused], "browser"),
       KeyE: () => this.addLayerTo(this.agents[this.focused], "editor"),
+      KeyU: () => void checkForUpdates({ silent: false }), // manual "check for updates"
       KeyW: () => this.closeLayerAt(this.agents[this.focused], this.agents[this.focused]?.active ?? 0),
       KeyX: () => this.closeAgentObj(this.agents[this.focused]),
       KeyP: () => this.switchProject(1),
