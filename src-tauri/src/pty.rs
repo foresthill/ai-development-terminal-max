@@ -71,6 +71,12 @@ pub fn spawn_pty(
     }
     // Make terminal-aware programs (including claude) render full UI.
     cmd.env("TERM", "xterm-256color");
+    // Disable macOS zsh "session restore" (/etc/zshrc_Apple_Terminal). Without this,
+    // every shell prints "Restored session: <date>" and a stray
+    // `rm: ~/.zsh_sessions/<id>.session: No such file or directory` from its cleanup —
+    // noise that looks alarming to users. Our agents start fresh and `claude --continue`
+    // handles continuity, so session restore isn't needed. No-op off macOS.
+    cmd.env("SHELL_SESSIONS_DISABLE", "1");
     // macOS apps launched from Finder/`open` inherit no LANG, so terminal
     // programs (vim, less, cat) fall back to the C locale and mangle UTF-8
     // (Japanese shows as mojibake). Mirror Terminal.app — export a UTF-8 locale
