@@ -1,3 +1,4 @@
+mod files;
 mod git;
 mod pty;
 mod subagent;
@@ -30,6 +31,8 @@ pub fn run() {
             git::write_aidt_settings,
             sys::agent_stats,
             sys::alt_screen_broken,
+            files::read_file,
+            files::write_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
