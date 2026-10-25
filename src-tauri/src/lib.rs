@@ -21,6 +21,7 @@ pub fn run() {
             pty::resize_pty,
             pty::kill_pty,
             pty::default_shell,
+            pty::shell_login_args,
             pty::home_dir,
             git::is_git_repo,
             git::current_branch,

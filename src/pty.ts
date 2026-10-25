@@ -51,6 +51,7 @@ export async function spawnPty(opts: SpawnOptions): Promise<PtyHandle> {
 }
 
 export const defaultShell = (): Promise<string> => invoke("default_shell");
+export const shellLoginArgs = (): Promise<string[]> => invoke("shell_login_args");
 export const homeDir = (): Promise<string> => invoke("home_dir");
 export interface AgentStat {
   cpu: number;

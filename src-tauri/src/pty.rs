@@ -239,7 +239,31 @@ pub fn resize_pty(
 /// The user's login shell, used as the default program for new terminals.
 #[tauri::command]
 pub fn default_shell() -> String {
-    std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string())
+    #[cfg(target_os = "windows")]
+    {
+        // Windows has no $SHELL; `/bin/zsh` doesn't exist there (spawn fails). Use the
+        // command processor (cmd.exe) via %ComSpec%, which ConPTY drives correctly.
+        std::env::var("ComSpec").unwrap_or_else(|_| "cmd.exe".to_string())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string())
+    }
+}
+
+/// Args to start the shell as an interactive LOGIN shell. On Unix, `-l` sources the
+/// user's rc so PATH is right (claude is found); cmd.exe/PowerShell take no such flag,
+/// so Windows gets none (passing `-l` to cmd.exe breaks the spawn).
+#[tauri::command]
+pub fn shell_login_args() -> Vec<String> {
+    #[cfg(target_os = "windows")]
+    {
+        Vec::new()
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        vec!["-l".to_string()]
+    }
 }
 
 /// The user's home directory, used as the default cwd for new terminals.

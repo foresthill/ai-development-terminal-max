@@ -22,7 +22,7 @@ import {
 } from "./agent";
 import { Project } from "./project";
 import { handleSubagentEvent, clearSubagentLayers } from "./subagent";
-import { defaultShell, homeDir, agentStats } from "./pty";
+import { defaultShell, shellLoginArgs, homeDir, agentStats } from "./pty";
 import { createWorktree, writeAidtSettings, currentBranch } from "./git";
 import { listen } from "@tauri-apps/api/event";
 import { openPath, openUrl as openExternalUrl } from "@tauri-apps/plugin-opener";
@@ -97,6 +97,7 @@ export class App {
   private autoResume = false; // false ⇒ restored agents come up idle (click ▶ to run)
   private autoStart = true; // false ⇒ Alt+T opens an idle shell (click ▶ to launch the CLI)
   private shell = "/bin/zsh";
+  private shellArgs: string[] = ["-l"]; // login-shell args per platform (set in init)
   private home = "";
   private agentSeq = 1;
   private resizeTimer: number | undefined;
@@ -184,6 +185,7 @@ export class App {
 
   async init() {
     this.shell = await defaultShell();
+    this.shellArgs = await shellLoginArgs();
     this.home = await homeDir();
     this.saved = loadProjects();
     this.restore(); // start empty if nothing saved — the empty state guides setup
@@ -304,7 +306,7 @@ export class App {
     return createTerminalLayer({
       title: this.agentLabel(cmd),
       shell: this.shell,
-      args: ["-l"],
+      args: this.shellArgs,
       cwd,
       autoRun: autoRun ? this.buildCmd(cmd) : undefined,
       onOpenUrl: (url, mod) => this.openUrl(url, mod),
@@ -341,7 +343,7 @@ export class App {
     return createTerminalLayer({
       title: "shell",
       shell: this.shell,
-      args: ["-l"],
+      args: this.shellArgs,
       cwd,
       onOpenUrl: (url, mod) => this.openUrl(url, mod),
       onOpenPath: (raw, cwd2) => this.openPathLink(raw, cwd2),
