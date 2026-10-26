@@ -152,7 +152,8 @@ export function buildSnapshot(projects: Project[], s: Settings): WorkspaceSnap {
         color: a.color,
         active: a.active,
         layers: a.layers
-          .filter((l) => l.kind !== "subagent") // ephemeral — never persisted
+          // subagent + editor layers are ephemeral (editor holds a live buffer), never persisted
+          .filter((l) => l.kind !== "subagent" && l.kind !== "editor")
           .map((l) => ({
             kind: l.kind as "terminal" | "browser",
             title: l.title,

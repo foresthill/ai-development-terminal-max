@@ -13,7 +13,7 @@ import { registerCsiGuards } from "./terminal-guards";
 import { getTermTheme } from "./theme";
 import { t } from "./i18n";
 
-export type LayerKind = "terminal" | "browser" | "subagent";
+export type LayerKind = "terminal" | "browser" | "subagent" | "editor";
 
 export interface Layer {
   id: string;
@@ -32,6 +32,11 @@ export interface Layer {
   lastOutput?: number; // performance.now() of the last PTY output (for idle status)
   iframe?: HTMLIFrameElement;
   subId?: string; // subagent correlation id (agent_id from the hook payload)
+  // editor layer (the macOS 26 way to edit — a DOM editor, since terminal vim can't
+  // repaint there; see docs/2026-10-24-macos26-wkwebview-altscreen.md)
+  editorView?: import("@codemirror/view").EditorView;
+  filePath?: string | null; // the file the editor is bound to (null = untitled)
+  dirty?: boolean; // unsaved changes
 }
 
 export interface Agent {
@@ -794,6 +799,7 @@ export function fitLayer(layer: Layer) {
 export function disposeLayer(layer: Layer) {
   if (layer.pty) layer.pty.kill();
   if (layer.term) layer.term.dispose();
+  if (layer.editorView) layer.editorView.destroy();
   layer.el.remove();
 }
 

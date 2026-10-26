@@ -31,7 +31,7 @@ export interface RenderCtx {
   saved: SavedProject[];
   selectProject(i: number): void;
   setLayer(agent: Agent, li: number, ai: number): void;
-  addLayer(agent: Agent, kind: "terminal" | "browser", ai: number): void;
+  addLayer(agent: Agent, kind: "terminal" | "browser" | "editor", ai: number): void;
   closeLayer(agent: Agent, li: number, ai: number): void;
   resetLayer(agent: Agent, ai: number): void;
   openFolder(): void;
@@ -172,6 +172,7 @@ function renderLayerTabs(c: RenderCtx, agent: Agent, ai: number) {
   for (const [kind, tipKey] of [
     ["terminal", "tip.addTerm"],
     ["browser", "tip.addBrowser"],
+    ["editor", "tip.addEditor"],
   ] as const) {
     const add = document.createElement("button");
     add.className = "ltab-add";
@@ -207,14 +208,20 @@ function svgEl(tag: string, attrs: Record<string, string | number>): SVGElement 
 }
 
 /// Minimal monochrome line icons (inherit currentColor): terminal = `>_`,
-/// browser = globe. Recognizable at a glance, still understated.
-function layerIcon(kind: "terminal" | "browser"): SVGElement {
+/// browser = globe, editor = pencil. Recognizable at a glance, still understated.
+function layerIcon(kind: "terminal" | "browser" | "editor"): SVGElement {
   const svg = svgEl("svg", { class: "ltab-ico", viewBox: "0 0 16 16" });
   if (kind === "browser") {
     svg.append(
       svgEl("circle", { cx: 8, cy: 8, r: 6 }),
       svgEl("ellipse", { cx: 8, cy: 8, rx: 2.6, ry: 6 }),
       svgEl("line", { x1: 2, y1: 8, x2: 14, y2: 8 })
+    );
+  } else if (kind === "editor") {
+    // pencil: diagonal body + nib
+    svg.append(
+      svgEl("path", { d: "M10.5 2.5 13.5 5.5 6 13 3 13 3 10 10.5 2.5z" }),
+      svgEl("line", { x1: 9, y1: 4, x2: 12, y2: 7 })
     );
   } else {
     svg.append(

@@ -21,6 +21,9 @@ import {
   cycleRecomposite,
 } from "./agent";
 import { Project } from "./project";
+import { createEditorLayer } from "./editor";
+import { pickFile } from "./files";
+import { checkForUpdates } from "./updater";
 import { handleSubagentEvent, clearSubagentLayers } from "./subagent";
 import { defaultShell, shellLoginArgs, homeDir, agentStats } from "./pty";
 import { createWorktree, writeAidtSettings, currentBranch } from "./git";
@@ -197,6 +200,9 @@ export class App {
     // A terminal layer whose process exited (e.g. `exit`) auto-closes; the last
     // layer closing closes the window (tmux-style).
     listen<string>("pty-exit", (e) => this.onPtyExit(e.payload));
+    // Quiet auto-update check a few seconds after launch (shows a prompt only if an
+    // update exists). Manual check is Alt+U. No-op until the updater key is set up.
+    window.setTimeout(() => void checkForUpdates({ silent: true }), 4000);
   }
 
   private onPtyExit(payload: string) {
@@ -673,8 +679,9 @@ export class App {
     this.refreshBranch(agent);
   }
 
-  private addLayerTo(agent: Agent | undefined, kind: "terminal" | "browser", url?: string) {
+  private addLayerTo(agent: Agent | undefined, kind: "terminal" | "browser" | "editor", url?: string) {
     if (!agent) return;
+    if (kind === "editor") return void this.addEditorLayer(agent);
     const layer =
       kind === "browser"
         ? createBrowserLayer(url ?? "http://localhost:3000", (u) => void openExternalUrl(u))
@@ -684,6 +691,19 @@ export class App {
     agent.stackEl.appendChild(layer.el);
     if (kind === "terminal") this.observeLayer(layer);
     this.render();
+  }
+
+  /// Add an editor layer. Opens a file picker (cwd as the starting dir); if the user
+  /// cancels, starts an untitled buffer (Save prompts for a path). This is how you edit
+  /// on macOS 26, where terminal vim can't repaint (see the macOS 26 doc).
+  private async addEditorLayer(agent: Agent) {
+    const path = await pickFile(agent.cwd ?? undefined);
+    const layer = createEditorLayer(path);
+    agent.layers.push(layer);
+    agent.active = agent.layers.length - 1;
+    agent.stackEl.appendChild(layer.el);
+    this.render();
+    layer.editorView?.focus();
   }
 
   private closeLayerAt(agent: Agent | undefined, li: number) {
@@ -935,6 +955,8 @@ export class App {
       KeyZ: () => this.toggleZoom(),
       KeyN: () => this.addLayerTo(this.agents[this.focused], "terminal"),
       KeyB: () => this.addLayerTo(this.agents[this.focused], "browser"),
+      KeyE: () => this.addLayerTo(this.agents[this.focused], "editor"),
+      KeyU: () => void checkForUpdates({ silent: false }), // manual "check for updates"
       KeyW: () => this.closeLayerAt(this.agents[this.focused], this.agents[this.focused]?.active ?? 0),
       KeyX: () => this.closeAgentObj(this.agents[this.focused]),
       KeyP: () => this.switchProject(1),
@@ -1177,6 +1199,7 @@ export class App {
       });
       const f = this.agents[this.focused]?.layers[this.agents[this.focused].active];
       if (f?.term) f.term.focus();
+      else if (f?.editorView) f.editorView.focus();
     });
   }
 }

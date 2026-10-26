@@ -85,7 +85,13 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Build is UNSIGNED. Do NOT wire the APPLE_* env unconditionally: when
+          # Updater signing (NOT Apple codesign): required because tauri.conf has
+          # bundle.createUpdaterArtifacts=true. Add these repo Secrets BEFORE the next
+          # release or the build fails — see docs/updater-setup.md. (A missing secret
+          # expands to empty, which tauri-action rejects when signing updater artifacts.)
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Build is UNSIGNED (Apple). Do NOT wire the APPLE_* env unconditionally: when
           # the secrets are unset they expand to empty strings, which still makes
           # tauri-action attempt codesign and fail ("failed to import keychain
           # certificate"). To enable signing later, add an APPLE_* env block here

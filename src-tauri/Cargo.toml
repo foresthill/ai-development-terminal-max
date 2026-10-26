@@ -1,6 +1,6 @@
 [package]
 name = "ai-dev-terminal"
-version = "0.1.4"
+version = "0.1.5"
 description = "AI Development Terminal MAX - parallel Claude Code multiplexer"
 authors = ["foresthill"]
 license = "MIT"
@@ -27,3 +27,9 @@ base64 = "0.22"
 libc = "0.2"
 sysinfo = "0.33"
 tauri-plugin-clipboard-manager = "2.3.2"
+
+# Auto-update (desktop only): check GitHub Releases' latest.json, download the
+# signed update, and relaunch. Needs an updater signing key (see docs/updater-setup.md).
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
