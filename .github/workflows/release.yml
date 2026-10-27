@@ -120,7 +120,7 @@ jobs:
             - **Windows**: 「WindowsによってPCが保護されました」→「詳細情報」→「実行」
 
             **既知の制約**
-            - vim など全画面アプリの一部で表示・操作に不具合（修正中）
+            - vim など全画面TUIの表示: **macOS 26 (Tahoe) でのみ** WKWebView のバグ（[wry#1848](https://github.com/tauri-apps/wry/issues/1848)、当アプリ側の不具合ではありません）で描画が固まります。Windows・Linux・macOS 25 以前では正常に動作します。macOS 26 でのファイル編集は内蔵エディタ（`Alt+E`）をお使いください。
             - ブラウザレイヤーは iframe（`X-Frame-Options` のサイトは埋め込み不可）
 
             ---
@@ -145,7 +145,7 @@ jobs:
             - **Windows**: SmartScreen → "More info" → "Run anyway"
 
             **Known limitations**
-            - Some full-screen apps like vim have display/control issues (fix in progress)
+            - Full-screen TUIs like vim: **macOS 26 (Tahoe) only** — a WKWebView bug ([wry#1848](https://github.com/tauri-apps/wry/issues/1848), not a bug in this app) freezes their display. They work fine on Windows, Linux, and macOS 25 and earlier. To edit files on macOS 26, use the built-in editor (`Alt+E`).
             - The browser layer is iframe-based (sites sending `X-Frame-Options` can't embed)
           releaseDraft: true
           prerelease: false
