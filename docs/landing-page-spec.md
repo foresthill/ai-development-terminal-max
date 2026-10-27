@@ -15,7 +15,7 @@ and the `.dmg` download.
 
 **One-liner:** Run many Claude Code agents in parallel — and see them all at once.
 
-**Sub-line:** A native macOS terminal multiplexer built for AI agents. Each window
+**Sub-line:** A native, cross-platform (macOS / Windows / Linux) terminal multiplexer built for AI agents. Each window
 is a git **worktree** of your repo, so agents work in parallel without colliding.
 A bird's-eye grid, Z-axis depth per window, and a golden-spiral macro view across
 projects.
