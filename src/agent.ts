@@ -517,7 +517,21 @@ export function createTerminalLayer(opts: {
           text: raw,
           range: { start: { x: s.col + 1, y: s.y }, end: { x: e.col, y: e.y } },
           activate: (ev: MouseEvent) => {
-            if (ev.metaKey || ev.ctrlKey) opts.onOpenPath?.(raw, layer.cwd ?? null);
+            // Stop the webview's default handling of this click. Without it a stray
+            // default action (context menu / navigation) on macOS 26 WKWebView could
+            // tear down the whole SPA — observed as the app "reloading" and every
+            // terminal vanishing. Note: on macOS Ctrl+click is a *secondary* (right)
+            // click, which xterm does not treat as a link activation, so the path
+            // only opens on ⌘-click there; Ctrl-click is the Windows/Linux modifier.
+            ev.preventDefault();
+            ev.stopPropagation();
+            if (ev.metaKey || ev.ctrlKey) {
+              try {
+                opts.onOpenPath?.(raw, layer.cwd ?? null);
+              } catch {
+                /* host handles its own errors (toast); never let it bubble */
+              }
+            }
           },
         });
       }

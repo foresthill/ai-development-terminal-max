@@ -2,7 +2,7 @@
 
 [日本語](./README.md) ・ English
 
-A native macOS terminal multiplexer for running many [Claude Code](https://docs.claude.com/en/docs/claude-code) agents **in parallel** and seeing **all of them at once**. Unlike tmux/zellij:
+A native, cross-platform (macOS / Windows / Linux) terminal multiplexer for running many [Claude Code](https://docs.claude.com/en/docs/claude-code) agents **in parallel** and seeing **all of them at once**. Unlike tmux/zellij:
 
 1. **Overview grid** — every agent is visible at the same time, not hidden behind tabs.
 2. **Z-axis depth** — each agent owns a vertical stack of layers (the claude terminal, a browser, an extra terminal) shown as a deck.
