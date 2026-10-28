@@ -1,7 +1,9 @@
 # ai-development-terminal-max — project notes for Claude
 
-Native macOS app (Tauri 2 + Rust + xterm.js) to run many Claude Code agents in
-parallel and see them all at once.
+Native cross-platform desktop app (macOS / Windows / Linux — Tauri 2 + Rust +
+xterm.js) to run many Claude Code agents in parallel and see them all at once.
+macOS is the primary dev/target (the full-screen-TUI display notes below are
+macOS-specific); Windows and Linux builds ship in every release.
 
 ## Architecture (2-level model)
 
