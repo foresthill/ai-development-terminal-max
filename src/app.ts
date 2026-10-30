@@ -803,7 +803,7 @@ export class App {
       urlExternal: this.urlExternal,
       autoResume: this.autoResume,
       autoStart: this.autoStart,
-    });
+    }, () => void checkForUpdates({ silent: false }));
     if (!res) return;
     if (res.lang !== getLang()) setLang(res.lang); // re-applies static labels
     if (res.windowStyle !== getWindowStyle()) applyWindowStyle(res.windowStyle);
