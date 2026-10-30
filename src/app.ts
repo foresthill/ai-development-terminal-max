@@ -42,7 +42,8 @@ import {
 } from "./ui";
 import { GUARD_PRESETS, effectiveDeny } from "./guard";
 import { t, getLang, setLang } from "./i18n";
-import { applyTheme, getThemeId } from "./theme";
+import { applyTheme, getThemeId, type ThemeId } from "./theme";
+import { installAppMenu } from "./menu";
 import { applyWindowStyle, getWindowStyle } from "./window-style";
 import { renderAll, RenderCtx, Mode, View, PermMode } from "./render";
 import {
@@ -203,6 +204,9 @@ export class App {
     // Quiet auto-update check a few seconds after launch (shows a prompt only if an
     // update exists). Manual check is Alt+U. No-op until the updater key is set up.
     window.setTimeout(() => void checkForUpdates({ silent: true }), 4000);
+    // Native menu bar: every toolbar action (plus language/theme/permission and the
+    // update check) surfaced the macOS way. See menu.ts. No-op outside Tauri.
+    void installAppMenu({ setTheme: (id) => this.setTheme(id) });
   }
 
   private onPtyExit(payload: string) {
@@ -790,6 +794,15 @@ export class App {
     this.render();
   }
 
+  /// Apply a colour theme (persists + swaps CSS tokens) and repaint every open
+  /// terminal with the new palette. Shared by the Settings dialog and the View ▸
+  /// Theme menu so both behave identically.
+  private setTheme(id: ThemeId) {
+    const tt = applyTheme(id);
+    for (const p of this.projects)
+      for (const a of p.agents) for (const l of a.layers) if (l.term) l.term.options.theme = tt;
+  }
+
   private async openSettingsDialog() {
     const res = await openSettings({
       lang: getLang(),
@@ -803,17 +816,11 @@ export class App {
       urlExternal: this.urlExternal,
       autoResume: this.autoResume,
       autoStart: this.autoStart,
-    });
+    }, () => void checkForUpdates({ silent: false }));
     if (!res) return;
     if (res.lang !== getLang()) setLang(res.lang); // re-applies static labels
     if (res.windowStyle !== getWindowStyle()) applyWindowStyle(res.windowStyle);
-    if (res.theme !== getThemeId()) {
-      const tt = applyTheme(res.theme); // swap CSS tokens + persist
-      // Repaint open terminals with the new palette.
-      for (const p of this.projects)
-        for (const a of p.agents)
-          for (const l of a.layers) if (l.term) l.term.options.theme = tt;
-    }
+    if (res.theme !== getThemeId()) this.setTheme(res.theme);
     this.agentCmd = res.agentCmd;
     this.permMode = res.permMode;
     this.presets = res.enabled;

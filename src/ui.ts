@@ -115,6 +115,7 @@ import { GUARD_PRESETS } from "./guard";
 import { ThemeId } from "./theme";
 import { WindowStyle } from "./window-style";
 import { t, Lang, getLang } from "./i18n";
+import { getVersion } from "@tauri-apps/api/app";
 
 const HELP_JA = `
 <h4>概念（3つの軸）</h4>
@@ -248,7 +249,10 @@ function parsePresets(text: string): { label: string; cmd: string }[] {
 
 /// Settings dialog: agent command, permission default, and the guardrail
 /// deny-list toggles. Resolves to the new values, or null on cancel.
-export function openSettings(cur: SettingsValues): Promise<SettingsValues | null> {
+export function openSettings(
+  cur: SettingsValues,
+  onCheckUpdate?: () => void,
+): Promise<SettingsValues | null> {
   return new Promise((resolve) => {
     const back = document.createElement("div");
     back.className = "modal-back";
@@ -300,6 +304,11 @@ export function openSettings(cur: SettingsValues): Promise<SettingsValues | null
           <option value="off">${t("set.autoStartOff")}</option>
         </select></label>
       <div class="set-hint">${t("set.autoStartHint")}</div>
+      <div class="set-section">${t("set.updateSection")}</div>
+      <div class="set-row"><span>${t("set.version")}</span>
+        <b id="set-ver">…</b>
+        <button id="set-check-update" style="margin-left:auto">${t("updater.check")}</button></div>
+      <div class="set-hint">${t("set.updateHint")}</div>
       <div class="set-section">${t("set.guardSection")}</div>
       <div id="set-presets"></div>
       <label class="set-row col"><span>${t("set.customDeny")}</span>
@@ -344,6 +353,16 @@ export function openSettings(cur: SettingsValues): Promise<SettingsValues | null
       row.append(cb, span);
       presetsEl.appendChild(row);
     }
+
+    // Updates section: show the running version and expose the manual check (the
+    // same thing Alt+U does). Auto-check still runs at launch. The check is a
+    // callback from the host so this low-level UI module needn't import the updater
+    // (which imports this module — that would be a cycle).
+    const verEl = box.querySelector<HTMLElement>("#set-ver")!;
+    void getVersion()
+      .then((v) => (verEl.textContent = `v${v}`))
+      .catch(() => (verEl.textContent = "—"));
+    box.querySelector("#set-check-update")!.addEventListener("click", () => onCheckUpdate?.());
 
     const done = (v: SettingsValues | null) => {
       back.remove();
