@@ -6,7 +6,15 @@
 // Recall is human-in-the-loop by design: "→ agent" TYPES a memory into the focused
 // terminal WITHOUT submitting, so the person edits/sends it. Autonomous injection
 // is intentionally not built (see CLAUDE.md).
-import { memory, type Memory, type MemoryKind } from "./memory";
+import {
+  memory,
+  memoriesToJson,
+  memoriesToMarkdown,
+  memoriesFromJson,
+  type Memory,
+  type MemoryKind,
+} from "./memory";
+import { readFile, writeFile, pickFile, pickSavePath } from "./files";
 import { toast } from "./ui";
 import { t } from "./i18n";
 
@@ -39,6 +47,12 @@ export function openMemoryPanel(ctx: MemoryPanelCtx): void {
       </div>
     </div>
     <div class="set-section">${t("mem.listTitle")}</div>
+    <div class="mem-io">
+      <span class="mem-io-label">${t("mem.portable")}</span>
+      <button id="mem-exp-md" class="mem-btn">${t("mem.exportMd")}</button>
+      <button id="mem-exp-json" class="mem-btn">${t("mem.exportJson")}</button>
+      <button id="mem-imp" class="mem-btn">${t("mem.import")}</button>
+    </div>
     <div id="mem-list" class="mem-list"></div>
     <div class="modal-row"><button id="mem-close" class="primary">${t("modal.ok")}</button></div>`;
   back.append(box);
@@ -131,6 +145,42 @@ export function openMemoryPanel(ctx: MemoryPanelCtx): void {
     titleEl.focus();
   };
 
+  // Portable export/import — your memory is never locked into this app. MD is for
+  // reading (Obsidian/Notion); JSON is lossless and re-importable anywhere.
+  const safeName =
+    ctx.projectLabel.replace(/[^\p{L}\p{N}_-]+/gu, "-").replace(/^-+|-+$/g, "") || "project";
+  const stamp = new Date().toISOString().slice(0, 10);
+
+  const exportTo = async (fmt: "md" | "json") => {
+    const rows = memory.query({ scope: "personal", projectId: ctx.projectId, limit: 100000 });
+    if (!rows.length) {
+      toast(t("mem.exportEmpty"), "error");
+      return;
+    }
+    const path = await pickSavePath(`aidt-memory-${safeName}-${stamp}.${fmt}`);
+    if (!path) return;
+    const content =
+      fmt === "md" ? memoriesToMarkdown(rows, `Memory — ${ctx.projectLabel}`) : memoriesToJson(rows);
+    try {
+      await writeFile(path, content);
+      toast(t("mem.exported"));
+    } catch (e) {
+      toast(String(e), "error");
+    }
+  };
+
+  const importFrom = async () => {
+    const path = await pickFile();
+    if (!path) return;
+    try {
+      const n = memory.importMany(memoriesFromJson(await readFile(path)));
+      toast(t("mem.imported", n));
+      renderList();
+    } catch (e) {
+      toast(t("mem.importFail", String(e)), "error");
+    }
+  };
+
   const close = () => {
     back.remove();
     document.removeEventListener("keydown", onKey, true);
@@ -141,6 +191,9 @@ export function openMemoryPanel(ctx: MemoryPanelCtx): void {
   };
   document.addEventListener("keydown", onKey, true);
   box.querySelector("#mem-save")!.addEventListener("click", save);
+  box.querySelector("#mem-exp-md")!.addEventListener("click", () => void exportTo("md"));
+  box.querySelector("#mem-exp-json")!.addEventListener("click", () => void exportTo("json"));
+  box.querySelector("#mem-imp")!.addEventListener("click", () => void importFrom());
   box.querySelector("#mem-close")!.addEventListener("click", close);
   back.addEventListener("click", (e) => {
     if (e.target === back) close();

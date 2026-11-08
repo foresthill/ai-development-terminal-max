@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { MemoryStore, rankMemories, type Memory, type MemoryBackend } from "./memory";
+import {
+  MemoryStore,
+  rankMemories,
+  memoriesToJson,
+  memoriesFromJson,
+  memoriesToMarkdown,
+  type Memory,
+  type MemoryBackend,
+} from "./memory";
 
 // In-memory backend so the store's pure logic is testable in Node (no localStorage).
 function memBackend(): MemoryBackend {
@@ -100,6 +108,48 @@ describe("MemoryStore — reinforce + delete", () => {
     const m = s.write({ projectId: "p", title: "gone" });
     s.delete(m.id);
     expect(s.query({ projectId: "p" })).toHaveLength(0);
+  });
+});
+
+describe("portable import/export (no lock-in)", () => {
+  it("JSON round-trips losslessly", () => {
+    const s = store();
+    s.write({ projectId: "p", title: "keep pnpm", body: "v10", kind: "convention", tags: ["build"], salience: 3 });
+    s.write({ projectId: "p", title: "ship weekly", kind: "goal" });
+    const json = memoriesToJson(s.query({ projectId: "p" }));
+    const back = memoriesFromJson(json);
+    expect(back).toHaveLength(2);
+    const conv = back.find((m) => m.title === "keep pnpm")!;
+    expect(conv.kind).toBe("convention");
+    expect(conv.tags).toEqual(["build"]);
+    expect(conv.salience).toBe(3);
+  });
+
+  it("importMany de-duplicates by id", () => {
+    const s1 = store();
+    const m = s1.write({ projectId: "p", title: "x" });
+    const exported = memoriesFromJson(memoriesToJson([m]));
+    const s2 = store();
+    expect(s2.importMany(exported)).toBe(1); // new
+    expect(s2.importMany(exported)).toBe(0); // same id, skipped
+    expect(s2.query({ projectId: "p" })).toHaveLength(1);
+  });
+
+  it("markdown export contains titles and bodies", () => {
+    const md = memoriesToMarkdown([mk("design rule", { body: "worktree per agent" })], "proj");
+    expect(md).toContain("# proj");
+    expect(md).toContain("## design rule");
+    expect(md).toContain("worktree per agent");
+  });
+
+  it("fromJson drops malformed rows but keeps valid ones", () => {
+    const text = JSON.stringify([{ nope: 1 }, { title: "good" }, { title: "" }]);
+    const rows = memoriesFromJson(text);
+    expect(rows.map((m) => m.title)).toEqual(["good"]);
+  });
+
+  it("fromJson throws only on non-array JSON", () => {
+    expect(() => memoriesFromJson("{}")).toThrow();
   });
 });
 

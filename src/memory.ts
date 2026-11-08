@@ -184,6 +184,24 @@ export class MemoryStore {
     this.backend.save(this.all().filter((m) => m.id !== id));
   }
 
+  /// Import memories (e.g. from an exported JSON file), de-duplicated by id.
+  /// Returns how many were newly added. The open-format import/export is the
+  /// anti-lock-in guarantee: your memory is never trapped in this app.
+  importMany(rows: Memory[]): number {
+    const all = this.all();
+    const have = new Set(all.map((m) => m.id));
+    let added = 0;
+    for (const m of rows) {
+      if (!have.has(m.id)) {
+        all.push(m);
+        have.add(m.id);
+        added++;
+      }
+    }
+    if (added) this.backend.save(all);
+    return added;
+  }
+
   /// Drop every expired row. Returns how many were removed.
   prune(): number {
     const t = now();
@@ -192,6 +210,63 @@ export class MemoryStore {
     if (kept.length !== all.length) this.backend.save(kept);
     return all.length - kept.length;
   }
+}
+
+// --- portable import/export (no lock-in) ------------------------------------
+// Memory must never be trapped in this app. These render/parse the open formats a
+// human or another tool can use: Markdown (readable, Obsidian/Notion-friendly) and
+// JSON (lossless, re-importable). This is the "memory is portable" guarantee.
+
+const isoDay = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
+
+/// Render memories as a readable Markdown document (for an Obsidian vault, a repo
+/// doc, pasting into another agent, …). Lossy for re-import — use JSON for that.
+export function memoriesToMarkdown(rows: Memory[], title = "Memory"): string {
+  const out: string[] = [`# ${title}`, ""];
+  for (const m of rows) {
+    out.push(`## ${m.title}`);
+    const meta = [`kind: ${m.kind}`, `salience: ${m.salience}`];
+    if (m.tags.length) meta.push(`tags: ${m.tags.join(", ")}`);
+    meta.push(`created: ${isoDay(m.createdAt)}`);
+    out.push(`*${meta.join(" · ")}*`, "");
+    if (m.body) out.push(m.body, "");
+  }
+  return out.join("\n");
+}
+
+/// Render memories as lossless JSON (re-importable via memoriesFromJson).
+export function memoriesToJson(rows: Memory[]): string {
+  return JSON.stringify(rows, null, 2);
+}
+
+const SCOPES: MemoryScope[] = ["conscious", "personal", "collective", "super"];
+
+/// Parse memories from exported JSON, keeping only well-formed rows and filling any
+/// missing fields with safe defaults. Throws only if the text isn't a JSON array.
+export function memoriesFromJson(text: string): Memory[] {
+  const parsed = JSON.parse(text);
+  if (!Array.isArray(parsed)) throw new Error("expected a JSON array of memories");
+  const t = now();
+  const out: Memory[] = [];
+  for (const r of parsed as Record<string, unknown>[]) {
+    if (!r || typeof r.title !== "string" || !r.title.trim()) continue;
+    const scope = SCOPES.includes(r.scope as MemoryScope) ? (r.scope as MemoryScope) : "personal";
+    out.push({
+      id: typeof r.id === "string" ? r.id : uid(),
+      scope,
+      projectId: typeof r.projectId === "string" ? r.projectId : null,
+      agentId: typeof r.agentId === "string" ? r.agentId : null,
+      kind: typeof r.kind === "string" ? (r.kind as MemoryKind) : "note",
+      title: r.title.trim(),
+      body: typeof r.body === "string" ? r.body : "",
+      tags: Array.isArray(r.tags) ? (r.tags as unknown[]).filter((x): x is string => typeof x === "string") : [],
+      salience: typeof r.salience === "number" ? r.salience : 0,
+      createdAt: typeof r.createdAt === "number" ? r.createdAt : t,
+      updatedAt: typeof r.updatedAt === "number" ? r.updatedAt : t,
+      expiresAt: typeof r.expiresAt === "number" ? r.expiresAt : null,
+    });
+  }
+  return out;
 }
 
 /// localStorage-backed store for the running app. Reads/writes are guarded so a

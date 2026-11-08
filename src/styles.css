@@ -481,6 +481,18 @@ body {
   color: var(--muted);
   padding: 10px 2px;
 }
+.mem-io {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+.mem-io-label {
+  font-size: 11px;
+  color: var(--muted);
+  margin-right: 2px;
+}
 .mem-item {
   border: 1px solid var(--border, color-mix(in srgb, var(--text) 14%, transparent));
   border-radius: 8px;
