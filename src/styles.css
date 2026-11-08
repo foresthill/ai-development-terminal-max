@@ -451,6 +451,81 @@ body {
   line-height: 1.4;
   color: var(--muted);
 }
+/* --- memory panel (phase 1) --- */
+.mem-add {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.mem-add-row {
+  display: flex;
+  gap: 6px;
+}
+.mem-add-row #mem-kind {
+  flex: 0 0 110px;
+}
+.mem-add-row #mem-tags {
+  flex: 1;
+}
+.mem-list {
+  max-height: 46vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+.mem-empty {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 10px 2px;
+}
+.mem-item {
+  border: 1px solid var(--border, color-mix(in srgb, var(--text) 14%, transparent));
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: color-mix(in srgb, var(--panel) 60%, transparent);
+}
+.mem-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  justify-content: space-between;
+}
+.mem-item-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.mem-badge {
+  flex: none;
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.mem-body {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+  white-space: pre-wrap;
+}
+.mem-acts {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+.mem-btn {
+  font-size: 11px;
+  padding: 3px 9px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.mem-btn.mem-del {
+  margin-left: auto;
+  color: var(--danger, #e06c75);
+}
 .set-check {
   display: flex;
   align-items: center;

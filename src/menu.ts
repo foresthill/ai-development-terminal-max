@@ -90,6 +90,7 @@ async function build(ctx: MenuCtx): Promise<void> {
       await item("m-open", t("menu.openProject"), click("btn-open")),
       await item("m-clone", t("menu.cloneProject"), click("btn-clone")),
       await item("m-saves", t("menu.saves"), click("btn-saves")),
+      await item("m-memory", `🧠 ${t("mem.title")}`, click("btn-memory")),
       await sep(),
       await item("m-add", t("menu.newAgent"), click("btn-add")),
       await item("m-fill", t("menu.fill"), click("btn-fill")),

@@ -44,6 +44,7 @@ import { GUARD_PRESETS, effectiveDeny } from "./guard";
 import { t, getLang, setLang } from "./i18n";
 import { applyTheme, getThemeId, type ThemeId } from "./theme";
 import { installAppMenu } from "./menu";
+import { openMemoryPanel } from "./memory-panel";
 import { applyWindowStyle, getWindowStyle } from "./window-style";
 import { renderAll, RenderCtx, Mode, View, PermMode } from "./render";
 import {
@@ -171,6 +172,7 @@ export class App {
     root.querySelector("#btn-help")!.addEventListener("click", () => openHelp());
     root.querySelector("#foot-help")!.addEventListener("click", () => openHelp());
     root.querySelector("#btn-settings")!.addEventListener("click", () => this.openSettingsDialog());
+    root.querySelector("#btn-memory")!.addEventListener("click", () => this.openMemoryDialog());
     this.btnLayout.addEventListener("click", () => {
       this.layout = this.layout === "square" ? "fit" : "square";
       this.render();
@@ -921,6 +923,39 @@ export class App {
     toast(t("toast.sent", n));
   }
 
+  // --- project memory (phase 1: personal unconscious) -----------------------
+
+  /// Open the memory panel for the focused project. Keyed by the project's folder
+  /// path (stable across restarts), not its session id. See memory.ts / the design
+  /// doc. Recall into an agent is human-driven (types, never auto-submits).
+  private openMemoryDialog() {
+    const p = this.curProject;
+    if (!p || !p.root) {
+      toast(t("mem.noProject"), "error");
+      return;
+    }
+    openMemoryPanel({
+      projectId: p.root,
+      projectLabel: p.name,
+      sendToAgent: (text) => this.typeIntoFocusedAgent(text),
+    });
+  }
+
+  /// Type text into the focused agent's terminal WITHOUT submitting (no CR), so the
+  /// person reviews and sends it. Returns false when there's no terminal to type to.
+  private typeIntoFocusedAgent(text: string): boolean {
+    const a = this.agents[this.focused];
+    if (!a) return false;
+    const active = a.layers[a.active];
+    const layer =
+      active?.kind === "terminal" && active.pty
+        ? active
+        : a.layers.find((l) => l.kind === "terminal" && l.pty);
+    if (!layer?.pty) return false;
+    layer.pty.write(text);
+    return true;
+  }
+
   // --- keyboard (leader = Alt/Option) --------------------------------------
 
   private onKey(e: KeyboardEvent) {
@@ -964,6 +999,7 @@ export class App {
       KeyB: () => this.addLayerTo(this.agents[this.focused], "browser"),
       KeyE: () => this.addLayerTo(this.agents[this.focused], "editor"),
       KeyU: () => void checkForUpdates({ silent: false }), // manual "check for updates"
+      KeyG: () => this.openMemoryDialog(), // project memory (personal unconscious)
       KeyW: () => this.closeLayerAt(this.agents[this.focused], this.agents[this.focused]?.active ?? 0),
       KeyX: () => this.closeAgentObj(this.agents[this.focused]),
       KeyP: () => this.switchProject(1),
