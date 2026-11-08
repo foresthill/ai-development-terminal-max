@@ -102,7 +102,7 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: "AI Dev Terminal MAX ${{ github.ref_name }}"
           releaseBody: |
-            **日本語** ・ [English](#english)
+            ## 日本語
 
             複数の Claude Code エージェントを並列で動かし、全部を一画面で俯瞰できる、クロスプラットフォーム（macOS / Windows / Linux）対応のターミナルアプリです。
 
@@ -126,8 +126,6 @@ jobs:
             ---
 
             ## English
-
-            [日本語](#ai-dev-terminal-max) ・ **English**
 
             A native terminal app to run many Claude Code agents in parallel and see them all at once.
 
