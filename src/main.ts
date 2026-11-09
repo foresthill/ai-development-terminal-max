@@ -5,6 +5,7 @@ import { applyStatic } from "./i18n";
 import { invoke } from "@tauri-apps/api/core";
 import { setDisableAltScreen } from "./terminal-guards";
 import { installNavGuard } from "./nav-guard";
+import { initCanonicalStore } from "./memory";
 
 // Decide the macOS 26 alt-screen workaround BEFORE any terminal is created. The Rust
 // `alt_screen_broken` command returns true only on an affected host (macOS 26 release);
@@ -19,6 +20,9 @@ async function boot() {
   } catch {
     /* non-Tauri context (e.g. web preview) — keep alt-screen enabled */
   }
+  // Promote memory to its canonical SQLite store before the UI reads it (migrates
+  // any existing localStorage memories in once). No-op/ fallback outside Tauri.
+  await initCanonicalStore();
   const app = new App(document.getElementById("root")!);
   app.init();
 }

@@ -1,5 +1,6 @@
 mod files;
 mod git;
+mod memory;
 mod pty;
 mod subagent;
 mod sys;
@@ -42,6 +43,8 @@ pub fn run() {
             sys::alt_screen_broken,
             files::read_file,
             files::write_file,
+            memory::memory_read_all,
+            memory::memory_write_all,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
