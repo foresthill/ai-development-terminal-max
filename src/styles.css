@@ -35,8 +35,11 @@ body {
   flex-direction: column;
   gap: 6px;
   padding: 7px 14px;
-  background: linear-gradient(180deg, var(--panel-2), var(--bg));
-  border-bottom: 1px solid var(--border);
+  /* Liquid-glass chrome: translucent + blurred, hairline edge, quiet. */
+  background: color-mix(in srgb, var(--bg) 68%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(1.25);
+  backdrop-filter: blur(20px) saturate(1.25);
+  border-bottom: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
   user-select: none;
 }
 .bar {
@@ -76,90 +79,70 @@ body {
 }
 .proj-actions {
   display: flex;
-  gap: 6px;
+  gap: 2px;
 }
-.proj-actions button {
-  background: var(--panel-2);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 4px 10px;
-  font-size: 12px;
-  cursor: pointer;
-  white-space: nowrap;
+/* Hidden here, still in the DOM so the native menu's click() reaches them. */
+.tool-hidden {
+  display: none !important;
 }
-.proj-actions button:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-/* compact circular icon button (e.g. ? help) — a mark, not a labelled pill */
-.proj-actions button.btn-mark {
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border-radius: 50%;
-  font-weight: 600;
-  line-height: 1;
+/* Unified minimal icon button: ghost, monochrome, square. No labels (tooltips
+   carry the names). Quiet by default, a subtle glass fill on hover. */
+.tbtn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-}
-/* match the toolbar buttons: one pill, label + borderless select inside */
-.perm {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--panel-2);
-  color: var(--muted);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 4px 8px;
-  font-size: 11px;
-  cursor: pointer;
-}
-.perm:hover {
-  border-color: var(--accent);
-}
-.perm select {
-  background: transparent;
-  color: var(--text);
-  border: none;
-  outline: none;
-  font-size: 12px;
+  width: 30px;
+  height: 28px;
   padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--muted);
   cursor: pointer;
 }
-.bar-tools button {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  background: var(--panel-2);
+.tbtn:hover {
   color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 4px 10px;
-  font-size: 12px;
-  cursor: pointer;
-  white-space: nowrap;
+  background: color-mix(in srgb, var(--text) 9%, transparent);
 }
-.btn-ico {
-  width: 12px;
-  height: 12px;
-  flex: 0 0 auto;
+.tbtn svg {
+  width: 16px;
+  height: 16px;
   fill: none;
   stroke: currentColor;
-  stroke-width: 1.6;
+  stroke-width: 1.5;
   stroke-linejoin: round;
   stroke-linecap: round;
 }
-.bar-tools button:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+/* icon-only: toggle buttons keep their label for a11y but don't show it */
+.tbtn .btn-txt {
+  display: none;
 }
-.bar-tools button.on {
-  border-color: #9ece6a;
+/* on-state (guard / nest): accent the icon only, no loud fill */
+.tbtn.on {
   color: #9ece6a;
-  background: #11200f;
+  background: color-mix(in srgb, #9ece6a 14%, transparent);
+}
+/* permission mode: a quiet glass pill (the one labelled control that stays) */
+.perm {
+  display: inline-flex;
+  align-items: center;
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 2px 6px;
+  cursor: pointer;
+}
+.perm:hover {
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+}
+.perm select {
+  background: transparent;
+  color: var(--muted);
+  border: none;
+  outline: none;
+  font-size: 11px;
+  padding: 0;
+  cursor: pointer;
 }
 .brand {
   font-weight: 700;
@@ -341,19 +324,24 @@ body {
 .modal-back {
   position: fixed;
   inset: 0;
-  background: rgba(2, 4, 10, 0.6);
+  background: rgba(2, 4, 10, 0.45);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
 }
+/* Liquid-glass panel: translucent, blurred, soft radius, hairline edge. */
 .modal {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel) 78%, transparent);
+  -webkit-backdrop-filter: blur(26px) saturate(1.3);
+  backdrop-filter: blur(26px) saturate(1.3);
+  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+  border-radius: 14px;
   padding: 16px;
   width: min(520px, 90vw);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
 }
 .modal-title {
   font-size: 13px;

@@ -13,40 +13,42 @@
           <div class="brand">AI&nbsp;DEV&nbsp;TERMINAL&nbsp;<span class="max">MAX</span></div>
           <div id="project-strip" class="project-strip"></div>
           <div class="proj-actions">
-            <button id="btn-open" data-i18n="btn.folder" data-i18n-title="tip.folder">📁 folder</button>
-            <button id="btn-clone" data-i18n="btn.clone" data-i18n-title="tip.clone">⎇ clone</button>
-            <button id="btn-saves" data-i18n="btn.saves" data-i18n-title="tip.saves">💾 saves</button>
-            <button id="btn-memory" data-i18n="btn.memory" data-i18n-title="tip.memory">🧠 memory</button>
-            <button id="btn-commands" data-i18n="btn.commands" data-i18n-title="tip.commands">⌘ commands</button>
-            <button id="btn-help" data-i18n="btn.help" data-i18n-title="tip.help">? help</button>
-            <button id="btn-settings" data-i18n="btn.settings" data-i18n-title="tip.settings">⚙ Settings</button>
+            <!-- Minimal, monochrome, icon-only. Secondary actions are hidden here
+                 (kept in the DOM so the native menu's click() still reaches them)
+                 and live in the menu bar. Icons use currentColor (mono). -->
+            <button id="btn-open" class="tbtn tool-hidden" data-i18n-title="tip.folder"><svg viewBox="0 0 16 16"><path d="M2 4 h4 l1.5 1.5 H14 v7 H2 Z"/></svg></button>
+            <button id="btn-clone" class="tbtn tool-hidden" data-i18n-title="tip.clone"><svg viewBox="0 0 16 16"><circle cx="4.5" cy="4" r="1.6"/><circle cx="4.5" cy="12" r="1.6"/><circle cx="11.5" cy="4" r="1.6"/><path d="M4.5 5.6 v4.8 M11.5 5.6 v2 a2 2 0 0 1-2 2 H6"/></svg></button>
+            <button id="btn-saves" class="tbtn tool-hidden" data-i18n-title="tip.saves"><svg viewBox="0 0 16 16"><path d="M3 2.5 h8 l2 2 V13.5 H3 Z"/><path d="M5 2.5 v4 h5 v-4 M5 13.5 v-4 h6 v4"/></svg></button>
+            <button id="btn-memory" class="tbtn" data-i18n-title="tip.memory"><svg viewBox="0 0 16 16"><path d="M8 2 L14 5 L8 8 L2 5 Z"/><path d="M2 8 L8 11 L14 8"/><path d="M2 11 L8 14 L14 11"/></svg></button>
+            <button id="btn-commands" class="tbtn" data-i18n-title="tip.commands"><svg viewBox="0 0 16 16"><path d="M4 5 l3 3 l-3 3"/><path d="M8.5 11 h4"/></svg></button>
+            <button id="btn-help" class="tbtn tool-hidden" data-i18n-title="tip.help"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M6.3 6.2 a1.8 1.8 0 1 1 2.4 1.7 c-.7 .3-.9 .7-.9 1.4"/><circle cx="8" cy="11.4" r=".4" fill="currentColor" stroke="none"/></svg></button>
+            <button id="btn-settings" class="tbtn" data-i18n-title="tip.settings"><svg viewBox="0 0 16 16"><path d="M3 5 h10 M3 11 h10"/><circle cx="6" cy="5" r="1.7" fill="currentColor" stroke="none"/><circle cx="10" cy="11" r="1.7" fill="currentColor" stroke="none"/></svg></button>
           </div>
         </div>
         <div class="bar bar-tools">
-          <button id="btn-add" data-i18n="btn.add" data-i18n-title="tip.add">+ agent</button>
-          <button id="btn-fill" data-i18n="btn.fill" data-i18n-title="tip.fill">⊞ fill 9</button>
-          <button id="btn-run-all" data-i18n="btn.runAll" data-i18n-title="tip.runAll">▶ all</button>
-          <button id="btn-zoom" data-i18n="btn.zoom" data-i18n-title="tip.zoom">⤢ zoom</button>
-          <button id="btn-layout" data-i18n-title="tip.layout">▦ 3×3</button>
-          <button id="btn-macro" data-i18n="btn.macro" data-i18n-title="tip.macro">✦ macro</button>
-          <button id="btn-send" data-i18n="btn.send" data-i18n-title="tip.send">↗ send</button>
+          <button id="btn-add" class="tbtn" data-i18n-title="tip.add"><svg viewBox="0 0 16 16"><path d="M8 3 v10 M3 8 h10"/></svg></button>
+          <button id="btn-fill" class="tbtn tool-hidden" data-i18n-title="tip.fill"><svg viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="4" height="4" rx="1"/><rect x="9.5" y="2.5" width="4" height="4" rx="1"/><rect x="2.5" y="9.5" width="4" height="4" rx="1"/><rect x="9.5" y="9.5" width="4" height="4" rx="1"/></svg></button>
+          <button id="btn-run-all" class="tbtn" data-i18n-title="tip.runAll"><svg viewBox="0 0 16 16"><path d="M5 3 L13 8 L5 13 Z" fill="currentColor" stroke="none"/></svg></button>
+          <button id="btn-zoom" class="tbtn tool-hidden" data-i18n-title="tip.zoom"><svg viewBox="0 0 16 16"><path d="M6 2.5 H3 v3 M10 2.5 H13 v3 M6 13.5 H3 v-3 M10 13.5 H13 v-3"/></svg></button>
+          <button id="btn-layout" class="tbtn tool-hidden" data-i18n-title="tip.layout"><svg viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5"/><path d="M6.8 2.5 v11 M9.2 2.5 v11 M2.5 6.8 h11 M2.5 9.2 h11"/></svg></button>
+          <button id="btn-macro" class="tbtn" data-i18n-title="tip.macro"><svg viewBox="0 0 16 16"><path d="M8 1.6 L9.4 6.2 L14 8 L9.4 9.8 L8 14.4 L6.6 9.8 L2 8 L6.6 6.2 Z" fill="currentColor" stroke="none"/></svg></button>
+          <button id="btn-send" class="tbtn" data-i18n-title="tip.send"><svg viewBox="0 0 16 16"><path d="M4 12 L12 4 M6.5 4 H12 v5.5"/></svg></button>
           <label class="perm">
-            <span data-i18n="lbl.perm">perm</span>
             <select id="perm-mode" data-i18n-title="tip.perm">
               <option value="auto">auto</option>
               <option value="normal">normal</option>
               <option value="bypass">bypass ⚠</option>
             </select>
           </label>
-          <button id="btn-guard" data-i18n-title="tip.guard">
-            <svg class="btn-ico" viewBox="0 0 16 16"><path d="M8 2.2 L12.5 4 L12.5 8.2 C12.5 11 10.5 13 8 13.8 C5.5 13 3.5 11 3.5 8.2 L3.5 4 Z"/></svg>
-            <span class="btn-txt">guard: off</span>
+          <button id="btn-guard" class="tbtn" data-i18n-title="tip.guard">
+            <svg viewBox="0 0 16 16"><path d="M8 2.2 L12.5 4 L12.5 8.2 C12.5 11 10.5 13 8 13.8 C5.5 13 3.5 11 3.5 8.2 L3.5 4 Z"/></svg>
+            <span class="btn-txt"></span>
           </button>
-          <button id="btn-nest" data-i18n-title="tip.nest">
-            <svg class="btn-ico" viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><rect x="5.5" y="5.5" width="5" height="5" rx="1.2"/></svg>
-            <span class="btn-txt">nest: off</span>
+          <button id="btn-nest" class="tbtn tool-hidden" data-i18n-title="tip.nest">
+            <svg viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><rect x="5.5" y="5.5" width="5" height="5" rx="1.2"/></svg>
+            <span class="btn-txt"></span>
           </button>
-          <span id="agent-count" class="count">0 agents</span>
+          <span id="agent-count" class="count">0</span>
           <span id="agent-total" class="count count-total" data-i18n-title="tip.total"></span>
         </div>
       </header>
