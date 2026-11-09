@@ -12,6 +12,8 @@
 //   sediment  — write a summary/decision into a project's memory (`write`)
 //   recall    — pull the most relevant memories back for a new turn (`query`)
 
+import { invoke } from "@tauri-apps/api/core";
+
 export type MemoryScope = "conscious" | "personal" | "collective" | "super";
 export type MemoryKind = "summary" | "decision" | "convention" | "goal" | "note";
 
@@ -107,6 +109,12 @@ export function rankMemories(rows: Memory[], text?: string): Memory[] {
 
 export class MemoryStore {
   constructor(private backend: MemoryBackend) {}
+
+  /// Swap the storage backend (e.g. localStorage → SQLite at boot). The new backend
+  /// already holds the hydrated rows, so callers see no interruption.
+  setBackend(backend: MemoryBackend) {
+    this.backend = backend;
+  }
 
   private all(): Memory[] {
     return this.backend.load();
@@ -300,6 +308,48 @@ export function createLocalStorageBackend(key = LS_KEY): MemoryBackend {
   };
 }
 
-/// The app-wide store (localStorage backend). Tests construct their own store with
-/// an in-memory backend instead.
+/// The app-wide store. Starts on the localStorage backend so it works immediately
+/// and in non-Tauri contexts; `initCanonicalStore()` promotes it to SQLite at boot.
+/// Tests construct their own store with an in-memory backend instead.
 export const memory = new MemoryStore(createLocalStorageBackend());
+
+// --- canonical SQLite store (phase 1b) --------------------------------------
+// SQLite (~/.aidt/memory.db, via memory.rs) is the source of truth: durable,
+// inspectable, portable, not trapped in the webview origin. We front it with an
+// in-memory cache so MemoryStore's read/query API stays synchronous — reads hit the
+// cache, every save write-through to SQLite asynchronously.
+
+/// A backend whose reads come from an in-memory cache (hydrated from SQLite) and
+/// whose writes update the cache and persist the whole set to SQLite. The table is
+/// small, so a coarse whole-set write is fine and keeps the Rust side trivial.
+export function createSqliteBackend(initial: Memory[]): MemoryBackend {
+  let cache = initial.slice();
+  return {
+    load: () => cache.slice(),
+    save: (all) => {
+      cache = all.slice();
+      // Fire-and-forget; last write wins. Failures are non-fatal (the cache still
+      // serves this session), and the next successful save re-persists everything.
+      void invoke("memory_write_all", { json: JSON.stringify(cache) }).catch(() => {});
+    },
+  };
+}
+
+/// Promote the app store to the canonical SQLite backend. Call once at boot. Hydrates
+/// the cache from SQLite, migrates any pre-existing localStorage memories in once
+/// (de-duped by id), then swaps the backend. On any failure (non-Tauri context,
+/// SQLite unavailable) it leaves the localStorage backend in place — the feature
+/// still works, just not canonically persisted yet.
+export async function initCanonicalStore(): Promise<void> {
+  try {
+    const sqliteRows = memoriesFromJson(await invoke<string>("memory_read_all"));
+    const haveIds = new Set(sqliteRows.map((m) => m.id));
+    const migrated = createLocalStorageBackend().load().filter((m) => !haveIds.has(m.id));
+    const merged = sqliteRows.concat(migrated);
+    const backend = createSqliteBackend(merged);
+    if (migrated.length) backend.save(merged); // persist the one-time migration
+    memory.setBackend(backend);
+  } catch {
+    // Keep localStorage (web preview, or SQLite command unavailable).
+  }
+}
