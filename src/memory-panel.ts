@@ -17,8 +17,9 @@ import {
   type MemoryScope,
 } from "./memory";
 import { readFile, writeFile, pickFile, pickSavePath } from "./files";
+import { sessionTag, sessionIdFromTags, sessionStartedAt, currentSessionId } from "./session";
 import { toast } from "./ui";
-import { t } from "./i18n";
+import { t, getLang } from "./i18n";
 
 export interface MemoryPanelCtx {
   /** Stable per-project key — the project's folder path (survives restarts). */
@@ -85,7 +86,41 @@ export function openMemoryPanel(ctx: MemoryPanelCtx): void {
       listEl.append(empty);
       return;
     }
-    for (const m of rows) listEl.append(row(m));
+    // Long-term: a flat list. Short-term: grouped by session (Orca-style history).
+    if (scope !== "conscious") {
+      for (const m of rows) listEl.append(row(m));
+      return;
+    }
+    renderGroupedBySession(rows);
+  };
+
+  /// Short-term view: bucket memories by their `session:<id>` tag, newest session
+  /// first (current session on top), each under a dated header.
+  const renderGroupedBySession = (rows: Memory[]) => {
+    const buckets = new Map<string, Memory[]>();
+    for (const m of rows) {
+      const sid = sessionIdFromTags(m.tags) ?? "";
+      (buckets.get(sid) ?? buckets.set(sid, []).get(sid)!).push(m);
+    }
+    const order = [...buckets.keys()].sort((a, b) => {
+      if (a === currentSessionId()) return -1;
+      if (b === currentSessionId()) return 1;
+      return (sessionStartedAt(b) ?? 0) - (sessionStartedAt(a) ?? 0);
+    });
+    for (const sid of order) {
+      const header = document.createElement("div");
+      header.className = "mem-session";
+      header.textContent = sessionLabel(sid);
+      listEl.append(header);
+      for (const m of buckets.get(sid)!) listEl.append(row(m));
+    }
+  };
+
+  const sessionLabel = (sid: string): string => {
+    if (!sid) return t("mem.sessUnknown");
+    const at = sessionStartedAt(sid);
+    const when = at ? new Date(at).toLocaleString(getLang() === "ja" ? "ja-JP" : undefined) : sid;
+    return sid === currentSessionId() ? `🟢 ${t("mem.sessCurrent")} · ${when}` : when;
   };
 
   const row = (m: Memory): HTMLElement => {
@@ -139,13 +174,15 @@ export function openMemoryPanel(ctx: MemoryPanelCtx): void {
       titleEl.focus();
       return;
     }
+    const tags = tagsEl.value.split(",").map((s) => s.trim()).filter(Boolean);
+    if (scope === "conscious") tags.push(sessionTag()); // group under this session
     memory.write({
       scope,
       projectId: ctx.projectId,
       kind: kindEl.value as MemoryKind,
       title,
       body: bodyEl.value,
-      tags: tagsEl.value.split(",").map((s) => s.trim()).filter(Boolean),
+      tags,
       salience: 1, // a human-written memory starts above auto-sediment
       // Short-term entries expire; long-term are permanent.
       ttlMs: scope === "conscious" ? SHORT_TERM_TTL_MS : undefined,

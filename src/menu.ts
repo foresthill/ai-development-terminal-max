@@ -170,6 +170,7 @@ async function build(ctx: MenuCtx): Promise<void> {
     items: [
       await item("m-run-all", t("menu.runAll"), click("btn-run-all")),
       await item("m-send", t("menu.send"), click("btn-send")),
+      await item("m-commands", t("cmd.title"), click("btn-commands")),
       await sep(),
       permMenu,
       await item("m-guard", t("menu.guard"), click("btn-guard")),
