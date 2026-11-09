@@ -46,6 +46,7 @@ import { applyTheme, getThemeId, type ThemeId } from "./theme";
 import { installAppMenu } from "./menu";
 import { openMemoryPanel } from "./memory-panel";
 import { openCommandPalette } from "./commands-palette";
+import { sessionTag } from "./session";
 import { memory, SHORT_TERM_TTL_MS } from "./memory";
 import { applyWindowStyle, getWindowStyle } from "./window-style";
 import { renderAll, RenderCtx, Mode, View, PermMode } from "./render";
@@ -961,6 +962,7 @@ export class App {
         kind: "note",
         title,
         body: agent?.branch ? `branch: ${agent.branch}` : "",
+        tags: [sessionTag()], // stamp the launch so short-term groups by session
         ttlMs: SHORT_TERM_TTL_MS,
       });
     } catch {
