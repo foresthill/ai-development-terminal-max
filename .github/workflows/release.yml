@@ -91,11 +91,19 @@ jobs:
           # expands to empty, which tauri-action rejects when signing updater artifacts.)
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # Build is UNSIGNED (Apple). Do NOT wire the APPLE_* env unconditionally: when
-          # the secrets are unset they expand to empty strings, which still makes
-          # tauri-action attempt codesign and fail ("failed to import keychain
-          # certificate"). To enable signing later, add an APPLE_* env block here
-          # ONLY once the secrets exist (see docs/RELEASING.md).
+          # Apple code-signing + notarization (Developer ID). macOS-only — these are
+          # ignored on the Windows/Linux runners. With all six secrets set, the macOS
+          # build is signed + notarized, so there's no Gatekeeper "unidentified
+          # developer" warning AND the Documents/TCC permission persists across updates
+          # (a stable signature, instead of a new ad-hoc one each release re-prompting).
+          # tauri-action imports APPLE_CERTIFICATE (base64 .p12) into a temp keychain
+          # and notarizes with APPLE_ID/APPLE_PASSWORD (app-specific)/APPLE_TEAM_ID.
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           # On a tag push this is the tag (e.g. v0.1.0); on a manual run it's the
           # branch, which still produces a harmless draft you can delete.
