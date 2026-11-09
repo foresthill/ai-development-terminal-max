@@ -66,6 +66,10 @@ export interface QueryOpts {
   includeExpired?: boolean;
 }
 
+/** Default lifetime for short-term (conscious) memories — auto-expire after ~7 days
+ *  so the short-term layer stays "recent" without manual cleanup. */
+export const SHORT_TERM_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
 const now = () => Date.now();
 
 function uid(): string {

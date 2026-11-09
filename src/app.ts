@@ -45,6 +45,7 @@ import { t, getLang, setLang } from "./i18n";
 import { applyTheme, getThemeId, type ThemeId } from "./theme";
 import { installAppMenu } from "./menu";
 import { openMemoryPanel } from "./memory-panel";
+import { memory, SHORT_TERM_TTL_MS } from "./memory";
 import { applyWindowStyle, getWindowStyle } from "./window-style";
 import { renderAll, RenderCtx, Mode, View, PermMode } from "./render";
 import {
@@ -336,6 +337,7 @@ export class App {
     if (!layer?.pty) return;
     layer.pty.write(this.buildCmd(agent.agentCmd) + "\r");
     agent.running = true; // remember so a restore resumes this one
+    this.remember(`▶ ${agent.agentCmd}`, agent);
     this.persist();
   }
 
@@ -573,6 +575,7 @@ export class App {
       this.focused = project.agents.length - 1;
     }
     this.render();
+    if (focus) this.remember(`+ ${agent.title}`, agent); // short-term: new agent
     this.refreshBranch(agent);
   }
 
@@ -939,6 +942,28 @@ export class App {
       projectLabel: p.name,
       sendToAgent: (text) => this.typeIntoFocusedAgent(text),
     });
+  }
+
+  /// Auto-sediment: passively record a lightweight activity note into the current
+  /// project's SHORT-TERM (conscious) memory. Recording only — never injects. These
+  /// expire (SHORT_TERM_TTL_MS) so short-term stays recent; the human promotes any
+  /// worth keeping to long-term in the panel. Best-effort (memory failures ignored).
+  private remember(title: string, agent?: Agent) {
+    const p = this.curProject;
+    if (!p || !p.root) return;
+    try {
+      memory.write({
+        scope: "conscious",
+        projectId: p.root,
+        agentId: agent?.id ?? null,
+        kind: "note",
+        title,
+        body: agent?.branch ? `branch: ${agent.branch}` : "",
+        ttlMs: SHORT_TERM_TTL_MS,
+      });
+    } catch {
+      /* memory is best-effort */
+    }
   }
 
   /// Type text into the focused agent's terminal WITHOUT submitting (no CR), so the

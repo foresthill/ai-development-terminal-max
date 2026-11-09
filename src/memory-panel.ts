@@ -11,8 +11,10 @@ import {
   memoriesToJson,
   memoriesToMarkdown,
   memoriesFromJson,
+  SHORT_TERM_TTL_MS,
   type Memory,
   type MemoryKind,
+  type MemoryScope,
 } from "./memory";
 import { readFile, writeFile, pickFile, pickSavePath } from "./files";
 import { toast } from "./ui";
@@ -37,6 +39,10 @@ export function openMemoryPanel(ctx: MemoryPanelCtx): void {
   const kindOpts = KINDS.map((k) => `<option value="${k}">${t("mem.kind." + k)}</option>`).join("");
   box.innerHTML = `
     <div class="modal-title">🧠 ${t("mem.title")} — ${escapeHtml(ctx.projectLabel)}</div>
+    <div class="mem-tabs">
+      <button class="mem-tab" data-scope="personal">${t("mem.tabLong")}</button>
+      <button class="mem-tab" data-scope="conscious">${t("mem.tabShort")}</button>
+    </div>
     <div class="mem-add">
       <input class="modal-input" id="mem-title" placeholder="${t("mem.phTitle")}" spellcheck="false">
       <textarea class="modal-input" id="mem-body" rows="2" placeholder="${t("mem.phBody")}" spellcheck="false"></textarea>
@@ -63,14 +69,19 @@ export function openMemoryPanel(ctx: MemoryPanelCtx): void {
   const bodyEl = box.querySelector<HTMLTextAreaElement>("#mem-body")!;
   const kindEl = box.querySelector<HTMLSelectElement>("#mem-kind")!;
   const tagsEl = box.querySelector<HTMLInputElement>("#mem-tags")!;
+  const tabEls = Array.from(box.querySelectorAll<HTMLButtonElement>(".mem-tab"));
+
+  // Which layer the panel is showing: long-term (personal, permanent) or short-term
+  // (conscious, auto-recorded + TTL'd). The add form writes into the active layer.
+  let scope: MemoryScope = "personal";
 
   const renderList = () => {
-    const rows = memory.query({ scope: "personal", projectId: ctx.projectId, limit: 100 });
+    const rows = memory.query({ scope, projectId: ctx.projectId, limit: 200 });
     listEl.innerHTML = "";
     if (!rows.length) {
       const empty = document.createElement("div");
       empty.className = "mem-empty";
-      empty.textContent = t("mem.empty");
+      empty.textContent = scope === "conscious" ? t("mem.emptyShort") : t("mem.empty");
       listEl.append(empty);
       return;
     }
@@ -129,13 +140,15 @@ export function openMemoryPanel(ctx: MemoryPanelCtx): void {
       return;
     }
     memory.write({
-      scope: "personal",
+      scope,
       projectId: ctx.projectId,
       kind: kindEl.value as MemoryKind,
       title,
       body: bodyEl.value,
       tags: tagsEl.value.split(",").map((s) => s.trim()).filter(Boolean),
       salience: 1, // a human-written memory starts above auto-sediment
+      // Short-term entries expire; long-term are permanent.
+      ttlMs: scope === "conscious" ? SHORT_TERM_TTL_MS : undefined,
     });
     titleEl.value = "";
     bodyEl.value = "";
@@ -152,7 +165,8 @@ export function openMemoryPanel(ctx: MemoryPanelCtx): void {
   const stamp = new Date().toISOString().slice(0, 10);
 
   const exportTo = async (fmt: "md" | "json") => {
-    const rows = memory.query({ scope: "personal", projectId: ctx.projectId, limit: 100000 });
+    // Export the whole project memory (both layers) — full portability.
+    const rows = memory.query({ projectId: ctx.projectId, limit: 100000 });
     if (!rows.length) {
       toast(t("mem.exportEmpty"), "error");
       return;
@@ -190,6 +204,14 @@ export function openMemoryPanel(ctx: MemoryPanelCtx): void {
     if (e.key === "Escape") close();
   };
   document.addEventListener("keydown", onKey, true);
+  const selectTab = (s: MemoryScope) => {
+    scope = s;
+    for (const b of tabEls) b.classList.toggle("active", b.dataset.scope === s);
+    renderList();
+  };
+  for (const b of tabEls) b.addEventListener("click", () => selectTab(b.dataset.scope as MemoryScope));
+  selectTab("personal");
+
   box.querySelector("#mem-save")!.addEventListener("click", save);
   box.querySelector("#mem-exp-md")!.addEventListener("click", () => void exportTo("md"));
   box.querySelector("#mem-exp-json")!.addEventListener("click", () => void exportTo("json"));
