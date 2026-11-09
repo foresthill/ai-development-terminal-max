@@ -45,6 +45,7 @@ import { t, getLang, setLang } from "./i18n";
 import { applyTheme, getThemeId, type ThemeId } from "./theme";
 import { installAppMenu } from "./menu";
 import { openMemoryPanel } from "./memory-panel";
+import { openCommandPalette } from "./commands-palette";
 import { memory, SHORT_TERM_TTL_MS } from "./memory";
 import { applyWindowStyle, getWindowStyle } from "./window-style";
 import { renderAll, RenderCtx, Mode, View, PermMode } from "./render";
@@ -174,6 +175,7 @@ export class App {
     root.querySelector("#foot-help")!.addEventListener("click", () => openHelp());
     root.querySelector("#btn-settings")!.addEventListener("click", () => this.openSettingsDialog());
     root.querySelector("#btn-memory")!.addEventListener("click", () => this.openMemoryDialog());
+    root.querySelector("#btn-commands")!.addEventListener("click", () => this.openCommandDialog());
     this.btnLayout.addEventListener("click", () => {
       this.layout = this.layout === "square" ? "fit" : "square";
       this.render();
@@ -966,6 +968,12 @@ export class App {
     }
   }
 
+  /// Claude Code command palette (Alt+C): the 15 slash commands, one click types the
+  /// chosen one into the focused agent (human submits). See commands-palette.ts.
+  private openCommandDialog() {
+    openCommandPalette({ sendToAgent: (text) => this.typeIntoFocusedAgent(text) });
+  }
+
   /// Type text into the focused agent's terminal WITHOUT submitting (no CR), so the
   /// person reviews and sends it. Returns false when there's no terminal to type to.
   private typeIntoFocusedAgent(text: string): boolean {
@@ -1025,6 +1033,7 @@ export class App {
       KeyE: () => this.addLayerTo(this.agents[this.focused], "editor"),
       KeyU: () => void checkForUpdates({ silent: false }), // manual "check for updates"
       KeyG: () => this.openMemoryDialog(), // project memory (personal unconscious)
+      KeyC: () => this.openCommandDialog(), // Claude Code command palette
       KeyW: () => this.closeLayerAt(this.agents[this.focused], this.agents[this.focused]?.active ?? 0),
       KeyX: () => this.closeAgentObj(this.agents[this.focused]),
       KeyP: () => this.switchProject(1),
