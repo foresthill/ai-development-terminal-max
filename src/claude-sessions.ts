@@ -14,6 +14,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { memory, type Memory } from "./memory";
+import { distill, type Insights } from "./distill";
 
 /** One Claude session, digested by the Rust side (camelCase matches the Rust serde). */
 export interface SessionDigest {
@@ -37,6 +38,9 @@ export interface MergedSession extends SessionDigest {
 
 /** Tag every harvested session carries, so they're findable among other memories. */
 export const SESSION_TAG = "claude-session";
+
+/** Tag the distilled "insight" memories carry (kept separate from raw sessions). */
+export const DISTILL_TAG = "distilled";
 
 /** Stable memory id for a session, so re-harvesting upserts rather than duplicates. */
 const idFor = (sessionId: string): string => `claude-session-${sessionId}`;
@@ -68,7 +72,51 @@ export async function harvestSessions(onlyCwd = ""): Promise<number> {
       salience: d.messages, // busier sessions surface first
     });
   }
+  // Learn (heuristic): re-distill from everything preserved so far and persist it as
+  // durable insight memories — the "survey all sessions and learn from them" layer.
+  persistInsights(sessionInsights());
   return live.length;
+}
+
+const fmtDay = (iso: string): string => {
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? (iso || "") : d.toISOString().slice(0, 10);
+};
+
+/// Persist distilled insights as durable, exportable "insight" memories (one global, one
+/// per project), upserted by stable id so each harvest refreshes them in place.
+export function persistInsights(ins: Insights): void {
+  const g = ins.global;
+  const topics = g.topics.map((t) => `${t.term}(${t.count})`).join(", ");
+  const busiest = g.busiest.map((b) => `${b.project}(${b.sessions})`).join(", ");
+  memory.upsert("insight-global", {
+    scope: "collective",
+    kind: "summary",
+    title: `Overall: ${g.sessions} sessions · ${g.messages} msgs · ${g.projects} projects`,
+    body: [busiest && `busiest: ${busiest}`, topics && `topics: ${topics}`].filter(Boolean).join("\n"),
+    tags: [DISTILL_TAG, "insight"],
+    salience: g.sessions,
+  });
+  for (const p of ins.projects) {
+    memory.upsert(`insight-proj-${p.project}`, {
+      scope: "collective",
+      kind: "summary",
+      title: `${p.project}: ${p.sessions} sessions · ${p.messages} msgs`,
+      body: [
+        p.branches.length ? `branches: ${p.branches.join(", ")}` : "",
+        `active: ${fmtDay(p.firstTs)} → ${fmtDay(p.lastTs)}`,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+      tags: [DISTILL_TAG, "insight", `proj:${p.project}`],
+      salience: p.sessions,
+    });
+  }
+}
+
+/// Distill insights from everything we've durably preserved (the full picture).
+export function sessionInsights(): Insights {
+  return distill(persistedSessions());
 }
 
 /// Reconstruct a digest from a persisted session memory (its body holds the JSON).

@@ -21,6 +21,7 @@ import {
   SESSION_TAG,
   type MergedSession,
 } from "./claude-sessions";
+import { distill } from "./distill";
 import { readFile, writeFile, pickFile, pickSavePath } from "./files";
 import { toast } from "./ui";
 import { t, getLang } from "./i18n";
@@ -45,8 +46,9 @@ export function openMemoryPanel(ctx: MemoryPanelCtx): void {
     <div class="modal-title">🧠 ${t("sess.title")}</div>
     <div class="mem-hint">${t("sess.hint")}</div>
     <div class="mem-tabs">
-      <button class="mem-tab" data-scope="all">${t("sess.scopeAll")}</button>
-      ${hasProject ? `<button class="mem-tab" data-scope="this">${t("sess.scopeThis")} · ${escapeHtml(ctx.projectLabel!)}</button>` : ""}
+      <button class="mem-tab" data-view="all">${t("sess.scopeAll")}</button>
+      ${hasProject ? `<button class="mem-tab" data-view="this">${t("sess.scopeThis")} · ${escapeHtml(ctx.projectLabel!)}</button>` : ""}
+      <button class="mem-tab" data-view="insights">${t("sess.tabInsights")}</button>
       <span class="mem-count" id="sess-count"></span>
       <button id="sess-refresh" class="mem-btn">${t("sess.refresh")}</button>
     </div>
@@ -67,7 +69,8 @@ export function openMemoryPanel(ctx: MemoryPanelCtx): void {
   const countEl = box.querySelector<HTMLElement>("#sess-count")!;
   const tabEls = Array.from(box.querySelectorAll<HTMLButtonElement>(".mem-tab"));
 
-  let scope: "all" | "this" = "all";
+  type View = "all" | "this" | "insights";
+  let view: View = "all";
   let sessions: MergedSession[] = [];
 
   /// A session belongs to "this project" when its cwd is the project root or nested
@@ -91,8 +94,13 @@ export function openMemoryPanel(ctx: MemoryPanelCtx): void {
   };
 
   const render = () => {
+    searchEl.style.display = view === "insights" ? "none" : "";
+    if (view === "insights") {
+      renderInsights();
+      return;
+    }
     const q = searchEl.value.trim();
-    const rows = sessions.filter((s) => (scope === "all" || inThisProject(s)) && matchesSearch(s, q));
+    const rows = sessions.filter((s) => (view === "all" || inThisProject(s)) && matchesSearch(s, q));
     countEl.textContent = t("sess.count", rows.length);
     listEl.innerHTML = "";
     if (!rows.length) {
@@ -162,6 +170,81 @@ export function openMemoryPanel(ctx: MemoryPanelCtx): void {
     return el;
   };
 
+  // Insights view: the heuristic "learning" over everything preserved (distill.ts).
+  const chipRow = (label: string, items: string[]): HTMLElement => {
+    const row = document.createElement("div");
+    row.className = "ins-chips";
+    const lab = document.createElement("span");
+    lab.className = "ins-chip-label";
+    lab.textContent = label;
+    row.append(lab);
+    for (const it of items) {
+      const c = document.createElement("span");
+      c.className = "ins-chip";
+      c.textContent = it;
+      row.append(c);
+    }
+    return row;
+  };
+
+  const renderInsights = () => {
+    const ins = distill(sessions);
+    const g = ins.global;
+    countEl.textContent = t("sess.count", g.sessions);
+    listEl.innerHTML = "";
+    if (!g.sessions) {
+      const empty = document.createElement("div");
+      empty.className = "mem-empty";
+      empty.textContent = t("ins.empty");
+      listEl.append(empty);
+      return;
+    }
+    // Overall card.
+    const card = document.createElement("div");
+    card.className = "mem-item ins-card";
+    const h = document.createElement("div");
+    h.className = "mem-head";
+    const title = document.createElement("span");
+    title.className = "mem-item-title";
+    title.textContent = t("ins.overall");
+    h.append(title);
+    card.append(h);
+    const sum = document.createElement("div");
+    sum.className = "mem-body";
+    sum.textContent = t("ins.summary", g.sessions, g.messages, g.projects);
+    card.append(sum);
+    if (g.busiest.length) card.append(chipRow(t("ins.busiest"), g.busiest.map((b) => `${b.project} (${b.sessions})`)));
+    if (g.topics.length) card.append(chipRow(t("ins.topics"), g.topics.map((tp) => `${tp.term} (${tp.count})`)));
+    listEl.append(card);
+    // By project.
+    const hd = document.createElement("div");
+    hd.className = "mem-session";
+    hd.textContent = t("ins.byProject");
+    listEl.append(hd);
+    for (const p of ins.projects) {
+      const el = document.createElement("div");
+      el.className = "mem-item";
+      const head = document.createElement("div");
+      head.className = "mem-head";
+      const ttl = document.createElement("span");
+      ttl.className = "mem-item-title";
+      ttl.textContent = p.project;
+      const badge = document.createElement("span");
+      badge.className = "mem-badge";
+      badge.textContent = t("ins.projLine", p.sessions, p.messages);
+      head.append(ttl, badge);
+      el.append(head);
+      const meta = document.createElement("div");
+      meta.className = "mem-body mem-meta";
+      const bits: string[] = [];
+      if (p.branches.length) bits.push(`${t("ins.branches")}: ${p.branches.join(", ")}`);
+      bits.push(`${t("ins.active")}: ${fmtDate(p.firstTs)} → ${fmtDate(p.lastTs)}`);
+      meta.textContent = bits.join(" · ");
+      el.append(meta);
+      listEl.append(el);
+    }
+  };
+
   // Portable export/import of the PRESERVED sessions — no lock-in. These are the durable
   // session memories (collective scope, tagged claude-session).
   const sessionMemories = () =>
@@ -212,12 +295,12 @@ export function openMemoryPanel(ctx: MemoryPanelCtx): void {
   };
   document.addEventListener("keydown", onKey, true);
 
-  const selectTab = (s: "all" | "this") => {
-    scope = s;
-    for (const b of tabEls) b.classList.toggle("active", b.dataset.scope === s);
+  const selectTab = (v: View) => {
+    view = v;
+    for (const b of tabEls) b.classList.toggle("active", b.dataset.view === v);
     render();
   };
-  for (const b of tabEls) b.addEventListener("click", () => selectTab(b.dataset.scope as "all" | "this"));
+  for (const b of tabEls) b.addEventListener("click", () => selectTab(b.dataset.view as View));
   selectTab("all");
 
   searchEl.addEventListener("input", render);
