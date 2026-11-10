@@ -348,7 +348,7 @@ body {
   border-radius: 14px;
   padding: 16px;
   width: min(520px, 90vw);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+  /* No heavy drop shadow — flat glass reads cleaner (border + blur separate it). */
 }
 .modal-title {
   font-size: 13px;
@@ -606,6 +606,61 @@ body {
 .mem-btn.mem-del {
   margin-left: auto;
   color: var(--danger, #e06c75);
+}
+/* Claude-session overview additions */
+.mem-hint {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 2px 0 2px;
+}
+.mem-count {
+  font-size: 11px;
+  color: var(--muted);
+  margin-left: auto;
+  align-self: center;
+}
+.mem-meta {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+#sess-search {
+  margin-bottom: 10px;
+}
+/* A session Claude itself has lost — we kept it. Monochrome: a left rule + dimmed, no
+   loud colour, per the Orca-style aesthetic. */
+.mem-item.mem-lost {
+  border-style: dashed;
+  opacity: 0.82;
+}
+.mem-lost-tag {
+  font-size: 10px;
+  color: var(--muted);
+  align-self: center;
+}
+/* Insights (heuristic learning) view */
+.ins-card {
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+}
+.ins-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+}
+.ins-chip-label {
+  font-size: 10px;
+  color: var(--muted);
+  margin-right: 2px;
+}
+.ins-chip {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border, color-mix(in srgb, var(--text) 14%, transparent));
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
 }
 .set-check {
   display: flex;

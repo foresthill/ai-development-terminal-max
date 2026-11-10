@@ -24,6 +24,9 @@ arranges all projects on a golden-angle (phyllotaxis) spiral.
 | `src/project.ts` | Project model + golden-spiral geometry |
 | `src/guard.ts` | Guardrail deny-list **presets** (user policy, not baked-in) |
 | `src/paths.ts` | Pure clickable-path detection for terminal output (unit-tested) |
+| `src/memory.ts` | Four-layer memory store (pluggable backend, SQLite-canonical, portable export/import) — `write`/`query`/`upsert`/`reinforce` |
+| `src/claude-sessions.ts` | Auto-harvest Claude's own `~/.claude/projects/*.jsonl` sessions → durable digests in `memory` (long-term memory; see 2026-11-10 doc) |
+| `src-tauri/src/claude_sessions.rs` | Read-only jsonl→`SessionDigest` scanner for the harvester |
 | `src/terminal-guards.ts` | Pure CSI guard registration (focus-report + cursor-report-loop break) — reproduced/verified headlessly in `terminal-guards.test.ts` |
 | `src/ui.ts` | Modal / toast / folder picker / settings dialog |
 | `src/pty.ts`, `src/git.ts` | Bridges to Rust commands |

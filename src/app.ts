@@ -931,18 +931,15 @@ export class App {
 
   // --- project memory (phase 1: personal unconscious) -----------------------
 
-  /// Open the memory panel for the focused project. Keyed by the project's folder
-  /// path (stable across restarts), not its session id. See memory.ts / the design
-  /// doc. Recall into an agent is human-driven (types, never auto-submits).
+  /// Open the Claude-session overview — the automatic long-term memory (see
+  /// claude-sessions.ts / the 2026-11-10 design doc). Global by default (every session
+  /// across all projects); if a project is focused it also offers a "this project"
+  /// filter. Resume into an agent is human-driven (types, never auto-submits).
   private openMemoryDialog() {
     const p = this.curProject;
-    if (!p || !p.root) {
-      toast(t("mem.noProject"), "error");
-      return;
-    }
     openMemoryPanel({
-      projectId: p.root,
-      projectLabel: p.name,
+      projectId: p?.root ?? null,
+      projectLabel: p?.name ?? null,
       sendToAgent: (text) => this.typeIntoFocusedAgent(text),
     });
   }

@@ -1,3 +1,4 @@
+mod claude_sessions;
 mod files;
 mod git;
 mod memory;
@@ -46,6 +47,7 @@ pub fn run() {
             files::write_file,
             memory::memory_read_all,
             memory::memory_write_all,
+            claude_sessions::claude_sessions,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

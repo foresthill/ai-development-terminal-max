@@ -6,6 +6,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { setDisableAltScreen } from "./terminal-guards";
 import { installNavGuard } from "./nav-guard";
 import { initCanonicalStore } from "./memory";
+import { harvestSessions } from "./claude-sessions";
 
 // Decide the macOS 26 alt-screen workaround BEFORE any terminal is created. The Rust
 // `alt_screen_broken` command returns true only on an affected host (macOS 26 release);
@@ -33,6 +34,11 @@ async function boot() {
   await initCanonicalStore();
   const app = new App(document.getElementById("root")!);
   app.init();
+  // Automatically harvest Claude's own sessions into our durable store, so they are
+  // preserved even if Claude later loses them (the whole point — see claude-sessions.ts).
+  // After the UI is up, and best-effort: a non-Tauri context or missing ~/.claude is a
+  // silent no-op.
+  void harvestSessions().catch(() => {});
 }
 
 void boot();
