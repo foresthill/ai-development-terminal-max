@@ -348,7 +348,7 @@ body {
   border-radius: 14px;
   padding: 16px;
   width: min(520px, 90vw);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+  /* No heavy drop shadow — flat glass reads cleaner (border + blur separate it). */
 }
 .modal-title {
   font-size: 13px;
