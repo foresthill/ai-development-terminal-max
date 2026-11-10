@@ -21,10 +21,12 @@ export async function checkForUpdates(opts: { silent: boolean }): Promise<void> 
       if (!opts.silent) toast(t("updater.upToDate"));
       return;
     }
-    const notes = (update.body ?? "").trim().slice(0, 300);
+    // Keep the prompt clean: just the version question. The release body is raw
+    // Markdown (headings, tables, links) and dumping it here looked cluttered — the
+    // full notes live on the GitHub release page.
     const ok = await confirmModal({
       title: t("updater.title"),
-      body: t("updater.available", update.version, update.currentVersion) + (notes ? `\n\n${notes}` : ""),
+      body: t("updater.available", update.version, update.currentVersion),
       confirm: t("updater.confirm"),
     });
     if (!ok) return;
