@@ -1,6 +1,12 @@
 # claude セッション収穫＝長期記憶 設計書（四層記憶の実体化）
 
-作成: 2026-11-10 / ステータス: **スライス1 実装済み（収穫＋耐久保持＋総覧／手入力撤去）。スライス2(蒸留/学習)は未着手** / 前提: `docs/2026-11-08-four-layer-memory-architecture.md`
+作成: 2026-11-10 / ステータス: **スライス1＋2a 実装済み（収穫＋耐久保持＋総覧＋ヒューリスティック蒸留／手入力撤去）。2b(LLM要約)は任意・未着手** / 前提: `docs/2026-11-08-four-layer-memory-architecture.md`
+
+## 実装メモ（スライス2a・2026-11-10・LLM無し蒸留）
+- `src/distill.ts`：純粋関数 `distill(sessions)` → 全体(セッション/メッセージ/プロジェクト数・よく使うプロジェクト・頻出トピック) ＋ プロジェクト別(件数/メッセージ/ブランチ/稼働期間)。頻出トピックは「2セッション以上に出現」＋stop-word除去。ユニットテスト5件。
+- `src/claude-sessions.ts`：`persistInsights()`（`insight-global`＋`insight-proj-<p>` を tag `distilled` で upsert、収穫毎に更新）、`sessionInsights()`。
+- `src/memory-panel.ts`：`📊 インサイト` タブ追加（全体カード＋プロジェクト別）。モノトーン。
+- 検証：`pnpm build` 成功、`pnpm test` 54件通過、UIスクショ確認。
 
 ## 実装メモ（スライス1・2026-11-10）
 - Rust `src-tauri/src/claude_sessions.rs`：`claude_sessions(only_cwd)` が全 `*.jsonl` を走査し `SessionDigest` を返す（読み取り専用・寛容パース）。実データ(2678通のセッション)でスタンドアロン検証済み。
