@@ -274,11 +274,18 @@ export class App {
         // you exit claude back to an idle shell (procs == 1), the tint clears.
         const waiting = x.agent.running && x.quiet && s.procs > 1;
         x.agent.cardEl.classList.toggle("waiting", waiting);
-        // follow `cd` (display only) unless the user is editing the path field
-        if (s.cwd && s.cwd !== x.agent.cwd && document.activeElement !== x.agent.pathEl) {
-          x.agent.cwd = s.cwd;
-          x.agent.pathEl.value = s.cwd;
-          this.refreshBranch(x.agent);
+        // Show where the shell has `cd`'d to — DISPLAY ONLY. We must NOT touch
+        // agent.cwd (the user-set working dir, which is the spawn source for new
+        // shell layers + restore, and the persisted value): overwriting it here made
+        // new shells/restores spawn in a drifted dir, reverted the user's path edits,
+        // and — once the user re-corrected the path — respawned the primary (claude)
+        // layer, killing its session/venv. Surface the live dir as a tooltip + a
+        // subtle "drift" marker on the path field when it differs from the set cwd.
+        if (s.cwd) {
+          x.agent.liveCwd = s.cwd;
+          const drift = !!x.agent.cwd && s.cwd !== x.agent.cwd;
+          x.agent.pathEl.classList.toggle("drift", drift);
+          x.agent.pathEl.title = drift ? t("agent.liveCwd", s.cwd) : "";
         }
       });
       // Running total across every live agent (all projects). CPU% is summed

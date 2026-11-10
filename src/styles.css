@@ -1261,6 +1261,13 @@ body {
 .agent-path:hover {
   color: var(--text);
 }
+/* The running shell has cd'd away from the set working dir — subtle, non-destructive
+   cue (the field still shows/edits the SET cwd). Hover for the live dir (title). */
+.agent-path.drift {
+  border-style: dashed;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
 .agent-path:focus {
   border-color: var(--accent);
   color: var(--text);
