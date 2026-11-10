@@ -17,7 +17,11 @@ tauri-build = { version = "2", features = [] }
 # (2026-10-18 probe RESULT: a release built with `features=["devtools"]` was STILL
 # black, so the inspector/`isInspectable` path is NOT the cause — reverted to []. The
 # real display cause was the front layer's compositing promotion; see the vim doc.)
-tauri = { version = "2", features = [] }
+# `macos-private-api` must be enabled to match `macOSPrivateApi: true` in
+# tauri.conf.json (the window vibrancy / translucent background added in v0.1.12).
+# Tauri's build script errors if the config asks for it but the cargo feature is off;
+# the feature is a no-op off macOS, so it stays unconditional for the shared manifest.
+tauri = { version = "2", features = ["macos-private-api"] }
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
