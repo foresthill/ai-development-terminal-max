@@ -31,7 +31,7 @@ dependencies = [
 
 [[package]]
 name = "ai-dev-terminal"
-version = "0.1.12-beta.1"
+version = "0.1.12"
 dependencies = [
  "base64 0.22.1",
  "libc",
