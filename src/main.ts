@@ -20,6 +20,14 @@ async function boot() {
   } catch {
     /* non-Tauri context (e.g. web preview) — keep alt-screen enabled */
   }
+  // Mark the OS so CSS can enable the translucent (vibrancy) window background only
+  // on macOS — on Windows/Linux the body stays opaque so a transparent window never
+  // shows through to the desktop. See styles.css :root[data-os="macos"].
+  try {
+    document.documentElement.dataset.os = await invoke<string>("platform_os");
+  } catch {
+    /* non-Tauri — leave unset (opaque, safe default) */
+  }
   // Promote memory to its canonical SQLite store before the UI reads it (migrates
   // any existing localStorage memories in once). No-op/ fallback outside Tauri.
   await initCanonicalStore();

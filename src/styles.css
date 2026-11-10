@@ -22,6 +22,13 @@ body {
   font-family: "SF Pro Text", -apple-system, system-ui, sans-serif;
   overflow: hidden;
 }
+/* macOS only: let the native window vibrancy (underWindowBackground) show through —
+   the translucent chrome/panels then read as real "liquid glass". Windows/Linux keep
+   the opaque body so a transparent window never reveals the desktop. Agent cards /
+   terminals keep their own solid background, so terminal rendering is unaffected. */
+:root[data-os="macos"] body {
+  background: transparent;
+}
 
 #root {
   display: flex;
