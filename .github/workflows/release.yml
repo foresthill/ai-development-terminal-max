@@ -154,5 +154,8 @@ jobs:
             - Full-screen TUIs like vim: **macOS 26 (Tahoe) only** — a WKWebView bug ([wry#1848](https://github.com/tauri-apps/wry/issues/1848), not a bug in this app) freezes their display. They work fine on Windows, Linux, and macOS 25 and earlier. To edit files on macOS 26, use the built-in editor (`Alt+E`).
             - The browser layer is iframe-based (sites sending `X-Frame-Options` can't embed)
           releaseDraft: true
-          prerelease: false
+          # A tag with a pre-release suffix (e.g. v0.1.12-beta.1) is marked
+          # pre-release, so `releases/latest` (what the updater reads) skips it and it
+          # is NOT auto-shipped — install it manually to test. Clean tags ship normally.
+          prerelease: ${{ contains(github.ref_name, '-') }}
           args: ${{ matrix.args }}

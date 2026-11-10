@@ -41,6 +41,7 @@ pub fn run() {
             git::write_aidt_settings,
             sys::agent_stats,
             sys::alt_screen_broken,
+            sys::platform_os,
             files::read_file,
             files::write_file,
             memory::memory_read_all,

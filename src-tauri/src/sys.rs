@@ -45,6 +45,14 @@ pub fn alt_screen_broken() -> bool {
     false
 }
 
+/// The host OS ("macos" | "windows" | "linux" | …). The webview can't tell from the
+/// user agent (it's overridden to a Mac string in tauri.conf), so the frontend asks
+/// here — e.g. to enable the translucent window background only on macOS.
+#[tauri::command]
+pub fn platform_os() -> String {
+    std::env::consts::OS.to_string()
+}
+
 #[tauri::command]
 pub fn agent_stats(state: tauri::State<'_, SysState>, pids: Vec<u32>) -> Vec<AgentStat> {
     let mut sys = state.0.lock().unwrap();
