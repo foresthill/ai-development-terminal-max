@@ -607,6 +607,37 @@ body {
   margin-left: auto;
   color: var(--danger, #e06c75);
 }
+/* Claude-session overview additions */
+.mem-hint {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 2px 0 2px;
+}
+.mem-count {
+  font-size: 11px;
+  color: var(--muted);
+  margin-left: auto;
+  align-self: center;
+}
+.mem-meta {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+#sess-search {
+  margin-bottom: 10px;
+}
+/* A session Claude itself has lost — we kept it. Monochrome: a left rule + dimmed, no
+   loud colour, per the Orca-style aesthetic. */
+.mem-item.mem-lost {
+  border-style: dashed;
+  opacity: 0.82;
+}
+.mem-lost-tag {
+  font-size: 10px;
+  color: var(--muted);
+  align-self: center;
+}
 .set-check {
   display: flex;
   align-items: center;

@@ -111,6 +111,41 @@ describe("MemoryStore — reinforce + delete", () => {
   });
 });
 
+describe("MemoryStore — upsert (stable id, e.g. a Claude session)", () => {
+  it("inserts once, then updates in place on the same id (no duplicate)", () => {
+    const s = store();
+    s.upsert("claude-session-abc", {
+      scope: "collective",
+      kind: "summary",
+      title: "first title",
+      body: '{"messages":3}',
+      salience: 3,
+    });
+    s.upsert("claude-session-abc", {
+      scope: "collective",
+      kind: "summary",
+      title: "grew",
+      body: '{"messages":9}',
+      salience: 9,
+    });
+    const rows = s.query({ scope: "collective", limit: 100 });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).toBe("claude-session-abc");
+    expect(rows[0].title).toBe("grew");
+    expect(rows[0].body).toBe('{"messages":9}');
+    expect(rows[0].salience).toBe(9);
+  });
+
+  it("keeps createdAt but advances updatedAt across upserts", async () => {
+    const s = store();
+    const a = s.upsert("sid", { title: "v1" });
+    await new Promise((r) => setTimeout(r, 2));
+    const b = s.upsert("sid", { title: "v2" });
+    expect(b.createdAt).toBe(a.createdAt);
+    expect(b.updatedAt).toBeGreaterThanOrEqual(a.updatedAt);
+  });
+});
+
 describe("portable import/export (no lock-in)", () => {
   it("JSON round-trips losslessly", () => {
     const s = store();

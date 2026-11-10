@@ -145,6 +145,35 @@ export class MemoryStore {
     return m;
   }
 
+  /// Upsert by a caller-chosen STABLE id (e.g. a Claude sessionId) — one row per
+  /// external key, updated in place when the source changes. Unlike `write` (which is
+  /// append-only with a random id), this is how the session harvester keeps exactly one
+  /// durable digest per Claude session and refreshes it as the session grows. Fields
+  /// not supplied fall back to the existing row (or defaults), and createdAt is kept.
+  upsert(id: string, input: MemoryInput): Memory {
+    const t = now();
+    const all = this.all();
+    const prev = all.find((m) => m.id === id);
+    const m: Memory = {
+      id,
+      scope: input.scope ?? prev?.scope ?? "personal",
+      projectId: input.projectId ?? prev?.projectId ?? null,
+      agentId: input.agentId ?? prev?.agentId ?? null,
+      kind: input.kind ?? prev?.kind ?? "note",
+      title: input.title.trim(),
+      body: (input.body ?? prev?.body ?? "").trim(),
+      tags: (input.tags ?? prev?.tags ?? []).map((s) => s.trim()).filter(Boolean),
+      salience: input.salience ?? prev?.salience ?? 0,
+      createdAt: prev?.createdAt ?? t,
+      updatedAt: t,
+      expiresAt: input.ttlMs != null ? t + input.ttlMs : (prev?.expiresAt ?? null),
+    };
+    if (prev) Object.assign(prev, m);
+    else all.push(m);
+    this.backend.save(all);
+    return m;
+  }
+
   /// Recall: the most relevant memories for a scope/project, ranked. Expired rows
   /// are excluded (and opportunistically pruned) unless `includeExpired`.
   query(opts: QueryOpts = {}): Memory[] {

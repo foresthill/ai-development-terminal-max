@@ -1,35 +1,38 @@
-// Memory panel (Phase 1 UI): sediment & recall a project's "personal unconscious".
-// See docs/2026-11-08-four-layer-memory-architecture.md. Kept in its own module so
-// app.ts doesn't grow; it talks to the store (memory.ts) directly and gets just a
-// projectId, a label, and a human-driven "type this into the focused agent" hook.
+// Claude session overview (the real "long-term memory"). See
+// docs/2026-11-10-claude-session-harvest-longterm-memory.md.
 //
-// Recall is human-in-the-loop by design: "→ agent" TYPES a memory into the focused
-// terminal WITHOUT submitting, so the person edits/sends it. Autonomous injection
-// is intentionally not built (see CLAUDE.md).
+// The user's requirement: long-term memory is NOT hand-typed notes — it is the app
+// automatically harvesting Claude Code's own sessions and PRESERVING them durably,
+// because Claude's session storage is unreliable (sessions can fail to resume / vanish).
+// So this panel shows a global survey of every Claude session we've seen (across all
+// projects), reads from our durable store (merged with the live scan), flags any session
+// Claude has since lost, and lets a human resume one — human-in-the-loop, no autonomous
+// injection (see CLAUDE.md). The old hand-entry form was removed: the user won't use it.
+//
+// Portability is kept: the preserved sessions export to Markdown/JSON (no lock-in).
 import {
   memory,
   memoriesToJson,
   memoriesToMarkdown,
   memoriesFromJson,
-  SHORT_TERM_TTL_MS,
-  type Memory,
-  type MemoryKind,
-  type MemoryScope,
 } from "./memory";
+import {
+  overviewSessions,
+  SESSION_TAG,
+  type MergedSession,
+} from "./claude-sessions";
 import { readFile, writeFile, pickFile, pickSavePath } from "./files";
-import { sessionTag, sessionIdFromTags, sessionStartedAt, currentSessionId } from "./session";
 import { toast } from "./ui";
 import { t, getLang } from "./i18n";
 
 export interface MemoryPanelCtx {
-  /** Stable per-project key — the project's folder path (survives restarts). */
-  projectId: string;
-  projectLabel: string;
+  /** Current project's folder path, to offer a "this project" filter (optional — the
+   *  overview is global by default). */
+  projectId?: string | null;
+  projectLabel?: string | null;
   /** Type text into the focused agent's terminal (no auto-submit). */
   sendToAgent: (text: string) => boolean;
 }
-
-const KINDS: MemoryKind[] = ["note", "summary", "decision", "convention", "goal"];
 
 export function openMemoryPanel(ctx: MemoryPanelCtx): void {
   const back = document.createElement("div");
@@ -37,181 +40,143 @@ export function openMemoryPanel(ctx: MemoryPanelCtx): void {
   const box = document.createElement("div");
   box.className = "modal modal-wide modal-memory";
 
-  const kindOpts = KINDS.map((k) => `<option value="${k}">${t("mem.kind." + k)}</option>`).join("");
+  const hasProject = !!(ctx.projectId && ctx.projectLabel);
   box.innerHTML = `
-    <div class="modal-title">🧠 ${t("mem.title")} — ${escapeHtml(ctx.projectLabel)}</div>
+    <div class="modal-title">🧠 ${t("sess.title")}</div>
+    <div class="mem-hint">${t("sess.hint")}</div>
     <div class="mem-tabs">
-      <button class="mem-tab" data-scope="personal">${t("mem.tabLong")}</button>
-      <button class="mem-tab" data-scope="conscious">${t("mem.tabShort")}</button>
+      <button class="mem-tab" data-scope="all">${t("sess.scopeAll")}</button>
+      ${hasProject ? `<button class="mem-tab" data-scope="this">${t("sess.scopeThis")} · ${escapeHtml(ctx.projectLabel!)}</button>` : ""}
+      <span class="mem-count" id="sess-count"></span>
+      <button id="sess-refresh" class="mem-btn">${t("sess.refresh")}</button>
     </div>
-    <div class="mem-add">
-      <input class="modal-input" id="mem-title" placeholder="${t("mem.phTitle")}" spellcheck="false">
-      <textarea class="modal-input" id="mem-body" rows="2" placeholder="${t("mem.phBody")}" spellcheck="false"></textarea>
-      <div class="mem-add-row">
-        <select class="modal-input" id="mem-kind">${kindOpts}</select>
-        <input class="modal-input" id="mem-tags" placeholder="${t("mem.phTags")}" spellcheck="false">
-        <button id="mem-save" class="primary">${t("mem.save")}</button>
-      </div>
-    </div>
-    <div class="set-section">${t("mem.listTitle")}</div>
+    <input class="modal-input" id="sess-search" placeholder="${t("sess.search")}" spellcheck="false">
+    <div id="mem-list" class="mem-list"></div>
     <div class="mem-io">
       <span class="mem-io-label">${t("mem.portable")}</span>
       <button id="mem-exp-md" class="mem-btn">${t("mem.exportMd")}</button>
       <button id="mem-exp-json" class="mem-btn">${t("mem.exportJson")}</button>
       <button id="mem-imp" class="mem-btn">${t("mem.import")}</button>
     </div>
-    <div id="mem-list" class="mem-list"></div>
     <div class="modal-row"><button id="mem-close" class="primary">${t("modal.ok")}</button></div>`;
   back.append(box);
   document.body.append(back);
 
   const listEl = box.querySelector<HTMLElement>("#mem-list")!;
-  const titleEl = box.querySelector<HTMLInputElement>("#mem-title")!;
-  const bodyEl = box.querySelector<HTMLTextAreaElement>("#mem-body")!;
-  const kindEl = box.querySelector<HTMLSelectElement>("#mem-kind")!;
-  const tagsEl = box.querySelector<HTMLInputElement>("#mem-tags")!;
+  const searchEl = box.querySelector<HTMLInputElement>("#sess-search")!;
+  const countEl = box.querySelector<HTMLElement>("#sess-count")!;
   const tabEls = Array.from(box.querySelectorAll<HTMLButtonElement>(".mem-tab"));
 
-  // Which layer the panel is showing: long-term (personal, permanent) or short-term
-  // (conscious, auto-recorded + TTL'd). The add form writes into the active layer.
-  let scope: MemoryScope = "personal";
+  let scope: "all" | "this" = "all";
+  let sessions: MergedSession[] = [];
 
-  const renderList = () => {
-    const rows = memory.query({ scope, projectId: ctx.projectId, limit: 200 });
+  /// A session belongs to "this project" when its cwd is the project root or nested
+  /// under it (agents run in worktrees below the root).
+  const inThisProject = (s: MergedSession): boolean => {
+    const root = ctx.projectId;
+    if (!root) return true;
+    return s.cwd === root || s.cwd.startsWith(root + "/");
+  };
+
+  const matchesSearch = (s: MergedSession, q: string): boolean => {
+    if (!q) return true;
+    const hay = `${s.title} ${s.project} ${s.gitBranch} ${s.slug}`.toLowerCase();
+    return q.toLowerCase().split(/\s+/).filter(Boolean).every((tok) => hay.includes(tok));
+  };
+
+  const fmtDate = (iso: string): string => {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso || "";
+    return d.toLocaleString(getLang() === "ja" ? "ja-JP" : undefined);
+  };
+
+  const render = () => {
+    const q = searchEl.value.trim();
+    const rows = sessions.filter((s) => (scope === "all" || inThisProject(s)) && matchesSearch(s, q));
+    countEl.textContent = t("sess.count", rows.length);
     listEl.innerHTML = "";
     if (!rows.length) {
       const empty = document.createElement("div");
       empty.className = "mem-empty";
-      empty.textContent = scope === "conscious" ? t("mem.emptyShort") : t("mem.empty");
+      empty.textContent = t("sess.empty");
       listEl.append(empty);
       return;
     }
-    // Long-term: a flat list. Short-term: grouped by session (Orca-style history).
-    if (scope !== "conscious") {
-      for (const m of rows) listEl.append(row(m));
-      return;
-    }
-    renderGroupedBySession(rows);
-  };
-
-  /// Short-term view: bucket memories by their `session:<id>` tag, newest session
-  /// first (current session on top), each under a dated header.
-  const renderGroupedBySession = (rows: Memory[]) => {
-    const buckets = new Map<string, Memory[]>();
-    for (const m of rows) {
-      const sid = sessionIdFromTags(m.tags) ?? "";
-      (buckets.get(sid) ?? buckets.set(sid, []).get(sid)!).push(m);
+    // Orca-style: group by project, newest project activity first.
+    const buckets = new Map<string, MergedSession[]>();
+    for (const s of rows) {
+      const key = s.project || s.cwd || "—";
+      (buckets.get(key) ?? buckets.set(key, []).get(key)!).push(s);
     }
     const order = [...buckets.keys()].sort((a, b) => {
-      if (a === currentSessionId()) return -1;
-      if (b === currentSessionId()) return 1;
-      return (sessionStartedAt(b) ?? 0) - (sessionStartedAt(a) ?? 0);
+      const la = buckets.get(a)![0]?.lastTs ?? "";
+      const lb = buckets.get(b)![0]?.lastTs ?? "";
+      return lb.localeCompare(la);
     });
-    for (const sid of order) {
+    for (const key of order) {
       const header = document.createElement("div");
       header.className = "mem-session";
-      header.textContent = sessionLabel(sid);
+      header.textContent = key;
       listEl.append(header);
-      for (const m of buckets.get(sid)!) listEl.append(row(m));
+      for (const s of buckets.get(key)!) listEl.append(sessionRow(s));
     }
   };
 
-  const sessionLabel = (sid: string): string => {
-    if (!sid) return t("mem.sessUnknown");
-    const at = sessionStartedAt(sid);
-    const when = at ? new Date(at).toLocaleString(getLang() === "ja" ? "ja-JP" : undefined) : sid;
-    return sid === currentSessionId() ? `🟢 ${t("mem.sessCurrent")} · ${when}` : when;
-  };
-
-  const row = (m: Memory): HTMLElement => {
+  const sessionRow = (s: MergedSession): HTMLElement => {
     const el = document.createElement("div");
-    el.className = "mem-item";
+    el.className = "mem-item" + (s.lostByClaude ? " mem-lost" : "");
     const head = document.createElement("div");
     head.className = "mem-head";
     const title = document.createElement("span");
     title.className = "mem-item-title";
-    title.textContent = m.title;
+    title.textContent = s.title || s.slug || s.sessionId;
     const badge = document.createElement("span");
     badge.className = "mem-badge";
-    badge.textContent = `${t("mem.kind." + m.kind)} · ★${m.salience}`;
+    badge.textContent = t("sess.msgs", s.messages);
     head.append(title, badge);
     el.append(head);
-    if (m.body) {
-      const body = document.createElement("div");
-      body.className = "mem-body";
-      body.textContent = m.body;
-      el.append(body);
-    }
+
+    const meta = document.createElement("div");
+    meta.className = "mem-body mem-meta";
+    const bits = [s.gitBranch, fmtDate(s.lastTs)].filter(Boolean);
+    meta.textContent = bits.join(" · ");
+    el.append(meta);
+
     const acts = document.createElement("div");
     acts.className = "mem-acts";
-    const send = mkBtn(t("mem.send"), () => {
-      const text = m.body ? `${m.title}: ${m.body}` : m.title;
-      if (ctx.sendToAgent(text)) {
-        memory.reinforce(m.id); // recalling something reinforces it
-        toast(t("mem.sent"));
-        renderList();
-      } else {
-        toast(t("mem.noAgent"), "error");
-      }
+    if (s.lostByClaude) {
+      const lost = document.createElement("span");
+      lost.className = "mem-lost-tag";
+      lost.textContent = "⚠ " + t("sess.lost");
+      acts.append(lost);
+    }
+    const resume = mkBtn(t("sess.resume"), () => {
+      // Hand the human the exact resume command for this session — even one Claude's own
+      // UI has forgotten — in the right directory. They press Enter.
+      const cmd = `cd "${s.cwd}" && claude --resume ${s.sessionId}`;
+      if (ctx.sendToAgent(cmd)) toast(t("sess.resumed"));
+      else toast(t("mem.noAgent"), "error");
     });
-    const boost = mkBtn(t("mem.reinforce"), () => {
-      memory.reinforce(m.id);
-      renderList();
-    });
-    const del = mkBtn(t("mem.del"), () => {
-      memory.delete(m.id);
-      renderList();
-    });
-    del.classList.add("mem-del");
-    acts.append(send, boost, del);
+    acts.append(resume);
     el.append(acts);
     return el;
   };
 
-  const save = () => {
-    const title = titleEl.value.trim();
-    if (!title) {
-      titleEl.focus();
-      return;
-    }
-    const tags = tagsEl.value.split(",").map((s) => s.trim()).filter(Boolean);
-    if (scope === "conscious") tags.push(sessionTag()); // group under this session
-    memory.write({
-      scope,
-      projectId: ctx.projectId,
-      kind: kindEl.value as MemoryKind,
-      title,
-      body: bodyEl.value,
-      tags,
-      salience: 1, // a human-written memory starts above auto-sediment
-      // Short-term entries expire; long-term are permanent.
-      ttlMs: scope === "conscious" ? SHORT_TERM_TTL_MS : undefined,
-    });
-    titleEl.value = "";
-    bodyEl.value = "";
-    tagsEl.value = "";
-    toast(t("mem.saved"));
-    renderList();
-    titleEl.focus();
-  };
+  // Portable export/import of the PRESERVED sessions — no lock-in. These are the durable
+  // session memories (collective scope, tagged claude-session).
+  const sessionMemories = () =>
+    memory.query({ scope: "collective", limit: 100000 }).filter((m) => m.tags.includes(SESSION_TAG));
 
-  // Portable export/import — your memory is never locked into this app. MD is for
-  // reading (Obsidian/Notion); JSON is lossless and re-importable anywhere.
-  const safeName =
-    ctx.projectLabel.replace(/[^\p{L}\p{N}_-]+/gu, "-").replace(/^-+|-+$/g, "") || "project";
   const stamp = new Date().toISOString().slice(0, 10);
-
   const exportTo = async (fmt: "md" | "json") => {
-    // Export the whole project memory (both layers) — full portability.
-    const rows = memory.query({ projectId: ctx.projectId, limit: 100000 });
+    const rows = sessionMemories();
     if (!rows.length) {
       toast(t("mem.exportEmpty"), "error");
       return;
     }
-    const path = await pickSavePath(`aidt-memory-${safeName}-${stamp}.${fmt}`);
+    const path = await pickSavePath(`aidt-claude-sessions-${stamp}.${fmt}`);
     if (!path) return;
-    const content =
-      fmt === "md" ? memoriesToMarkdown(rows, `Memory — ${ctx.projectLabel}`) : memoriesToJson(rows);
+    const content = fmt === "md" ? memoriesToMarkdown(rows, "Claude Sessions") : memoriesToJson(rows);
     try {
       await writeFile(path, content);
       toast(t("mem.exported"));
@@ -219,17 +184,22 @@ export function openMemoryPanel(ctx: MemoryPanelCtx): void {
       toast(String(e), "error");
     }
   };
-
   const importFrom = async () => {
     const path = await pickFile();
     if (!path) return;
     try {
       const n = memory.importMany(memoriesFromJson(await readFile(path)));
       toast(t("mem.imported", n));
-      renderList();
+      await reload();
     } catch (e) {
       toast(t("mem.importFail", String(e)), "error");
     }
+  };
+
+  const reload = async () => {
+    listEl.innerHTML = `<div class="mem-empty">…</div>`;
+    sessions = await overviewSessions();
+    render();
   };
 
   const close = () => {
@@ -241,15 +211,17 @@ export function openMemoryPanel(ctx: MemoryPanelCtx): void {
     if (e.key === "Escape") close();
   };
   document.addEventListener("keydown", onKey, true);
-  const selectTab = (s: MemoryScope) => {
+
+  const selectTab = (s: "all" | "this") => {
     scope = s;
     for (const b of tabEls) b.classList.toggle("active", b.dataset.scope === s);
-    renderList();
+    render();
   };
-  for (const b of tabEls) b.addEventListener("click", () => selectTab(b.dataset.scope as MemoryScope));
-  selectTab("personal");
+  for (const b of tabEls) b.addEventListener("click", () => selectTab(b.dataset.scope as "all" | "this"));
+  selectTab("all");
 
-  box.querySelector("#mem-save")!.addEventListener("click", save);
+  searchEl.addEventListener("input", render);
+  box.querySelector("#sess-refresh")!.addEventListener("click", () => void reload());
   box.querySelector("#mem-exp-md")!.addEventListener("click", () => void exportTo("md"));
   box.querySelector("#mem-exp-json")!.addEventListener("click", () => void exportTo("json"));
   box.querySelector("#mem-imp")!.addEventListener("click", () => void importFrom());
@@ -258,8 +230,8 @@ export function openMemoryPanel(ctx: MemoryPanelCtx): void {
     if (e.target === back) close();
   });
 
-  renderList();
-  setTimeout(() => titleEl.focus(), 0);
+  void reload();
+  setTimeout(() => searchEl.focus(), 0);
 }
 
 function mkBtn(label: string, onClick: () => void): HTMLButtonElement {
