@@ -1409,23 +1409,13 @@ body {
 }
 .layer.behind {
   z-index: calc(10 - var(--d, 1));
+  /* Hidden. The layer tabs already convey the stack; every peeking variant (dim pane,
+     shadow, offset card edge) read as a shadow/smudge in the small overview cells.
+     Kept mounted (NOT display:none) so the terminal/pty stays alive. A proper "comes
+     forward" depth effect is deferred: it can't use a drop shadow (taste) nor a pane
+     animation (the macOS 26 WKWebView compositor bug blanks animated terminal panes). */
+  opacity: 0;
   pointer-events: none;
-  opacity: 1;
-  /* "Stacked cards", not a shadow. Each pane behind the front is shifted a clear
-     12px down + right (one direction only, away from the top-left tabs), with NO
-     scale — scaling let the front cover it so only a soft, shadow-like sliver showed.
-     The crisp 1px border is what reads as a card edge rather than a blur. */
-  transform: translate(calc(var(--d, 1) * 12px), calc(var(--d, 1) * 12px));
-  border: 1px solid var(--border);
-}
-/* Opaque face so the peeking edge is a clean card, never a dim terminal screenshot
-   or a translucent haze. */
-.layer.behind::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: var(--panel-2);
 }
 
 /* Glass skin (opt-in via Settings → Theme). Frost ONLY the stacked-behind panes;
