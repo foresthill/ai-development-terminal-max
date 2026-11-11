@@ -4,6 +4,18 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AI Dev Terminal MAX</title>
+    <!-- Paint dark on the very first frame (before the stylesheet loads) so startup
+         doesn't flash the white/light native window. styles.css overrides this on
+         macOS (`:root[data-os="macos"]`, higher specificity) once the OS is known,
+         so window vibrancy still shows after boot. -->
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #060810;
+      }
+    </style>
     <script type="module" src="/src/main.ts" defer></script>
   </head>
   <body>
