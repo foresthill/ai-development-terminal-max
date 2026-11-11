@@ -1409,12 +1409,26 @@ body {
 }
 .layer.behind {
   z-index: calc(10 - var(--d, 1));
-  /* Hidden entirely. The layer tabs already show the stack; a peeking, dimmed pane
-     behind the front one just bled out beside/above the tab strip as an ugly blurry
-     smudge. Keep it mounted (NOT display:none) so its terminal/pty stays alive and
-     fits correctly when brought to front. */
-  opacity: 0;
   pointer-events: none;
+  opacity: 1;
+  /* "Stacked cards", not a shadow: each pane behind the front is a crisp panel whose
+     edge peeks DOWN + RIGHT (away from the top-left tab strip, so it never smudges
+     beside the tabs). No blur, no drop shadow. */
+  transform: translate(calc(var(--d, 1) * 7px), calc(var(--d, 1) * 7px))
+    scale(calc(1 - var(--d, 1) * 0.02));
+  transform-origin: top left;
+  border: 1px solid var(--border);
+}
+/* Mask the behind pane's live content so the peeking edge reads as a clean panel,
+   not a dim screenshot of a terminal. A slightly different fill (panel-2) + dim makes
+   the stack legible without a shadow. */
+.layer.behind::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--panel-2);
+  opacity: 0.97;
 }
 
 /* Glass skin (opt-in via Settings → Theme). Frost ONLY the stacked-behind panes;
