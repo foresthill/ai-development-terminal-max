@@ -36,8 +36,10 @@ body {
      gaps, cells with no card) show the bare `underWindowBackground` material, which
      reads as a dull light-grey in dark mode. The veil keeps the frosted-glass
      translucency but renders it as cohesive dark glass. Tune the first % to taste:
-     higher = darker / less see-through, lower = more vibrancy. */
-  background: color-mix(in srgb, var(--bg) 82%, transparent);
+     higher = darker / less see-through, lower = more vibrancy. 94% = nearly solid
+     dark (just a whisper of vibrancy) so empty areas read deep-dark, not grey; the
+     glass feel now comes from the topbar/panel backdrop-filter, not the window. */
+  background: color-mix(in srgb, var(--bg) 94%, transparent);
 }
 
 #root {
