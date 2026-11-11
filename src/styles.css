@@ -1411,24 +1411,21 @@ body {
   z-index: calc(10 - var(--d, 1));
   pointer-events: none;
   opacity: 1;
-  /* "Stacked cards", not a shadow: each pane behind the front is a crisp panel whose
-     edge peeks DOWN + RIGHT (away from the top-left tab strip, so it never smudges
-     beside the tabs). No blur, no drop shadow. */
-  transform: translate(calc(var(--d, 1) * 7px), calc(var(--d, 1) * 7px))
-    scale(calc(1 - var(--d, 1) * 0.02));
-  transform-origin: top left;
+  /* "Stacked cards", not a shadow. Each pane behind the front is shifted a clear
+     12px down + right (one direction only, away from the top-left tabs), with NO
+     scale — scaling let the front cover it so only a soft, shadow-like sliver showed.
+     The crisp 1px border is what reads as a card edge rather than a blur. */
+  transform: translate(calc(var(--d, 1) * 12px), calc(var(--d, 1) * 12px));
   border: 1px solid var(--border);
 }
-/* Mask the behind pane's live content so the peeking edge reads as a clean panel,
-   not a dim screenshot of a terminal. A slightly different fill (panel-2) + dim makes
-   the stack legible without a shadow. */
+/* Opaque face so the peeking edge is a clean card, never a dim terminal screenshot
+   or a translucent haze. */
 .layer.behind::after {
   content: "";
   position: absolute;
   inset: 0;
   border-radius: inherit;
   background: var(--panel-2);
-  opacity: 0.97;
 }
 
 /* Glass skin (opt-in via Settings → Theme). Frost ONLY the stacked-behind panes;
