@@ -26,7 +26,11 @@ body {
    the translucent chrome/panels then read as real "liquid glass". Windows/Linux keep
    the opaque body so a transparent window never reveals the desktop. Agent cards /
    terminals keep their own solid background, so terminal rendering is unaffected. */
+:root[data-os="macos"],
 :root[data-os="macos"] body {
+  /* BOTH html and body must be transparent: the native vibrancy
+     (NSVisualEffectView) sits behind the webview, so an opaque <html> would paint
+     over it and the window would look like a plain dark pane. */
   background: transparent;
 }
 
