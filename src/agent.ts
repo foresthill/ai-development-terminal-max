@@ -43,6 +43,9 @@ export interface Agent {
   id: string;
   title: string;
   cwd: string | null;
+  /** Live cwd sampled from the running shell (where it has `cd`'d). DISPLAY-ONLY —
+   *  never the spawn/persist source. `cwd` above stays the user-set working dir. */
+  liveCwd: string | null;
   branch: string; // git branch of cwd (worktree/repo), shown as a badge
   cpu: number; // last sampled CPU% of the agent's process subtree
   agentCmd: string; // the CLI agent this window runs (e.g. "claude", "aider")
@@ -957,6 +960,7 @@ export function createAgent(index: number): Agent {
     id: uid("agent"),
     title: `agent ${index}`,
     cwd: null,
+    liveCwd: null,
     branch: "",
     cpu: 0,
     agentCmd: "claude",
