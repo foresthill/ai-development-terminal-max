@@ -26,12 +26,18 @@ body {
    the translucent chrome/panels then read as real "liquid glass". Windows/Linux keep
    the opaque body so a transparent window never reveals the desktop. Agent cards /
    terminals keep their own solid background, so terminal rendering is unaffected. */
-:root[data-os="macos"],
-:root[data-os="macos"] body {
-  /* BOTH html and body must be transparent: the native vibrancy
-     (NSVisualEffectView) sits behind the webview, so an opaque <html> would paint
-     over it and the window would look like a plain dark pane. */
+:root[data-os="macos"] {
+  /* <html> fully transparent so the native vibrancy (NSVisualEffectView, behind the
+     webview) isn't painted over. */
   background: transparent;
+}
+:root[data-os="macos"] body {
+  /* A translucent DARK veil over the raw vibrancy. Without it, empty areas (grid
+     gaps, cells with no card) show the bare `underWindowBackground` material, which
+     reads as a dull light-grey in dark mode. The veil keeps the frosted-glass
+     translucency but renders it as cohesive dark glass. Tune the first % to taste:
+     higher = darker / less see-through, lower = more vibrancy. */
+  background: color-mix(in srgb, var(--bg) 62%, transparent);
 }
 
 #root {
