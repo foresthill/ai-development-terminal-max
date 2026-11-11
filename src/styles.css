@@ -37,7 +37,7 @@ body {
      reads as a dull light-grey in dark mode. The veil keeps the frosted-glass
      translucency but renders it as cohesive dark glass. Tune the first % to taste:
      higher = darker / less see-through, lower = more vibrancy. */
-  background: color-mix(in srgb, var(--bg) 62%, transparent);
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
 }
 
 #root {
@@ -1411,7 +1411,7 @@ body {
   pointer-events: none;
   filter: brightness(0.6);
   transform: translateY(calc(var(--d, 1) * -10px)) scale(calc(1 - var(--d, 1) * 0.035));
-  box-shadow: 0 -6px 16px rgba(0, 0, 0, 0.5);
+  /* Flat look: depth is conveyed by the offset + dim alone, no drop shadow. */
 }
 
 /* Glass skin (opt-in via Settings → Theme). Frost ONLY the stacked-behind panes;
