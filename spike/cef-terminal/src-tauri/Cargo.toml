@@ -1,0 +1,24 @@
+[package]
+name = "cef-terminal"
+version = "0.1.0"
+description = "CEF (Chromium) terminal spike — does vim render on macOS 26?"
+edition = "2021"
+
+[lib]
+name = "cef_terminal_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = "3.0.0-alpha.0"
+
+[dependencies]
+# Tauri 3.0 alpha: the webview runtime is a separate crate now (not a tauri feature).
+# tauri-runtime-cef selects Chromium (CEF). If the build complains it also needs wry,
+# add `tauri-runtime-wry = "3.0.0-alpha.0"` here too (see the migration guide).
+tauri = "3.0.0-alpha.0"
+tauri-runtime-cef = "3.0.0-alpha.0"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+portable-pty = "0.9"
+base64 = "0.22"
+libc = "0.2"
