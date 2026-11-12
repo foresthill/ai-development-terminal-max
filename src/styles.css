@@ -22,24 +22,14 @@ body {
   font-family: "SF Pro Text", -apple-system, system-ui, sans-serif;
   overflow: hidden;
 }
-/* macOS only: let the native window vibrancy (underWindowBackground) show through —
-   the translucent chrome/panels then read as real "liquid glass". Windows/Linux keep
-   the opaque body so a transparent window never reveals the desktop. Agent cards /
-   terminals keep their own solid background, so terminal rendering is unaffected. */
-:root[data-os="macos"] {
-  /* <html> fully transparent so the native vibrancy (NSVisualEffectView, behind the
-     webview) isn't painted over. */
-  background: transparent;
-}
+/* macOS: window vibrancy was tried (transparent window + underWindowBackground) but it
+   read as a dull grey lift and never looked clean. So the window is a SOLID, deep dark
+   — a touch darker than --bg — for a calm, cohesive backdrop with minimal tonal
+   difference between empty areas and cards. Kept in one place (html + body together) so
+   vibrancy can be re-enabled later by making these `transparent` again. */
+:root[data-os="macos"],
 :root[data-os="macos"] body {
-  /* A translucent DARK veil over the raw vibrancy. Without it, empty areas (grid
-     gaps, cells with no card) show the bare `underWindowBackground` material, which
-     reads as a dull light-grey in dark mode. The veil keeps the frosted-glass
-     translucency but renders it as cohesive dark glass. Tune the first % to taste:
-     higher = darker / less see-through, lower = more vibrancy. 94% = nearly solid
-     dark (just a whisper of vibrancy) so empty areas read deep-dark, not grey; the
-     glass feel now comes from the topbar/panel backdrop-filter, not the window. */
-  background: color-mix(in srgb, var(--bg) 94%, transparent);
+  background: color-mix(in srgb, #000 32%, var(--bg));
 }
 
 #root {
