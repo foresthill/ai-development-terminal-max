@@ -74,13 +74,25 @@ app.ts before that follow-up lands** — put new concerns in their own module.
 
 ## vim / full-screen TUIs — read before touching the terminal renderer
 
-**Status (2026-10-25): input SOLVED; display UNFIXABLE in-webview on macOS 26.**
-Full-screen TUIs (vim/less/htop) don't display on **macOS 26 (Tahoe) release builds**
-— a WKWebView compositor bug ([wry#1848](https://github.com/tauri-apps/wry/issues/1848))
-that is **not our code**. They work on Windows, Linux and older macOS. The planned way to
-edit on macOS 26 is a **DOM-based editor layer** (normal HTML repaints fine), not the
-terminal. Do NOT spend more cycles on webview/CSS/renderer tricks for this — they are all
-exhausted (see the dead-ends and the journey doc).
+**Status (2026-11-12): input SOLVED; display is a WKWebView-ONLY bug — FIXED by switching
+the webview engine to CEF (Chromium). Proven on macOS 26.**
+Full-screen TUIs (vim/less/htop) don't display on **macOS 26 (Tahoe) release builds** under
+the system WKWebView — a compositor bug ([wry#1848](https://github.com/tauri-apps/wry/issues/1848))
+that is **not our code** and is WKWebView-specific (Windows/WebView2, Linux/WebKitGTK and
+older macOS are fine; Electron apps like VS Code, which bundle Chromium, are fine).
+**Breakthrough (spike/cef):** a minimal Tauri 3.0-alpha app using `tauri-runtime-cef`
+(Chromium) runs vim fine on macOS 26 — the same xterm.js frontend, just a different engine.
+So the real fix is **migrate the app to the Tauri 3 CEF runtime**, not a DOM editor.
+- **Proof:** `spike/cef/` branch, `spike/cef-terminal/` — builds on macOS 26, `vi` renders &
+  responds. See its README.
+- **Earlier (now-superseded) plan** was a DOM-based editor layer because the display was
+  thought unfixable in-webview. The editor layer still works and can stay as a fallback,
+  but TUIs-in-terminal are no longer blocked once the CEF migration lands.
+- **CEF migration cost** (tracked for the real work): Tauri 2.12 → 3.0 **alpha**, plugins to
+  3.0-alpha, CI/signing/updater rework, +~170MB (bundled Chromium), CMake/Ninja + ~1GB CEF
+  build. macOS config note: Tauri 3 may reject `macOSPrivateApi` on older alphas — revisit.
+- Do NOT keep spending cycles on webview/CSS/renderer tricks for WKWebView — those are
+  exhausted (see dead-ends + journey doc). The path forward is the engine swap.
 
 Full write-up: `docs/2026-07-15-vim-debugging-journey.md`.
 
