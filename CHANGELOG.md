@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project aims for
 [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] - 2026-11-12
+
+Minor bump consolidating the recent work (supersedes the unreleased 0.1.14).
+
+### Changed
+- **macOS window: clean solid deep-dark.** Vibrancy was tried (transparent window +
+  `underWindowBackground`) but read as a dull grey lift and wasn't worth it, so the
+  window is now a cohesive deep dark with minimal tonal difference between cards and
+  empty areas, and no startup white flash.
+- Depth "deck" left off — clean flat panels + layer tabs (a true "comes forward"
+  effect can't use a drop shadow or a pane animation; see Known).
+
+### Included (from 0.1.13)
+- Automatic Claude-session long-term memory (harvest + durable preserve + overview +
+  heuristic Insights), the cwd-drift fix, and the build fixes.
+
+### Known
+- Full-screen TUIs (vim/htop/less) still don't render on **macOS 26** release builds —
+  the WKWebView compositor bug (wry#1848). Confirmed on wry 0.57.2 too. A **Tauri 3 +
+  CEF (Chromium)** spike is under evaluation as the real fix (`spike/cef`); VS Code
+  (Electron) proves xterm.js + Chromium renders vim fine on macOS 26.
+
 ## [0.1.13] - 2026-11-11
 
 ### Added
