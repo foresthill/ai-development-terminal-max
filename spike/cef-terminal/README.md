@@ -41,7 +41,8 @@ A window titled **CEF Terminal Spike** opens with a shell prompt.
 - **tauri.conf.json**: uses the `config/2` schema URL for editor hints only; if the v3 CLI rejects a field, I'll adjust.
 
 ## Notes
-- Frontend is a single static `dist/index.html` (xterm 5.3 + fit addon from cdnjs),
+- Frontend is a single static `ui/index.html` (xterm 5.3 + fit addon from cdnjs),
+  served via `frontendDist: "../ui"` (not `dist/`, which the repo's .gitignore excludes),
   talking to Rust via `window.__TAURI__` (`withGlobalTauri: true`). No node/vite.
 - PTY bridge (`src-tauri/src/pty.rs`) is a trimmed copy of the app's, incl. the macOS
   `kill(pid,0)` liveness check that fixed the vim-SIGHUP issue.

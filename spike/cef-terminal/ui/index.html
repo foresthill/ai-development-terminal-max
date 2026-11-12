@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CEF Terminal Spike</title>
+    <!-- xterm.js from a CDN so the spike needs no node/vite build. The user's Mac has
+         internet; CEF (Chromium) loads these fine. -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/xterm/5.3.0/css/xterm.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xterm/5.3.0/xterm.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xterm-addon-fit/0.8.0/xterm-addon-fit.min.js"></script>
+    <style>
+      html, body { margin: 0; height: 100%; background: #0b0e14; color: #c8d3f5;
+        font-family: -apple-system, system-ui, sans-serif; }
+      #bar { padding: 6px 10px; font-size: 12px; color: #8aa; border-bottom: 1px solid #1c2333; }
+      #bar b { color: #7aa2f7; }
+      #term { position: absolute; top: 30px; left: 0; right: 0; bottom: 0; padding: 6px; }
+    </style>
+  </head>
+  <body>
+    <div id="bar">CEF Terminal Spike — type <b>vim</b> (or <b>htop</b>/<b>less</b>) and check it repaints. <span id="status"></span></div>
+    <div id="term"></div>
+    <script>
+      const status = document.getElementById("status");
+      const say = (m) => { status.textContent = m; };
+
+      function b64ToBytes(b64) {
+        const bin = atob(b64);
+        const a = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+        return a;
+      }
+
+      async function boot() {
+        const tauri = window.__TAURI__;
+        if (!tauri || !tauri.core) { say("window.__TAURI__ missing — is withGlobalTauri on?"); return; }
+        const { invoke, Channel } = tauri.core;
+
+        const term = new Terminal({
+          fontFamily: "Menlo, monospace",
+          fontSize: 13,
+          cursorBlink: true,
+          theme: { background: "#0b0e14", foreground: "#c8d3f5" },
+        });
+        const fit = new FitAddon.FitAddon();
+        term.loadAddon(fit);
+        term.open(document.getElementById("term"));
+        fit.fit();
+
+        const id = "spike-" + Math.random().toString(36).slice(2);
+        let shell, args, cwd;
+        try {
+          shell = await invoke("default_shell");
+          args = await invoke("shell_login_args");
+          cwd = await invoke("home_dir");
+        } catch (e) { say("setup invoke failed: " + e); return; }
+
+        const ch = new Channel();
+        ch.onmessage = (b64) => term.write(b64ToBytes(b64));
+
+        try {
+          await invoke("spawn_pty", {
+            id, shell, args, cwd,
+            cols: term.cols, rows: term.rows,
+            onOutput: ch,
+          });
+          say("pty up (" + shell + ")");
+        } catch (e) { say("spawn_pty failed: " + e); return; }
+
+        term.onData((d) => invoke("write_pty", { id, data: d }));
+
+        const doResize = () => {
+          fit.fit();
+          invoke("resize_pty", { id, cols: term.cols, rows: term.rows }).catch(() => {});
+        };
+        new ResizeObserver(doResize).observe(document.getElementById("term"));
+        window.addEventListener("beforeunload", () => invoke("kill_pty", { id }).catch(() => {}));
+        term.focus();
+      }
+      boot();
+    </script>
+  </body>
+</html>
