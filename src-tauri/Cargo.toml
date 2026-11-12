@@ -10,33 +10,42 @@ edition = "2021"
 name = "ai_dev_terminal_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+# CEF migration (feature/cef-mac): Tauri 3.0-alpha. macOS uses the CEF (Chromium)
+# runtime to fix the WKWebView macOS-26 compositor bug (wry#1848, vim freeze);
+# Windows/Linux keep wry. See docs/2026-11-12-cef-migration-plan.md.
+# NOTE: all versions here are UNVERIFIED on-device — Tauri 3 is alpha and this can't
+# be built on the Linux cloud (needs macOS + CMake/Ninja + ~1GB CEF). Expect to pin
+# exact alpha versions after the first `cargo tauri dev` on macOS.
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-build = { version = "3.0.0-alpha", features = [] }
 
 [dependencies]
-# (2026-10-18 probe RESULT: a release built with `features=["devtools"]` was STILL
-# black, so the inspector/`isInspectable` path is NOT the cause — reverted to []. The
-# real display cause was the front layer's compositing promotion; see the vim doc.)
-# `macos-private-api` must be enabled to match `macOSPrivateApi: true` in
-# tauri.conf.json (the window vibrancy / translucent background added in v0.1.12).
-# Tauri's build script errors if the config asks for it but the cargo feature is off;
-# the feature is a no-op off macOS, so it stays unconditional for the shared manifest.
-tauri = { version = "2", features = ["macos-private-api"] }
-tauri-plugin-opener = "2"
-tauri-plugin-dialog = "2"
+# macos-private-api feature dropped: vibrancy was abandoned (the macOS window is a
+# solid dark now), and in Tauri 3 runtime features moved to the runtime crate anyway.
+tauri = "3.0.0-alpha"
+tauri-plugin-opener = "3.0.0-alpha"
+tauri-plugin-dialog = "3.0.0-alpha"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 portable-pty = "0.9"
 base64 = "0.22"
 libc = "0.2"
 sysinfo = "0.33"
-tauri-plugin-clipboard-manager = "2.3.2"
+tauri-plugin-clipboard-manager = "3.0.0-alpha"
 # Canonical memory store (SQLite). `bundled` compiles SQLite statically — no system
 # dependency. See src/memory.rs and docs/2026-11-08-four-layer-memory-architecture.md.
 rusqlite = { version = "0.32", features = ["bundled"] }
 
+# Webview runtime, chosen per platform (Tauri 3 selects the runtime via a crate, not a
+# Cargo feature). macOS → CEF (Chromium); everything else → wry (system webview).
+[target.'cfg(target_os = "macos")'.dependencies]
+tauri-runtime-cef = "3.0.0-alpha"
+
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+tauri-runtime-wry = "3.0.0-alpha"
+
 # Auto-update (desktop only): check GitHub Releases' latest.json, download the
 # signed update, and relaunch. Needs an updater signing key (see docs/updater-setup.md).
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
-tauri-plugin-updater = "2"
-tauri-plugin-process = "2"
+tauri-plugin-updater = "3.0.0-alpha"
+tauri-plugin-process = "3.0.0-alpha"

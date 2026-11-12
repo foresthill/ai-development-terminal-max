@@ -8,8 +8,15 @@ mod sys;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Tauri 3: pick the webview runtime per platform. macOS → CEF (Chromium) to fix
+    // wry#1848 (vim freeze on macOS 26); everything else → wry (system webview).
+    #[cfg(target_os = "macos")]
+    let base = tauri::Builder::default().runtime(tauri_runtime_cef::Cef::default());
+    #[cfg(not(target_os = "macos"))]
+    let base = tauri::Builder::default().runtime(tauri_runtime_wry::Wry::default());
+
     #[allow(unused_mut)]
-    let mut builder = tauri::Builder::default()
+    let mut builder = base
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init());

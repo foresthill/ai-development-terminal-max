@@ -11,7 +11,6 @@
   },
   "app": {
     "withGlobalTauri": true,
-    "macOSPrivateApi": true,
     "windows": [
       {
         "title": "AI Dev Terminal MAX",
@@ -19,11 +18,6 @@
         "height": 950,
         "minWidth": 900,
         "minHeight": 600,
-        "transparent": true,
-        "windowEffects": {
-          "effects": ["underWindowBackground"],
-          "state": "active"
-        },
         "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15"
       }
     ],
