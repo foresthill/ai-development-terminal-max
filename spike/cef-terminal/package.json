@@ -1,0 +1,6 @@
+{
+  "name": "cef-terminal-spike",
+  "version": "0.1.0",
+  "private": true,
+  "//": "Intentionally has NO @tauri-apps/api dependency: the frontend uses the global window.__TAURI__ (withGlobalTauri) + xterm from a CDN, so there is no npm build. This file exists mainly so the Tauri CLI's package-version check looks here (and finds no @tauri-apps/api to compare) instead of walking up to the main app's package.json and reporting a false 3.0-alpha vs 2.x mismatch."
+}
