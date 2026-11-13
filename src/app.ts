@@ -28,7 +28,7 @@ import { handleSubagentEvent, clearSubagentLayers } from "./subagent";
 import { defaultShell, shellLoginArgs, homeDir, agentStats } from "./pty";
 import { createWorktree, writeAidtSettings, currentBranch } from "./git";
 import { listen } from "@tauri-apps/api/event";
-import { openPath, openUrl as openExternalUrl } from "@tauri-apps/plugin-opener";
+import { openPath, revealItemInDir, openUrl as openExternalUrl } from "@tauri-apps/plugin-opener";
 import {
   askText,
   toast,
@@ -333,7 +333,7 @@ export class App {
       cwd,
       autoRun: autoRun ? this.buildCmd(cmd) : undefined,
       onOpenUrl: (url, mod) => this.openUrl(url, mod),
-      onOpenPath: (raw, cwd) => this.openPathLink(raw, cwd),
+      onOpenPath: (raw, cwd, reveal) => this.openPathLink(raw, cwd, reveal),
     });
   }
 
@@ -370,7 +370,7 @@ export class App {
       args: this.shellArgs,
       cwd,
       onOpenUrl: (url, mod) => this.openUrl(url, mod),
-      onOpenPath: (raw, cwd2) => this.openPathLink(raw, cwd2),
+      onOpenPath: (raw, cwd2, reveal) => this.openPathLink(raw, cwd2, reveal),
     });
   }
 
@@ -384,17 +384,25 @@ export class App {
     else this.addLayerTo(this.agents[this.focused], "browser", url);
   }
 
-  /// Open a file path ⌘-clicked in a terminal with the OS default app. Resolves
-  /// `~`, and relative paths against the terminal's cwd; strips any `:line` tail.
-  private async openPathLink(raw: string, cwd: string | null) {
+  /// Open a file path clicked in a terminal. ⌘/Ctrl-click opens the path itself with
+  /// the OS default app; adding Shift reveals it in its CONTAINING folder instead
+  /// (Finder/Explorer, item selected) — often what you want for a file you mean to
+  /// act on at the folder level. Resolves `~` and relative paths against the
+  /// terminal's cwd; strips any `:line` tail.
+  private async openPathLink(raw: string, cwd: string | null, revealFolder = false) {
     let p = raw.replace(/:\d+(?:[:.]\d+)?$/, ""); // drop :line[:col]
     if (p.startsWith("~/")) p = this.home + p.slice(1);
     else if (!p.startsWith("/")) p = (cwd ?? this.home).replace(/\/$/, "") + "/" + p.replace(/^\.\//, "");
     try {
-      await openPath(p);
-      // Surface where the (often relative) path actually resolved to — a relative
-      // path claude prints is otherwise hard to locate without digging.
-      toast(t("toast.openedPath", p));
+      if (revealFolder) {
+        await revealItemInDir(p);
+        toast(t("toast.revealedPath", p));
+      } else {
+        await openPath(p);
+        // Surface where the (often relative) path actually resolved to — a relative
+        // path claude prints is otherwise hard to locate without digging.
+        toast(t("toast.openedPath", p));
+      }
     } catch {
       toast(t("toast.openPathFail", p));
     }

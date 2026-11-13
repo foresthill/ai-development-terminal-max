@@ -328,8 +328,10 @@ export function createTerminalLayer(opts: {
   onOpenUrl?: (url: string, modifierHeld: boolean) => void;
   // Invoked when a file path in the terminal is ⌘/Ctrl-clicked. `raw` is the
   // matched token (may be relative or carry a :line suffix); `cwd` is the
-  // terminal's working dir so the host can resolve relative paths.
-  onOpenPath?: (raw: string, cwd: string | null) => void;
+  // terminal's working dir so the host can resolve relative paths. `revealFolder`
+  // is true when Shift was also held → open the CONTAINING folder (reveal), not
+  // the file itself.
+  onOpenPath?: (raw: string, cwd: string | null, revealFolder: boolean) => void;
 }): Layer {
   const el = document.createElement("div");
   el.className = "layer layer-terminal";
@@ -530,7 +532,8 @@ export function createTerminalLayer(opts: {
             ev.stopPropagation();
             if (ev.metaKey || ev.ctrlKey) {
               try {
-                opts.onOpenPath?.(raw, layer.cwd ?? null);
+                // ⌘/Ctrl+Shift → reveal in the containing folder; ⌘/Ctrl alone → open it.
+                opts.onOpenPath?.(raw, layer.cwd ?? null, ev.shiftKey);
               } catch {
                 /* host handles its own errors (toast); never let it bubble */
               }
