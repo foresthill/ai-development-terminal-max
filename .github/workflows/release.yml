@@ -24,17 +24,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # macOS is split PER-ARCH: tauri-runtime-cef (CEF/Chromium) ships
-          # per-architecture binaries, so a single universal-apple-darwin build is NOT
-          # supported — each arch builds on its own runner (macos-14 = Apple Silicon,
-          # macos-13 = Intel). This produces two dmgs (…_aarch64.dmg / …_x64.dmg) and
-          # per-arch updater entries (darwin-aarch64 / darwin-x86_64 in latest.json).
+          # macOS = Apple Silicon only (single job). tauri-runtime-cef (CEF/Chromium)
+          # ships per-architecture binaries, so universal-apple-darwin is NOT supported;
+          # and this account can't run two macOS jobs at once (the second is cancelled /
+          # starved), which is why we don't also build Intel here. arm64 is the dev/target
+          # arch and the macOS-26 vim fix target; Intel macOS can be added later (e.g. a
+          # sequential second job) once the pipeline is proven. Produces …_aarch64.dmg +
+          # a darwin-aarch64 updater entry.
           - platform: macos-14
             args: "--target aarch64-apple-darwin"
             rust-targets: "aarch64-apple-darwin"
-          - platform: macos-13
-            args: "--target x86_64-apple-darwin"
-            rust-targets: "x86_64-apple-darwin"
           # Built on 22.04 (older glibc) so the AppImage runs on more distros.
           - platform: ubuntu-22.04
             args: ""
@@ -143,7 +142,6 @@ jobs:
             | OS | ダウンロードするファイル |
             |---|---|
             | 🍎 **macOS**（Apple Silicon / M1以降） | `..._aarch64.dmg` |
-            | 🍎 **macOS**（Intel） | `..._x64.dmg` |
             | 🪟 **Windows** | `..._x64-setup.exe`（推奨）または `..._x64_en-US.msi` |
             | 🐧 **Linux** | `..._amd64.AppImage`（そのまま実行）／ `..._amd64.deb`（Debian・Ubuntu）／ `...x86_64.rpm`（Fedora・RHEL） |
 
@@ -167,7 +165,6 @@ jobs:
             | OS | File to download |
             |---|---|
             | 🍎 **macOS** (Apple Silicon) | `..._aarch64.dmg` |
-            | 🍎 **macOS** (Intel) | `..._x64.dmg` |
             | 🪟 **Windows** | `..._x64-setup.exe` (recommended) or `..._x64_en-US.msi` |
             | 🐧 **Linux** | `..._amd64.AppImage` (portable) / `..._amd64.deb` (Debian/Ubuntu) / `...x86_64.rpm` (Fedora/RHEL) |
 

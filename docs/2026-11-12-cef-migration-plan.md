@@ -69,21 +69,28 @@ pub fn run() {
 - CEF 署名用 entitlements は **CLI が自動付与**（Chromium 用）。既存の Apple 署名と整合するか要確認。
 
 ## CI（.github/workflows/release.yml）
-**first cut 実装済み（2026-11-13、cef-mac のみ）／未検証＝プレリリースで確認。** 実機 macOS ランナーが
-無いとこの Linux 環境では検証不可なので、下記は「妥当な初手」。最初のプレリリースタグ（v0.3.0-cef.1）で
-実エラーを見て詰める。main の release.yml は無改変（＝Tauri 2・緑）。
-- **macOS は arch 分割**（universal 廃止）：CEF はアーキ別バイナリなので `universal-apple-darwin` は不可。
-  `macos-14`(arm64, aarch64-apple-darwin) と `macos-13`(Intel, x86_64-apple-darwin) の2ジョブに分割。
-  成果物は `…_aarch64.dmg` / `…_x64.dmg` の2本、updater は `darwin-aarch64` / `darwin-x86_64` の2エントリ。
+**プレリリースで検証中（cef-mac のみ）。main の release.yml は無改変（＝Tauri 2・緑）。**
+
+プレリリース実績：
+- **v0.3.0-cef.1**：全ジョブ失敗。原因は **committed `Cargo.lock` が Tauri 2 のまま**（`tauri 2.12.5`）で、
+  Cargo.toml / npm（Tauri 3-alpha）と不一致 → `tauri build` が "Found version mismatched Tauri packages" で
+  即停止。ローカルは cargo が lock を自動再生成していたため露見しなかった。→ `cargo generate-lockfile` で
+  lock を Tauri 3 に再生成してコミット（`cargo check --locked` 緑）。
+- **v0.3.0-cef.2**：**Windows・Linux は SUCCESS**（Tauri 3 + wry、`tauri-action@v0` は Tauri 3-alpha CLI を
+  問題なく駆動＝懸案1クリア）。**macOS は arch 2本同時がこのアカウントで不可**（macos-14 は t=0 cancel、
+  macos-13 は runner 割当されず starve）。過去のリリースは単一 `macos-latest` ジョブで成功していたので、
+  原因は「2 macOS ジョブ同時」。
+
+現構成（cef-mac）：
+- **macOS は Apple Silicon 単独**（`macos-14`, aarch64-apple-darwin, 1ジョブ）。universal 不可＋2ジョブ不可の
+  ため arm64 のみ。成果物 `…_aarch64.dmg` ＋ updater `darwin-aarch64`。**Intel macOS は一旦外す**
+  （将来：arm64 完了後に直列で Intel ジョブを足す等）。
 - **macOS ジョブに追加**：`brew install cmake ninja`（CEF の libcef_dll_wrapper ビルド）＋
-  `actions/cache` で `~/Library/Caches/tauri-cef`（CEF ~1GB、キー `tauri-cef-<platform>-cef154.5.0`
-  ＝alpha.6 の CEF ピン。ピン更新時はキー末尾を bump）。
-- Windows/Linux ジョブは**無改変**（wry のまま）。
-- **要検証（プレリリースで判明する点）**：
-  1. `tauri-action@v0` が Tauri 3-alpha CLI を駆動できるか（できなければ全OSで `pnpm tauri build` 手動化）。
-  2. arch 分割 dmg＋per-arch updater latest.json を tauri-action が正しくマージするか。
-  3. CEF の Frameworks（Chromium helper 群）の署名/公証（Developer ID で通るか、helper 個別署名が要るか）。
-  4. macOS ランナーのディスク（CEF 1GB＋Chromium ビルド）が足りるか。
+  `actions/cache` で `~/Library/Caches/tauri-cef`（CEF ~1GB、キー `tauri-cef-<platform>-cef154.5.0`）。
+- Windows/Linux ジョブは**無改変**（wry のまま）＝検証済み緑。
+- **残る要検証（arm64 CEF ビルドで判明する点）**：
+  - CEF の Frameworks（Chromium helper 群）の署名/公証（Developer ID で通るか、helper 個別署名が要るか）。
+  - macOS ランナーのディスク（CEF 1GB＋Chromium ビルド）が足りるか。
 - **成果物サイズ**：macOS の .app/.dmg と updater の `*.app.tar.gz` が **+170MB**。リリースノートに明記済み。
 
 ## 既存の DOM エディタ（Alt+E）
