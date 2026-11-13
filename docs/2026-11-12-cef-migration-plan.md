@@ -69,11 +69,22 @@ pub fn run() {
 - CEF 署名用 entitlements は **CLI が自動付与**（Chromium 用）。既存の Apple 署名と整合するか要確認。
 
 ## CI（.github/workflows/release.yml）
-- **macOS ジョブのみ**：CMake/Ninja 導入、**CEF 1GB の初回DL をキャッシュ**（`~/Library/Caches/tauri-cef`、`actions/cache`）、ビルド時間増。
+**first cut 実装済み（2026-11-13、cef-mac のみ）／未検証＝プレリリースで確認。** 実機 macOS ランナーが
+無いとこの Linux 環境では検証不可なので、下記は「妥当な初手」。最初のプレリリースタグ（v0.3.0-cef.1）で
+実エラーを見て詰める。main の release.yml は無改変（＝Tauri 2・緑）。
+- **macOS は arch 分割**（universal 廃止）：CEF はアーキ別バイナリなので `universal-apple-darwin` は不可。
+  `macos-14`(arm64, aarch64-apple-darwin) と `macos-13`(Intel, x86_64-apple-darwin) の2ジョブに分割。
+  成果物は `…_aarch64.dmg` / `…_x64.dmg` の2本、updater は `darwin-aarch64` / `darwin-x86_64` の2エントリ。
+- **macOS ジョブに追加**：`brew install cmake ninja`（CEF の libcef_dll_wrapper ビルド）＋
+  `actions/cache` で `~/Library/Caches/tauri-cef`（CEF ~1GB、キー `tauri-cef-<platform>-cef154.5.0`
+  ＝alpha.6 の CEF ピン。ピン更新時はキー末尾を bump）。
 - Windows/Linux ジョブは**無改変**（wry のまま）。
-- tauri-action が Tauri 3 / CEF を理解するバージョンか要確認（だめなら手動 `tauri build`）。
-- **成果物サイズ**：macOS の .app/.dmg と updater の `*.app.tar.gz` が **+170MB**。GitHub Releases/updater は可だが、updater のダウンロードが重くなる旨をリリースノートに明記。
-- **署名/公証**：CEF の Frameworks（Chromium helper 群）も公証対象。Developer ID＋tauri-action で通るか、helper の個別署名が要るか要検証。
+- **要検証（プレリリースで判明する点）**：
+  1. `tauri-action@v0` が Tauri 3-alpha CLI を駆動できるか（できなければ全OSで `pnpm tauri build` 手動化）。
+  2. arch 分割 dmg＋per-arch updater latest.json を tauri-action が正しくマージするか。
+  3. CEF の Frameworks（Chromium helper 群）の署名/公証（Developer ID で通るか、helper 個別署名が要るか）。
+  4. macOS ランナーのディスク（CEF 1GB＋Chromium ビルド）が足りるか。
+- **成果物サイズ**：macOS の .app/.dmg と updater の `*.app.tar.gz` が **+170MB**。リリースノートに明記済み。
 
 ## 既存の DOM エディタ（Alt+E）
 CEF 化で vim がターミナルで動くので**必須ではなくなる**が、フォールバックとして**残す**。
@@ -93,8 +104,11 @@ CEF 化で vim がターミナルで動くので**必須ではなくなる**が�
 2. **プラグインを 3.0-alpha へ**：1つずつ戻して dev 起動を確認。capabilities 調整。
 3. **tauri.conf / 見た目**：macOSPrivateApi・vibrancy を CEF 前提で確認・調整。
 4. **ローカル release ビルド**（`pnpm tauri build`）で mac の vim 描画＆署名を確認。
-5. **CI 改修**：macOS ジョブに CMake/Ninja＋CEFキャッシュ、サイズ/公証を確認。Win/Linux 不変。
-6. **プレリリース**（例 v0.3.0-cef.1）で全OS成果物＋updater を実機確認 → 問題なければ本採用。
+5. 🟡 **CI 改修（first cut 実装済み 2026-11-13・未検証）**：release.yml の macOS を arch 分割、
+   CMake/Ninja＋CEFキャッシュ追加、リリースノートを arch 別 dmg に更新。上記「要検証」4点はプレリリースで確認。
+6. **プレリリース**（例 v0.3.0-cef.1 を cef-mac のコミットにタグ）で全OS成果物＋updater を実機確認 → 緑なら
+   main へマージ。**安全策（2026-11-13 ユーザー選択）**：main は Tauri 2・緑を維持し、CEF は本番グリーンを
+   確認してから取り込む。skills / 設定2カラムは main 由来の独立ブランチで先行（CEF とは無関係）。
 
 ## ブランチ
 `feature/cef-mac`（main から分岐）で段階実装。`spike/cef` は実証アーティファクトとして保存。

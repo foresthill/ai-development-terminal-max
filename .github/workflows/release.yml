@@ -24,10 +24,17 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # One macOS build that runs on both Apple Silicon and Intel.
-          - platform: macos-latest
-            args: "--target universal-apple-darwin"
-            rust-targets: "aarch64-apple-darwin,x86_64-apple-darwin"
+          # macOS is split PER-ARCH: tauri-runtime-cef (CEF/Chromium) ships
+          # per-architecture binaries, so a single universal-apple-darwin build is NOT
+          # supported — each arch builds on its own runner (macos-14 = Apple Silicon,
+          # macos-13 = Intel). This produces two dmgs (…_aarch64.dmg / …_x64.dmg) and
+          # per-arch updater entries (darwin-aarch64 / darwin-x86_64 in latest.json).
+          - platform: macos-14
+            args: "--target aarch64-apple-darwin"
+            rust-targets: "aarch64-apple-darwin"
+          - platform: macos-13
+            args: "--target x86_64-apple-darwin"
+            rust-targets: "x86_64-apple-darwin"
           # Built on 22.04 (older glibc) so the AppImage runs on more distros.
           - platform: ubuntu-22.04
             args: ""
@@ -53,6 +60,22 @@ jobs:
             libssl-dev \
             libgtk-3-dev \
             libayatana-appindicator3-dev
+
+      # CEF (Chromium) build prerequisites — macOS only. tauri-runtime-cef compiles CEF's
+      # libcef_dll_wrapper via CMake + Ninja, then downloads the ~1GB CEF distribution.
+      - name: Install CEF build tools (macOS)
+        if: startsWith(matrix.platform, 'macos')
+        run: brew install cmake ninja
+
+      # Cache the ~1GB CEF download (~/Library/Caches/tauri-cef) so later releases don't
+      # re-fetch it. Keyed on arch + the pinned CEF version (tauri-runtime-cef
+      # 3.0.0-alpha.6 pins cef 154.5.0) — bump the suffix when the runtime's CEF pin moves.
+      - name: Cache CEF (macOS)
+        if: startsWith(matrix.platform, 'macos')
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/tauri-cef
+          key: tauri-cef-${{ matrix.platform }}-cef154.5.0
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -119,7 +142,8 @@ jobs:
 
             | OS | ダウンロードするファイル |
             |---|---|
-            | 🍎 **macOS**（Intel / Apple Silicon 共通） | `..._universal.dmg` |
+            | 🍎 **macOS**（Apple Silicon / M1以降） | `..._aarch64.dmg` |
+            | 🍎 **macOS**（Intel） | `..._x64.dmg` |
             | 🪟 **Windows** | `..._x64-setup.exe`（推奨）または `..._x64_en-US.msi` |
             | 🐧 **Linux** | `..._amd64.AppImage`（そのまま実行）／ `..._amd64.deb`（Debian・Ubuntu）／ `...x86_64.rpm`（Fedora・RHEL） |
 
@@ -128,7 +152,7 @@ jobs:
             - **Windows**: 「WindowsによってPCが保護されました」→「詳細情報」→「実行」
 
             **既知の制約**
-            - vim など全画面TUIの表示: **macOS 26 (Tahoe) でのみ** WKWebView のバグ（[wry#1848](https://github.com/tauri-apps/wry/issues/1848)、当アプリ側の不具合ではありません）で描画が固まります。Windows・Linux・macOS 25 以前では正常に動作します。macOS 26 でのファイル編集は内蔵エディタ（`Alt+E`）をお使いください。
+            - vim など全画面TUI: この macOS 版は **Chromium (CEF) エンジン**で描画するため、従来 WKWebView で起きていた macOS 26 (Tahoe) の表示固まり（[wry#1848](https://github.com/tauri-apps/wry/issues/1848)）は解消し、**macOS 26 でも vim 等が正常に表示・操作できます**。Chromium を同梱するぶん、ダウンロードサイズは大きくなります（約 +170MB）。
             - ブラウザレイヤーは iframe（`X-Frame-Options` のサイトは埋め込み不可）
 
             ---
@@ -142,7 +166,8 @@ jobs:
 
             | OS | File to download |
             |---|---|
-            | 🍎 **macOS** (Intel / Apple Silicon) | `..._universal.dmg` |
+            | 🍎 **macOS** (Apple Silicon) | `..._aarch64.dmg` |
+            | 🍎 **macOS** (Intel) | `..._x64.dmg` |
             | 🪟 **Windows** | `..._x64-setup.exe` (recommended) or `..._x64_en-US.msi` |
             | 🐧 **Linux** | `..._amd64.AppImage` (portable) / `..._amd64.deb` (Debian/Ubuntu) / `...x86_64.rpm` (Fedora/RHEL) |
 
@@ -151,7 +176,7 @@ jobs:
             - **Windows**: SmartScreen → "More info" → "Run anyway"
 
             **Known limitations**
-            - Full-screen TUIs like vim: **macOS 26 (Tahoe) only** — a WKWebView bug ([wry#1848](https://github.com/tauri-apps/wry/issues/1848), not a bug in this app) freezes their display. They work fine on Windows, Linux, and macOS 25 and earlier. To edit files on macOS 26, use the built-in editor (`Alt+E`).
+            - Full-screen TUIs like vim: this macOS build renders with the **Chromium (CEF) engine**, so the macOS 26 (Tahoe) display freeze that affected the old WKWebView build ([wry#1848](https://github.com/tauri-apps/wry/issues/1848)) is resolved — **vim and other TUIs display and work on macOS 26**. The trade-off is a larger download, since Chromium is bundled (~+170MB).
             - The browser layer is iframe-based (sites sending `X-Frame-Options` can't embed)
           releaseDraft: true
           # A tag with a pre-release suffix (e.g. v0.1.12-beta.1) is marked
