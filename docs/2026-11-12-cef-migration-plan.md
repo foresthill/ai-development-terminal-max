@@ -1,6 +1,6 @@
 # CEF migration plan — macOS on Chromium, Windows/Linux on wry
 
-作成: 2026-11-12 / ステータス: **計画（実機反復で段階実装）** / 背景: `CLAUDE.md` の vim 節、`spike/cef`（実証済み）
+作成: 2026-11-12 / 更新: 2026-11-13 / ステータス: **ステップ1 成功（本体が macOS で CEF 起動＆vi 描画・dev）。残り：release/CI/Win・Linux 検証** / 背景: `CLAUDE.md` の vim 節、`spike/cef`（実証済み）
 
 ## ゴール
 - **macOS ビルドだけ** webview エンジンを **CEF(Chromium)** にして、macOS 26 の WKWebView
@@ -87,8 +87,9 @@ CEF 化で vim がターミナルで動くので**必須ではなくなる**が�
 - 全工程 **macOS 実機でのみ検証可**（この Linux 環境では CEF/署名/公証とも不可）。
 
 ## 段階実装（各ステップを Mac 実機ビルドで検証）
-1. **ランタイム出し分けの骨組み**：Cargo.toml の per-target deps ＋ main.rs/lib.rs の cfg。
-   まず**プラグイン無し相当で**ローカル `cargo tauri dev`（mac=CEF, win/linux=wry）が起動するか。
+1. ✅ **ランタイム出し分けの骨組み（完了 2026-11-13）**：Cargo.toml per-target deps ＋ main.rs/lib.rs の cfg。
+   本体が **macOS で CEF 起動し、`vi` が描画・操作できた（dev ビルド、385MB）**。プラグイン(3.0-alpha)も問題なくビルド。
+   ※注意：Tauri 3 化は全OS共通なので **Windows/Linux も Tauri 3(+wry) に移行済み＝CI で要再検証**。
 2. **プラグインを 3.0-alpha へ**：1つずつ戻して dev 起動を確認。capabilities 調整。
 3. **tauri.conf / 見た目**：macOSPrivateApi・vibrancy を CEF 前提で確認・調整。
 4. **ローカル release ビルド**（`pnpm tauri build`）で mac の vim 描画＆署名を確認。
