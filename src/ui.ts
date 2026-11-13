@@ -257,63 +257,68 @@ export function openSettings(
     const back = document.createElement("div");
     back.className = "modal-back";
     const box = document.createElement("div");
-    box.className = "modal modal-wide";
+    // Two-column, landscape layout so the tall form isn't clipped on short windows.
+    // Each control is wrapped in a `.set-field` cell; section headers and the wide
+    // textareas span both columns (`.set-span`). See `.set-grid` in styles.css.
+    box.className = "modal modal-wide modal-settings";
     box.innerHTML = `
       <div class="modal-title">${t("set.title")}</div>
-      <label class="set-row"><span>${t("set.lang")}</span>
+      <div class="set-grid">
+      <div class="set-field"><label class="set-row"><span>${t("set.lang")}</span>
         <select class="modal-input" id="set-lang">
           <option value="en">English</option><option value="ja">日本語</option>
-        </select></label>
-      <label class="set-row"><span>${t("set.theme")}</span>
+        </select></label></div>
+      <div class="set-field"><label class="set-row"><span>${t("set.theme")}</span>
         <select class="modal-input" id="set-theme">
           <option value="default">Default (Night)</option>
           <option value="solarized-dark">Solarized Dark</option>
           <option value="solarized-light">Solarized Light</option>
           <option value="glass">Glass (Mono)</option>
-        </select></label>
-      <label class="set-row"><span>${t("set.windowStyle")}</span>
+        </select></label></div>
+      <div class="set-field"><label class="set-row"><span>${t("set.windowStyle")}</span>
         <select class="modal-input" id="set-winstyle">
           <option value="rounded">${t("set.shapeRounded")}</option>
           <option value="angular">${t("set.shapeAngular")}</option>
-        </select></label>
-      <label class="set-row"><span>${t("set.agentCmd")}</span>
-        <input class="modal-input" id="set-cmd" spellcheck="false"></label>
-      <label class="set-row col"><span>${t("set.presets")}</span>
-        <textarea class="modal-input" id="set-agents" rows="4" spellcheck="false"
-          placeholder="claude = claude"></textarea></label>
-      <label class="set-row"><span>${t("set.perm")}</span>
+        </select></label></div>
+      <div class="set-field"><label class="set-row"><span>${t("set.agentCmd")}</span>
+        <input class="modal-input" id="set-cmd" spellcheck="false"></label></div>
+      <div class="set-field"><label class="set-row"><span>${t("set.perm")}</span>
         <select class="modal-input" id="set-perm">
           <option value="auto">auto</option><option value="normal">normal</option>
           <option value="bypass">bypass ⚠</option>
-        </select></label>
-      <label class="set-row"><span>${t("set.urlTarget")}</span>
+        </select></label></div>
+      <div class="set-field"><label class="set-row"><span>${t("set.urlTarget")}</span>
         <select class="modal-input" id="set-url">
           <option value="inapp">${t("set.urlInapp")}</option>
           <option value="external">${t("set.urlExternal")}</option>
         </select></label>
-      <div class="set-hint">${t("set.urlHint")}</div>
-      <label class="set-row"><span>${t("set.resume")}</span>
+        <div class="set-hint">${t("set.urlHint")}</div></div>
+      <div class="set-field"><label class="set-row"><span>${t("set.resume")}</span>
         <select class="modal-input" id="set-resume">
           <option value="manual">${t("set.resumeManual")}</option>
           <option value="auto">${t("set.resumeAuto")}</option>
         </select></label>
-      <div class="set-hint">${t("set.resumeHint")}</div>
-      <label class="set-row"><span>${t("set.autoStart")}</span>
+        <div class="set-hint">${t("set.resumeHint")}</div></div>
+      <div class="set-field"><label class="set-row"><span>${t("set.autoStart")}</span>
         <select class="modal-input" id="set-autostart">
           <option value="on">${t("set.autoStartOn")}</option>
           <option value="off">${t("set.autoStartOff")}</option>
         </select></label>
-      <div class="set-hint">${t("set.autoStartHint")}</div>
-      <div class="set-section">${t("set.updateSection")}</div>
-      <div class="set-row"><span>${t("set.version")}</span>
+        <div class="set-hint">${t("set.autoStartHint")}</div></div>
+      <label class="set-row col set-span"><span>${t("set.presets")}</span>
+        <textarea class="modal-input" id="set-agents" rows="4" spellcheck="false"
+          placeholder="claude = claude"></textarea></label>
+      <div class="set-section set-span">${t("set.updateSection")}</div>
+      <div class="set-field set-span"><div class="set-row"><span>${t("set.version")}</span>
         <b id="set-ver">…</b>
         <button id="set-check-update" style="margin-left:auto">${t("updater.check")}</button></div>
-      <div class="set-hint">${t("set.updateHint")}</div>
-      <div class="set-section">${t("set.guardSection")}</div>
-      <div id="set-presets"></div>
-      <label class="set-row col"><span>${t("set.customDeny")}</span>
+        <div class="set-hint">${t("set.updateHint")}</div></div>
+      <div class="set-section set-span">${t("set.guardSection")}</div>
+      <div id="set-presets" class="set-span"></div>
+      <label class="set-row col set-span"><span>${t("set.customDeny")}</span>
         <textarea class="modal-input" id="set-custom" rows="3" spellcheck="false"
           placeholder="Bash(rm -rf *)"></textarea></label>
+      </div>
       <div class="modal-row"><button id="set-cancel">${t("modal.cancel")}</button>
         <button id="set-ok" class="primary">${t("modal.ok")}</button></div>`;
     back.append(box);

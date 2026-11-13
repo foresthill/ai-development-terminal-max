@@ -448,6 +448,35 @@ body {
   line-height: 1.4;
   color: var(--muted);
 }
+/* Settings dialog: two-column landscape so the tall form isn't clipped on short
+   windows; the dialog itself scrolls if it still doesn't fit. */
+.modal-settings {
+  width: min(880px, 94vw);
+  max-height: 88vh;
+  overflow-y: auto;
+}
+.set-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 28px;
+  align-items: start;
+}
+/* Section headers and the wide textareas span both columns. */
+.set-span {
+  grid-column: 1 / -1;
+}
+/* A field cell groups a control with its hint; min-width:0 lets inputs shrink. */
+.set-field,
+.set-field .set-row,
+.set-field .modal-input {
+  min-width: 0;
+}
+/* Collapse to a single column when too narrow for two (phones / small windows). */
+@media (max-width: 700px) {
+  .set-grid {
+    grid-template-columns: 1fr;
+  }
+}
 /* --- command palette --- */
 .cmd-cols {
   display: flex;
