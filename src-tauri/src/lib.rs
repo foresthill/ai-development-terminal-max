@@ -1,4 +1,5 @@
 mod claude_sessions;
+mod claude_skills;
 mod files;
 mod git;
 mod memory;
@@ -48,6 +49,7 @@ pub fn run() {
             memory::memory_read_all,
             memory::memory_write_all,
             claude_sessions::claude_sessions,
+            claude_skills::claude_skills,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

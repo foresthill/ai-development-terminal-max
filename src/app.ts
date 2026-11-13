@@ -46,6 +46,7 @@ import { applyTheme, getThemeId, type ThemeId } from "./theme";
 import { installAppMenu } from "./menu";
 import { openMemoryPanel } from "./memory-panel";
 import { openCommandPalette } from "./commands-palette";
+import { openSkillsPanel } from "./skills-panel";
 import { sessionTag } from "./session";
 import { memory, SHORT_TERM_TTL_MS } from "./memory";
 import { applyWindowStyle, getWindowStyle } from "./window-style";
@@ -177,6 +178,7 @@ export class App {
     root.querySelector("#btn-settings")!.addEventListener("click", () => this.openSettingsDialog());
     root.querySelector("#btn-memory")!.addEventListener("click", () => this.openMemoryDialog());
     root.querySelector("#btn-commands")!.addEventListener("click", () => this.openCommandDialog());
+    root.querySelector("#btn-skills")!.addEventListener("click", () => this.openSkillsDialog());
     this.btnLayout.addEventListener("click", () => {
       this.layout = this.layout === "square" ? "fit" : "square";
       this.render();
@@ -980,6 +982,16 @@ export class App {
     openCommandPalette({ sendToAgent: (text) => this.typeIntoFocusedAgent(text) });
   }
 
+  /// Claude Code skills browser (Alt+S): the filesystem-scanned list of skills
+  /// (project .claude/skills + user ~/.claude/skills + plugins), one click TYPES the
+  /// chosen one's slash form into the focused agent (human submits). See skills-panel.ts.
+  private openSkillsDialog() {
+    openSkillsPanel({
+      projectCwd: this.curProject?.root ?? null,
+      sendToAgent: (text) => this.typeIntoFocusedAgent(text),
+    });
+  }
+
   /// Type text into the focused agent's terminal WITHOUT submitting (no CR), so the
   /// person reviews and sends it. Returns false when there's no terminal to type to.
   private typeIntoFocusedAgent(text: string): boolean {
@@ -1040,6 +1052,7 @@ export class App {
       KeyU: () => void checkForUpdates({ silent: false }), // manual "check for updates"
       KeyG: () => this.openMemoryDialog(), // project memory (personal unconscious)
       KeyC: () => this.openCommandDialog(), // Claude Code command palette
+      KeyS: () => this.openSkillsDialog(), // Claude Code skills browser
       KeyW: () => this.closeLayerAt(this.agents[this.focused], this.agents[this.focused]?.active ?? 0),
       KeyX: () => this.closeAgentObj(this.agents[this.focused]),
       KeyP: () => this.switchProject(1),

@@ -131,6 +131,7 @@ const HELP_JA = `
   <li><code>Alt+Z</code> 拡大 ・ <code>Alt+1–9</code> 番号でフォーカス ・ <code>Alt+P</code> プロジェクト切替 ・ <code>Alt+M</code> 俯瞰</li>
   <li><code>Alt+N</code> 端末追加 ・ <code>Alt+B</code> ブラウザ追加 ・ <code>Alt+W</code> レイヤー閉 ・ <code>Alt+X</code> エージェント閉</li>
   <li><code>Alt+R</code> このエージェントを起動 ・ <code>Alt+Shift+R</code> 全起動 ・ <code>Alt+Enter</code> 送信バー</li>
+  <li><code>Alt+G</code> Claudeセッション（記憶）・ <code>Alt+C</code> コマンドパレット ・ <code>Alt+S</code> スキル一覧（クリックで端末に入力）</li>
   <li><code>Shift+Enter</code> 端末内で改行（Claude Codeの改行）・ <code>⌘C/⌘V</code> コピー/貼付</li>
   <li>URL: クリックでブラウザに開く（既定=アプリ内、設定で変更可）・ <code>⌘/Ctrl+クリック</code>でもう片方のブラウザ ／ ファイルパス: <code>⌘+クリック</code>でOS標準アプリ（macOSは<b>⌘</b>、Windows/Linuxは<code>Ctrl</code>。<b>macOSのCtrl+クリックは右クリック扱い</b>で開きません）</li>
   <li>選択: <code>クリック</code>で始点→<code>Shift+クリック</code>で範囲指定（claude上でも可）。ドラッグ選択はシェルではそのまま、claude上は <code>⌥(Option)+ドラッグ</code></li>
@@ -169,6 +170,7 @@ const HELP_EN = `
   <li><code>Alt+Z</code> zoom ・ <code>Alt+1–9</code> focus by number ・ <code>Alt+P</code> switch project ・ <code>Alt+M</code> macro</li>
   <li><code>Alt+N</code> terminal ・ <code>Alt+B</code> browser ・ <code>Alt+W</code> close layer ・ <code>Alt+X</code> close agent</li>
   <li><code>Alt+R</code> launch this agent ・ <code>Alt+Shift+R</code> launch all ・ <code>Alt+Enter</code> send bar</li>
+  <li><code>Alt+G</code> Claude sessions (memory) ・ <code>Alt+C</code> command palette ・ <code>Alt+S</code> skills browser (click → type into the terminal)</li>
   <li><code>Shift+Enter</code> newline in terminal (Claude Code) ・ <code>⌘C/⌘V</code> copy/paste</li>
   <li>URL: click opens it in the browser (default = in-app, configurable) ・ <code>⌘/Ctrl+click</code> = the other browser ／ file path: <code>⌘+click</code> = OS default app (macOS: <b>⌘</b>; Windows/Linux: <code>Ctrl</code> — on macOS <b>Ctrl+click is a right-click</b> and won't open it)</li>
   <li>Select: <code>click</code> the start → <code>Shift+click</code> the end for a range (works in claude too). Drag-select works in shells; in claude use <code>⌥(Option)+drag</code></li>
