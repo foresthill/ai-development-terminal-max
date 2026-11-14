@@ -72,38 +72,49 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/cef
-          key: cef-macosarm64-154.0.34-minimal
+          key: cef-macosarm64-154.0.34-minimal-v3
 
-      # Pre-fetch CEF and point CEF_PATH at it. WORKAROUND for two issues in
-      # cef-dll-sys 154.5.0's build-time downloader:
-      #  (1) it fetches Spotify's index.json via ureq, which caps the body at 10 MiB,
-      #      but the index is larger → "json: the response body is larger than request
-      #      limit: 10485760". We fetch the index with curl (no cap) instead.
-      #  (2) it only accepts a pre-provided CEF_PATH whose dir contains an `archive.json`
-      #      ({type,name,sha1}; its name's version must be <= the crate's CEF version),
-      #      so we write that file into the extracted dir. Then the build skips its own
-      #      index+download entirely. (See tauri-apps/cef-rs sys/build.rs + download-cef.)
-      # The index is fetched every run and archive.json re-written so a cached ~/cef that
-      # predates this (no archive.json) is repaired rather than re-triggering the download.
+      # Pre-fetch CEF and point CEF_PATH at it. WORKAROUND for cef-dll-sys 154.5.0's
+      # build-time downloader, which fetches Spotify's index.json via ureq (body capped
+      # at 10 MiB; the index is larger → "json: the response body is larger than request
+      # limit"). We fetch the index with curl (no cap), download+extract the macosarm64
+      # minimal 154.0.34 build, and assemble the EXACT layout download-cef produces so
+      # both the Rust build and the bundler are satisfied (see tauri-apps/cef-rs
+      # download-cef extract_target_archive + sys/build.rs):
+      #   CEF_PATH/ = contents of the archive's Release/ (so `Chromium Embedded
+      #   Framework.framework` is at the root, which the macOS bundler requires) PLUS
+      #   include/, libcef_dll/, cmake/, CMakeLists.txt, CREDITS.html (so cef-dll-sys can
+      #   build the wrapper) PLUS archive.json ({type,name,sha1}, version <= crate's CEF)
+      #   so the build accepts the pre-provided path and skips its own index+download.
       - name: Provision CEF + set CEF_PATH (macOS)
         if: startsWith(matrix.platform, 'macos')
         run: |
           set -euo pipefail
-          mkdir -p "$HOME/cef"
+          DIST="$HOME/cef/dist"
           echo "Fetching CEF index (curl, no 10MiB cap)…"
           curl -sSL https://cef-builds.spotifycdn.com/index.json -o /tmp/cef-index.json
           python3 -c "import json; d=json.load(open('/tmp/cef-index.json')); vs=[v for v in d['macosarm64']['versions'] if v['cef_version'].startswith('154.0.34+')]; assert vs,'no CEF 154.0.34 in index'; fs=[f for f in vs[0]['files'] if f['type']=='minimal'] or [f for f in vs[0]['files'] if f['type']=='standard']; f=fs[0]; open('/tmp/cef-url','w').write('https://cef-builds.spotifycdn.com/'+f['name']); open('/tmp/cef-archive.json','w').write(json.dumps({'type':f['type'],'name':f['name'],'sha1':f['sha1']}))"
-          CEF_DIR="$(find "$HOME/cef" -maxdepth 1 -type d -name 'cef_binary_*' | head -1 || true)"
-          if [ -z "$CEF_DIR" ]; then
+          if [ ! -d "$DIST/Chromium Embedded Framework.framework" ]; then
+            echo "Assembling CEF dist…"
+            rm -rf "$HOME/cef/extract" "$DIST"
+            mkdir -p "$HOME/cef/extract" "$DIST"
             URL="$(cat /tmp/cef-url)"; echo "Downloading CEF: $URL"
             curl -sSL "$URL" -o /tmp/cef.tar.bz2
-            tar -xjf /tmp/cef.tar.bz2 -C "$HOME/cef"
-            CEF_DIR="$(find "$HOME/cef" -maxdepth 1 -type d -name 'cef_binary_*' | head -1)"
+            tar -xjf /tmp/cef.tar.bz2 -C "$HOME/cef/extract"
+            SRC="$(find "$HOME/cef/extract" -maxdepth 1 -type d -name 'cef_binary_*' | head -1)"
+            test -n "$SRC"
+            ditto "$SRC/Release" "$DIST"
+            ditto "$SRC/include" "$DIST/include"
+            ditto "$SRC/libcef_dll" "$DIST/libcef_dll"
+            ditto "$SRC/cmake" "$DIST/cmake"
+            cp "$SRC/CMakeLists.txt" "$DIST/"
+            cp "$SRC/CREDITS.html" "$DIST/" 2>/dev/null || true
+            rm -rf "$HOME/cef/extract" /tmp/cef.tar.bz2
           fi
-          test -n "$CEF_DIR"
-          cp /tmp/cef-archive.json "$CEF_DIR/archive.json"
-          echo "CEF_PATH=$CEF_DIR" >> "$GITHUB_ENV"
-          echo "Using CEF_PATH=$CEF_DIR"; cat "$CEF_DIR/archive.json"
+          cp /tmp/cef-archive.json "$DIST/archive.json"
+          test -d "$DIST/Chromium Embedded Framework.framework"
+          echo "CEF_PATH=$DIST" >> "$GITHUB_ENV"
+          echo "Using CEF_PATH=$DIST"; ls -1 "$DIST"
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
