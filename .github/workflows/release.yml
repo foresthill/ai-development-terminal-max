@@ -61,20 +61,41 @@ jobs:
             libayatana-appindicator3-dev
 
       # CEF (Chromium) build prerequisites — macOS only. tauri-runtime-cef compiles CEF's
-      # libcef_dll_wrapper via CMake + Ninja, then downloads the ~1GB CEF distribution.
+      # libcef_dll_wrapper via CMake + Ninja.
       - name: Install CEF build tools (macOS)
         if: startsWith(matrix.platform, 'macos')
         run: brew install cmake ninja
 
-      # Cache the ~1GB CEF download (~/Library/Caches/tauri-cef) so later releases don't
-      # re-fetch it. Keyed on arch + the pinned CEF version (tauri-runtime-cef
-      # 3.0.0-alpha.6 pins cef 154.5.0) — bump the suffix when the runtime's CEF pin moves.
+      # Cache the pre-fetched CEF distribution so later releases skip the ~1GB download.
       - name: Cache CEF (macOS)
         if: startsWith(matrix.platform, 'macos')
         uses: actions/cache@v4
         with:
-          path: ~/Library/Caches/tauri-cef
-          key: tauri-cef-${{ matrix.platform }}-cef154.5.0
+          path: ~/cef
+          key: cef-macosarm64-154.0.34-minimal
+
+      # Pre-fetch CEF and point CEF_PATH at it. WORKAROUND: cef-dll-sys 154.5.0's
+      # auto-downloader (download-cef) fetches Spotify's index.json via ureq, which caps
+      # the response body at 10 MiB; that index is larger, so the build fails with
+      # "json: the response body is larger than request limit: 10485760". Fetching with
+      # curl (no cap) and setting CEF_PATH makes the build skip its own index+download.
+      - name: Provision CEF + set CEF_PATH (macOS)
+        if: startsWith(matrix.platform, 'macos')
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/cef"
+          if [ -z "$(find "$HOME/cef" -maxdepth 1 -type d -name 'cef_binary_*' 2>/dev/null)" ]; then
+            echo "Fetching CEF index (curl, no 10MiB cap)…"
+            curl -sSL https://cef-builds.spotifycdn.com/index.json -o /tmp/cef-index.json
+            URL=$(python3 -c "import json,urllib.parse; d=json.load(open('/tmp/cef-index.json')); vs=[v for v in d['macosarm64']['versions'] if v['cef_version'].startswith('154.0.34')]; assert vs, 'no CEF 154.0.34 in index'; fs=[f for f in vs[0]['files'] if f['type']=='minimal'] or [f for f in vs[0]['files'] if f['type']=='standard']; print('https://cef-builds.spotifycdn.com/'+urllib.parse.quote(fs[0]['name']))")
+            echo "CEF archive URL: $URL"
+            curl -sSL "$URL" -o /tmp/cef.tar.bz2
+            tar -xjf /tmp/cef.tar.bz2 -C "$HOME/cef"
+          fi
+          CEF_DIR="$(find "$HOME/cef" -maxdepth 1 -type d -name 'cef_binary_*' | head -1)"
+          test -n "$CEF_DIR"
+          echo "CEF_PATH=$CEF_DIR" >> "$GITHUB_ENV"
+          echo "Using CEF_PATH=$CEF_DIR"
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4

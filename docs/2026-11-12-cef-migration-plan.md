@@ -89,10 +89,17 @@ pub fn run() {
   CEF は universal 不可なのでアーキ1本。retired ラベルを避け、唯一使える `macos-latest` を使用＝**CI で
   ネイティブ arm64 を取得**（Rosetta もローカル手動添付も不要＝当初の希望どおり）。成果物 `…_aarch64.dmg`
   ＋ updater `darwin-aarch64`。Intel Mac は対象外（macOS 26 は Apple Silicon 世代）。
-- **macOS ジョブに追加**：`brew install cmake ninja`（CEF の libcef_dll_wrapper ビルド）＋
-  `actions/cache` で `~/Library/Caches/tauri-cef`（CEF ~1GB、キー `tauri-cef-<platform>-cef154.5.0`）。
+- **macOS ジョブに追加**：`brew install cmake ninja`（CEF の libcef_dll_wrapper ビルド）＋ **CEF を curl で
+  事前取得して `CEF_PATH` を設定**（`~/cef` にキャッシュ）。
+- **CEF ダウンロードの上流バグ回避（v0.3.0-cef.5 で判明）**：`cef-dll-sys 154.5.0` の自動 downloader
+  （download-cef）は Spotify の `index.json` を **ureq で取得するが本文を 10 MiB で打ち切る**ため、巨大な
+  index で `"json: the response body is larger than request limit: 10485760"` で失敗（cold キャッシュで必発。
+  ローカルが通るのは `~/Library/Caches/tauri-cef` が温まっているため）。→ CI で **curl（上限なし）**で
+  index→対象アーカイブ(macosarm64, type=minimal, cef_version 154.0.34)を取得・展開し、`CEF_PATH` を
+  その `cef_binary_*` ディレクトリに向ける。すると build script は自前の index/download を**丸ごとスキップ**。
 - Windows/Linux ジョブは**無改変**（wry のまま）＝検証済み緑。
-- **残る要検証（arm64 CEF ビルドで判明する点）**：
+- **残る要検証（CEF_PATH 事前取得が通るか＝v0.3.0-cef.6 で確認）**：CEF_PATH レイアウト妥当性／最終的な
+  dmg 生成・署名・公証まで。以下も：
   - CEF の Frameworks（Chromium helper 群）の署名/公証（Developer ID で通るか、helper 個別署名が要るか）。
   - macOS ランナーのディスク（CEF 1GB＋Chromium ビルド）が足りるか。
 - **成果物サイズ**：macOS の .app/.dmg と updater の `*.app.tar.gz` が **+170MB**。リリースノートに明記済み。
