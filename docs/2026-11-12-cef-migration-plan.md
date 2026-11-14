@@ -1,6 +1,6 @@
 # CEF migration plan — macOS on Chromium, Windows/Linux on wry
 
-作成: 2026-11-12 / 更新: 2026-11-13 / ステータス: **ステップ1 成功（本体が macOS で CEF 起動＆vi 描画・dev）。残り：release/CI/Win・Linux 検証** / 背景: `CLAUDE.md` の vim 節、`spike/cef`（実証済み）
+作成: 2026-11-12 / 更新: 2026-11-14 / ステータス: ✅ **全OS CI 緑（v0.3.0-cef.8）— macOS ネイティブ arm64 CEF dmg＋Windows＋Linux をドラフト生成。残り：実機で vim 描画の最終確認 → 本採用（main マージ）判断、任意で Apple 署名/公証・Intel 追加** / 背景: `CLAUDE.md` の vim 節、`spike/cef`（実証済み）
 
 ## ゴール
 - **macOS ビルドだけ** webview エンジンを **CEF(Chromium)** にして、macOS 26 の WKWebView
@@ -83,6 +83,15 @@ pub fn run() {
   → **真因判明**：GitHub の **`macos-14` は 2026-11-02 に retired**（＝即 cancel）、**`macos-13` も旧すぎて不可**
   （＝starve）。**明示バージョンラベルがもう使えない**のが原因で、arm64/Intel の別ではなかった。利用可能な
   ラベルは **`macos-latest` ＝ macOS 26 / Apple Silicon(arm64)** のみ（過去リリースの `macos-latest` 成功と整合）。
+- **v0.3.0-cef.5**：`macos-latest` でネイティブ arm64 ビルドが走り、CEF 本体ビルド地点まで到達 →
+  `cef-dll-sys` の自動 downloader が失敗（下記「上流バグ」）。
+- **v0.3.0-cef.6**：curl 事前取得＋`CEF_PATH` 設定。CEF_PATH は読まれたが「`archive.json` が無い」と判定され
+  downloader にフォールバック → 同じ失敗。
+- **v0.3.0-cef.7**：`archive.json` を書込。**アプリは完全にコンパイル成功**（cef＋ラッパー）→ 最後の**バンドル**で
+  失敗（`Chromium Embedded Framework.framework` が CEF_PATH 直下に無い）。
+- **v0.3.0-cef.8**：✅ **全OS 緑達成（初の完全グリーン CEF リリース）**。CEF_PATH を download-cef の正規レイアウト
+  （Release/ の中身をルートに昇格＋include/libcef_dll/cmake/CMakeLists/CREDITS 併置）で組み立てて解決。
+  macOS ネイティブ arm64 dmg＋Windows＋Linux の成果物がドラフトに生成。
 
 現構成（cef-mac、2026-11-14）：
 - **macOS = Apple Silicon ネイティブ（`macos-latest` ＝ macOS 26 / arm64, `--target aarch64-apple-darwin`）**。
@@ -95,12 +104,16 @@ pub fn run() {
   （download-cef）は Spotify の `index.json` を **ureq で取得するが本文を 10 MiB で打ち切る**ため、巨大な
   index で `"json: the response body is larger than request limit: 10485760"` で失敗（cold キャッシュで必発。
   ローカルが通るのは `~/Library/Caches/tauri-cef` が温まっているため）。→ CI で **curl（上限なし）**で
-  index→対象アーカイブ(macosarm64, type=minimal, cef_version 154.0.34)を取得・展開し、`CEF_PATH` を
-  その `cef_binary_*` ディレクトリに向ける。すると build script は自前の index/download を**丸ごとスキップ**。
+  index→対象アーカイブ(macosarm64, type=minimal, cef_version 154.0.34)を取得・展開する。
+- **CEF_PATH は download-cef の“正規レイアウト”で組み立てる**（cef.7→.8 で判明）：単に `cef_binary_*` を指すと
+  ビルドは通るが**バンドル**が framework を見つけられない。`download-cef::extract_target_archive` に倣い
+  `~/cef/dist` に **`Release/` の中身をルートへ昇格**（＝`Chromium Embedded Framework.framework` がルート）し、
+  `include/` `libcef_dll/` `cmake/` `CMakeLists.txt` `CREDITS.html` を併置、さらに `archive.json`
+  （`{type,name,sha1}`、名前のバージョン ≤ crate の CEF 版）を置く。`ditto` で framework バンドルを保全。
+  これで build も bundler も満たし、自前 index/download を**丸ごとスキップ**。`~/cef` をキャッシュ（キー v3）。
 - Windows/Linux ジョブは**無改変**（wry のまま）＝検証済み緑。
-- **残る要検証（CEF_PATH 事前取得が通るか＝v0.3.0-cef.6 で確認）**：CEF_PATH レイアウト妥当性／最終的な
-  dmg 生成・署名・公証まで。以下も：
-  - CEF の Frameworks（Chromium helper 群）の署名/公証（Developer ID で通るか、helper 個別署名が要るか）。
+- ✅ **v0.3.0-cef.8 で全OS 緑**。残課題（任意）：Apple 署名/公証（未署名なら初回起動は右クリック→開く or
+  `xattr -dr com.apple.quarantine`）、Intel macOS を足すなら arm64 ランナー事情が変わってから。
   - macOS ランナーのディスク（CEF 1GB＋Chromium ビルド）が足りるか。
 - **成果物サイズ**：macOS の .app/.dmg と updater の `*.app.tar.gz` が **+170MB**。リリースノートに明記済み。
 
