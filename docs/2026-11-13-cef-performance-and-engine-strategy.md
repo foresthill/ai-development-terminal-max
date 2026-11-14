@@ -72,9 +72,10 @@
   CI で `tauri (v2.x) : @tauri-apps/api (v3-alpha)` の不一致で**ビルド前に即死**。ローカルは cargo が lock を
   自動再生成するので気づきにくい。→ `cargo generate-lockfile` して**コミット**（`cargo check --locked` で確認）。
 - **tauri-action@v0 は Tauri 3-alpha を駆動できる**（v0.3.0-cef.2 で Windows/Linux が緑）。懸案だったが解消。
-- **macOS ジョブ2本同時はこのアカウントで不可**：`macos-14` が t=0 cancel、`macos-13` が runner 割当されず
-  starve。過去は単一 `macos-latest` で成功していた。→ **macOS は arm64 単独ジョブ**に（CEF は universal 不可の
-  ため元々アーキ別）。Intel macOS は将来**直列ジョブ**で追加候補。
+- **明示 arm64 ランナー（macos-14）はこのアカウントで使えない**：単独でも t=0 cancel（3回連続）。Intel
+  （macos-13）は queue＝使える。→ **CI の macOS は Intel（macos-13, x86_64）**でビルド（x64 dmg＝Intel
+  ネイティブ／Apple Silicon は Rosetta 2）。**ネイティブ arm64 はローカルビルド**（M 系 Mac）で供給し、arm64 CI
+  ランナーが使えるようになったら CI 化。CEF は universal 不可なので元々アーキ別。
 - **CEF ビルド固有の要件**：macOS に `cmake`+`ninja`（libcef_dll_wrapper のビルド）、CEF ~1GB を
   `~/Library/Caches/tauri-cef` にキャッシュ。署名/公証（Chromium helper 群）とランナーのディスクは
   arm64 本ビルドで要確認。

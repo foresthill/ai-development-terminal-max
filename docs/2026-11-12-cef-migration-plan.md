@@ -77,18 +77,21 @@ pub fn run() {
   即停止。ローカルは cargo が lock を自動再生成していたため露見しなかった。→ `cargo generate-lockfile` で
   lock を Tauri 3 に再生成してコミット（`cargo check --locked` 緑）。
 - **v0.3.0-cef.2**：**Windows・Linux は SUCCESS**（Tauri 3 + wry、`tauri-action@v0` は Tauri 3-alpha CLI を
-  問題なく駆動＝懸案1クリア）。**macOS は arch 2本同時がこのアカウントで不可**（macos-14 は t=0 cancel、
-  macos-13 は runner 割当されず starve）。過去のリリースは単一 `macos-latest` ジョブで成功していたので、
-  原因は「2 macOS ジョブ同時」。
+  問題なく駆動＝懸案1クリア）。macOS は macos-14 が t=0 cancel、macos-13 は starve。
+- **v0.3.0-cef.3**：macOS を **arm64 単独**にしても `macos-14` が**単独でも t=0 cancel**（3回連続）。
+  ＝**このアカウントは明示 arm64 ランナー（macos-14）を使えない**（entitlement/availability）。一方 Intel
+  （macos-13）は cancel ではなく queue＝使える。過去の `macos-latest` 成功もこれと整合。
 
-現構成（cef-mac）：
-- **macOS は Apple Silicon 単独**（`macos-14`, aarch64-apple-darwin, 1ジョブ）。universal 不可＋2ジョブ不可の
-  ため arm64 のみ。成果物 `…_aarch64.dmg` ＋ updater `darwin-aarch64`。**Intel macOS は一旦外す**
-  （将来：arm64 完了後に直列で Intel ジョブを足す等）。
+現構成（cef-mac、2026-11-14）：
+- **macOS = Intel（`macos-13`, x86_64-apple-darwin, 1ジョブ）**。universal 不可＋arm64 ランナー不可のため
+  x64 を CI でビルド。成果物 `…_x64.dmg`（Intel ネイティブ／Apple Silicon は Rosetta 2）＋ updater
+  `darwin-x86_64`。**ネイティブ Apple Silicon（arm64）は M 系 Mac でローカルビルド**（`pnpm tauri build`）し、
+  必要なら Release に手動添付。arm64 CI ランナーが使えるようになったら CI 化（公開リポの無料 arm64 枠や
+  large runners、self-hosted mac 等）。
 - **macOS ジョブに追加**：`brew install cmake ninja`（CEF の libcef_dll_wrapper ビルド）＋
   `actions/cache` で `~/Library/Caches/tauri-cef`（CEF ~1GB、キー `tauri-cef-<platform>-cef154.5.0`）。
 - Windows/Linux ジョブは**無改変**（wry のまま）＝検証済み緑。
-- **残る要検証（arm64 CEF ビルドで判明する点）**：
+- **残る要検証（Intel CEF ビルドで判明する点）**：
   - CEF の Frameworks（Chromium helper 群）の署名/公証（Developer ID で通るか、helper 個別署名が要るか）。
   - macOS ランナーのディスク（CEF 1GB＋Chromium ビルド）が足りるか。
 - **成果物サイズ**：macOS の .app/.dmg と updater の `*.app.tar.gz` が **+170MB**。リリースノートに明記済み。

@@ -24,16 +24,17 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # macOS = Apple Silicon only (single job). tauri-runtime-cef (CEF/Chromium)
-          # ships per-architecture binaries, so universal-apple-darwin is NOT supported;
-          # and this account can't run two macOS jobs at once (the second is cancelled /
-          # starved), which is why we don't also build Intel here. arm64 is the dev/target
-          # arch and the macOS-26 vim fix target; Intel macOS can be added later (e.g. a
-          # sequential second job) once the pipeline is proven. Produces …_aarch64.dmg +
-          # a darwin-aarch64 updater entry.
-          - platform: macos-14
-            args: "--target aarch64-apple-darwin"
-            rust-targets: "aarch64-apple-darwin"
+          # macOS = Intel (x86_64) on macos-13. tauri-runtime-cef (CEF/Chromium) ships
+          # per-architecture binaries, so universal-apple-darwin is NOT supported — we must
+          # pick one arch. This account's explicit arm64 runner (macos-14) is cancelled at
+          # t=0 (not entitled / unavailable), while Intel (macos-13) runs — so CI builds the
+          # x86_64 CEF app. It installs natively on Intel Macs and runs on Apple Silicon via
+          # Rosetta 2. NATIVE Apple-Silicon builds are produced locally on an M-series Mac
+          # (`pnpm tauri build`) until an arm64 CI runner is available. Produces …_x64.dmg +
+          # a darwin-x86_64 updater entry.
+          - platform: macos-13
+            args: "--target x86_64-apple-darwin"
+            rust-targets: "x86_64-apple-darwin"
           # Built on 22.04 (older glibc) so the AppImage runs on more distros.
           - platform: ubuntu-22.04
             args: ""
@@ -141,7 +142,8 @@ jobs:
 
             | OS | ダウンロードするファイル |
             |---|---|
-            | 🍎 **macOS**（Apple Silicon / M1以降） | `..._aarch64.dmg` |
+            | 🍎 **macOS**（Intel ネイティブ／Apple Silicon は Rosetta 2 で動作） | `..._x64.dmg` |
+            | 🍎 **macOS**（Apple Silicon ネイティブ・別途添付される場合） | `..._aarch64.dmg` |
             | 🪟 **Windows** | `..._x64-setup.exe`（推奨）または `..._x64_en-US.msi` |
             | 🐧 **Linux** | `..._amd64.AppImage`（そのまま実行）／ `..._amd64.deb`（Debian・Ubuntu）／ `...x86_64.rpm`（Fedora・RHEL） |
 
@@ -164,7 +166,8 @@ jobs:
 
             | OS | File to download |
             |---|---|
-            | 🍎 **macOS** (Apple Silicon) | `..._aarch64.dmg` |
+            | 🍎 **macOS** (Intel native / Apple Silicon via Rosetta 2) | `..._x64.dmg` |
+            | 🍎 **macOS** (Apple Silicon native, if attached) | `..._aarch64.dmg` |
             | 🪟 **Windows** | `..._x64-setup.exe` (recommended) or `..._x64_en-US.msi` |
             | 🐧 **Linux** | `..._amd64.AppImage` (portable) / `..._amd64.deb` (Debian/Ubuntu) / `...x86_64.rpm` (Fedora/RHEL) |
 
