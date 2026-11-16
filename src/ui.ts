@@ -133,7 +133,7 @@ const HELP_JA = `
   <li><code>Alt+R</code> このエージェントを起動 ・ <code>Alt+Shift+R</code> 全起動 ・ <code>Alt+Enter</code> 送信バー</li>
   <li><code>Alt+G</code> Claudeセッション（記憶）・ <code>Alt+C</code> コマンドパレット ・ <code>Alt+S</code> スキル一覧（クリックで端末に入力）</li>
   <li><code>Shift+Enter</code> 端末内で改行（Claude Codeの改行）・ <code>⌘C/⌘V</code> コピー/貼付</li>
-  <li>URL: クリックでブラウザに開く（既定=アプリ内、設定で変更可）・ <code>⌘/Ctrl+クリック</code>でもう片方のブラウザ ／ ファイルパス: <code>⌘+クリック</code>でOS標準アプリ、<code>⌘+Shift+クリック</code>で親フォルダを開く（Finder/エクスプローラで選択表示）（macOSは<b>⌘</b>、Windows/Linuxは<code>Ctrl</code>。<b>macOSのCtrl+クリックは右クリック扱い</b>で開きません）</li>
+  <li>URL: クリックでブラウザに開く（既定=アプリ内、設定で変更可）・ <code>⌘/Ctrl+クリック</code>でもう片方のブラウザ ／ ファイルパス: <code>Alt+クリック</code>で内蔵エディタ、<code>⌘+クリック</code>でOS標準アプリ、<code>⌘+Shift+クリック</code>で親フォルダを開く（Finder/エクスプローラで選択表示）（macOSは<b>⌘</b>、Windows/Linuxは<code>Ctrl</code>。<b>macOSのCtrl+クリックは右クリック扱い</b>で開きません）</li>
   <li>選択: <code>クリック</code>で始点→<code>Shift+クリック</code>で範囲指定（claude上でも可）。ドラッグ選択はシェルではそのまま、claude上は <code>⌥(Option)+ドラッグ</code></li>
 </ul>
 <h4>ツールバー</h4>
@@ -172,7 +172,7 @@ const HELP_EN = `
   <li><code>Alt+R</code> launch this agent ・ <code>Alt+Shift+R</code> launch all ・ <code>Alt+Enter</code> send bar</li>
   <li><code>Alt+G</code> Claude sessions (memory) ・ <code>Alt+C</code> command palette ・ <code>Alt+S</code> skills browser (click → type into the terminal)</li>
   <li><code>Shift+Enter</code> newline in terminal (Claude Code) ・ <code>⌘C/⌘V</code> copy/paste</li>
-  <li>URL: click opens it in the browser (default = in-app, configurable) ・ <code>⌘/Ctrl+click</code> = the other browser ／ file path: <code>⌘+click</code> = OS default app, <code>⌘+Shift+click</code> = reveal in its parent folder (Finder/Explorer) (macOS: <b>⌘</b>; Windows/Linux: <code>Ctrl</code> — on macOS <b>Ctrl+click is a right-click</b> and won't open it)</li>
+  <li>URL: click opens it in the browser (default = in-app, configurable) ・ <code>⌘/Ctrl+click</code> = the other browser ／ file path: <code>Alt+click</code> = built-in editor, <code>⌘+click</code> = OS default app, <code>⌘+Shift+click</code> = reveal in its parent folder (Finder/Explorer) (macOS: <b>⌘</b>; Windows/Linux: <code>Ctrl</code> — on macOS <b>Ctrl+click is a right-click</b> and won't open it)</li>
   <li>Select: <code>click</code> the start → <code>Shift+click</code> the end for a range (works in claude too). Drag-select works in shells; in claude use <code>⌥(Option)+drag</code></li>
 </ul>
 <h4>Toolbar</h4>
