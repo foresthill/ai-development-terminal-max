@@ -28,7 +28,7 @@ import { handleSubagentEvent, clearSubagentLayers } from "./subagent";
 import { defaultShell, shellLoginArgs, homeDir, agentStats } from "./pty";
 import { createWorktree, writeAidtSettings, currentBranch } from "./git";
 import { listen } from "@tauri-apps/api/event";
-import { openPath, revealItemInDir, openUrl as openExternalUrl } from "@tauri-apps/plugin-opener";
+import { openPath, revealItemsInDir, openUrl as openExternalUrl } from "@tauri-apps/plugin-opener";
 import {
   askText,
   toast,
@@ -397,7 +397,7 @@ export class App {
     else if (!p.startsWith("/")) p = (cwd ?? this.home).replace(/\/$/, "") + "/" + p.replace(/^\.\//, "");
     try {
       if (revealFolder) {
-        await revealItemInDir(p);
+        await revealItemsInDir(p);
         toast(t("toast.revealedPath", p));
       } else {
         await openPath(p);
