@@ -640,6 +640,26 @@ body {
   color: var(--muted);
   align-self: center;
 }
+/* Skills browser: each row is one click to type the skill's slash form. */
+.sk-item {
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.sk-item:hover,
+.sk-item:focus-visible {
+  border-color: color-mix(in srgb, var(--accent, #6ea8fe) 55%, transparent);
+  background: color-mix(in srgb, var(--accent, #6ea8fe) 10%, var(--panel) 60%);
+  outline: none;
+}
+.sk-name {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.sk-desc {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 /* Insights (heuristic learning) view */
 .ins-card {
   background: color-mix(in srgb, var(--text) 4%, transparent);
