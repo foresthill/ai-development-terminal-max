@@ -22,7 +22,6 @@ import {
 } from "./agent";
 import { Project } from "./project";
 import { createEditorLayer } from "./editor";
-import { pickFile } from "./files";
 import { checkForUpdates } from "./updater";
 import { handleSubagentEvent, clearSubagentLayers } from "./subagent";
 import { defaultShell, shellLoginArgs, homeDir, agentStats } from "./pty";
@@ -724,14 +723,13 @@ export class App {
     this.render();
   }
 
-  /// Add an editor layer. With an explicit `path` (e.g. Alt-click on a terminal path)
-  /// the file opens straight away; otherwise a file picker opens (cwd as the starting
-  /// dir) and cancelling starts an untitled buffer (Save prompts for a path). A fast,
-  /// in-app alternative to launching a heavyweight external editor.
-  private async addEditorLayer(agent: Agent | undefined, path?: string) {
+  /// Add an editor layer. With an explicit `path` (e.g. Alt-click on a terminal path) the
+  /// file opens straight away; without one it starts an UNTITLED buffer (no picker) — use
+  /// the toolbar's Open to load a file and Save to write it. A fast, in-app alternative to
+  /// launching a heavyweight external editor.
+  private addEditorLayer(agent: Agent | undefined, path?: string) {
     if (!agent) return;
-    const p = path ?? (await pickFile(agent.cwd ?? undefined));
-    const layer = createEditorLayer(p ?? null);
+    const layer = createEditorLayer(path ?? null);
     agent.layers.push(layer);
     agent.active = agent.layers.length - 1;
     agent.stackEl.appendChild(layer.el);
