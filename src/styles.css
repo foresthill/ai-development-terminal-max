@@ -1687,6 +1687,42 @@ body {
 .editor-save:hover {
   filter: brightness(1.12);
 }
+.editor-pos {
+  flex: 0 0 auto;
+  font-size: 10px;
+  color: var(--muted, var(--text));
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+}
+.editor-lang {
+  flex: 0 0 auto;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 1px 4px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.editor-vim,
+.editor-open {
+  flex: 0 0 auto;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 2px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.editor-vim:hover,
+.editor-open:hover {
+  background: var(--panel);
+}
+.editor-vim.on {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+}
 .editor-host {
   flex: 1;
   min-height: 0;

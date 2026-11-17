@@ -23,7 +23,6 @@ import {
 import { Project } from "./project";
 import { createEditorLayer } from "./editor";
 import { createCdpBrowserLayer } from "./browser-controller";
-import { pickFile } from "./files";
 import { checkForUpdates } from "./updater";
 import { handleSubagentEvent, clearSubagentLayers } from "./subagent";
 import { defaultShell, shellLoginArgs, homeDir, agentStats } from "./pty";
@@ -336,7 +335,7 @@ export class App {
       cwd,
       autoRun: autoRun ? this.buildCmd(cmd) : undefined,
       onOpenUrl: (url, mod) => this.openUrl(url, mod),
-      onOpenPath: (raw, cwd, reveal) => this.openPathLink(raw, cwd, reveal),
+      onOpenPath: (raw, cwd, mode) => this.openPathLink(raw, cwd, mode),
     });
   }
 
@@ -373,7 +372,7 @@ export class App {
       args: this.shellArgs,
       cwd,
       onOpenUrl: (url, mod) => this.openUrl(url, mod),
-      onOpenPath: (raw, cwd2, reveal) => this.openPathLink(raw, cwd2, reveal),
+      onOpenPath: (raw, cwd2, mode) => this.openPathLink(raw, cwd2, mode),
     });
   }
 
@@ -387,17 +386,19 @@ export class App {
     else this.addLayerTo(this.agents[this.focused], "browser", url);
   }
 
-  /// Open a file path clicked in a terminal. ⌘/Ctrl-click opens the path itself with
-  /// the OS default app; adding Shift reveals it in its CONTAINING folder instead
-  /// (Finder/Explorer, item selected) — often what you want for a file you mean to
-  /// act on at the folder level. Resolves `~` and relative paths against the
-  /// terminal's cwd; strips any `:line` tail.
-  private async openPathLink(raw: string, cwd: string | null, revealFolder = false) {
+  /// Open a file path clicked in a terminal. Alt/Option-click opens it in the built-in
+  /// editor (fast, in-app); ⌘/Ctrl-click opens the path with the OS default app; adding
+  /// Shift reveals it in its CONTAINING folder instead (Finder/Explorer, item selected).
+  /// Resolves `~` and relative paths against the terminal's cwd; strips any `:line` tail.
+  private async openPathLink(raw: string, cwd: string | null, mode: "open" | "reveal" | "edit" = "open") {
     let p = raw.replace(/:\d+(?:[:.]\d+)?$/, ""); // drop :line[:col]
     if (p.startsWith("~/")) p = this.home + p.slice(1);
     else if (!p.startsWith("/")) p = (cwd ?? this.home).replace(/\/$/, "") + "/" + p.replace(/^\.\//, "");
     try {
-      if (revealFolder) {
+      if (mode === "edit") {
+        this.addEditorLayer(this.agents[this.focused], p);
+        toast(t("toast.editingPath", p));
+      } else if (mode === "reveal") {
         await revealItemsInDir(p);
         toast(t("toast.revealedPath", p));
       } else {
@@ -723,12 +724,13 @@ export class App {
     this.render();
   }
 
-  /// Add an editor layer. Opens a file picker (cwd as the starting dir); if the user
-  /// cancels, starts an untitled buffer (Save prompts for a path). This is how you edit
-  /// on macOS 26, where terminal vim can't repaint (see the macOS 26 doc).
-  private async addEditorLayer(agent: Agent) {
-    const path = await pickFile(agent.cwd ?? undefined);
-    const layer = createEditorLayer(path);
+  /// Add an editor layer. With an explicit `path` (e.g. Alt-click on a terminal path) the
+  /// file opens straight away; without one it starts an UNTITLED buffer (no picker) — use
+  /// the toolbar's Open to load a file and Save to write it. A fast, in-app alternative to
+  /// launching a heavyweight external editor.
+  private addEditorLayer(agent: Agent | undefined, path?: string) {
+    if (!agent) return;
+    const layer = createEditorLayer(path ?? null);
     agent.layers.push(layer);
     agent.active = agent.layers.length - 1;
     agent.stackEl.appendChild(layer.el);

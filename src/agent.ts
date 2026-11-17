@@ -335,7 +335,7 @@ export function createTerminalLayer(opts: {
   // terminal's working dir so the host can resolve relative paths. `revealFolder`
   // is true when Shift was also held → open the CONTAINING folder (reveal), not
   // the file itself.
-  onOpenPath?: (raw: string, cwd: string | null, revealFolder: boolean) => void;
+  onOpenPath?: (raw: string, cwd: string | null, mode: "open" | "reveal" | "edit") => void;
 }): Layer {
   const el = document.createElement("div");
   el.className = "layer layer-terminal";
@@ -534,10 +534,20 @@ export function createTerminalLayer(opts: {
             // only opens on ⌘-click there; Ctrl-click is the Windows/Linux modifier.
             ev.preventDefault();
             ev.stopPropagation();
-            if (ev.metaKey || ev.ctrlKey) {
+            // Alt/Option → open in the built-in editor (fast, in-app). Otherwise ⌘/Ctrl
+            // is required: +Shift reveals in the containing folder, alone opens with the
+            // OS default app. (On macOS Ctrl+click is a secondary click xterm ignores, so
+            // the ⌘/Ctrl paths fire on ⌘; Ctrl is the Windows/Linux modifier.)
+            const mode = ev.altKey
+              ? "edit"
+              : ev.metaKey || ev.ctrlKey
+                ? ev.shiftKey
+                  ? "reveal"
+                  : "open"
+                : null;
+            if (mode) {
               try {
-                // ⌘/Ctrl+Shift → reveal in the containing folder; ⌘/Ctrl alone → open it.
-                opts.onOpenPath?.(raw, layer.cwd ?? null, ev.shiftKey);
+                opts.onOpenPath?.(raw, layer.cwd ?? null, mode);
               } catch {
                 /* host handles its own errors (toast); never let it bubble */
               }
