@@ -37,6 +37,10 @@ export interface Layer {
   editorView?: import("@codemirror/view").EditorView;
   filePath?: string | null; // the file the editor is bound to (null = untitled)
   dirty?: boolean; // unsaved changes
+  // CDP browser layer (方式A/C1): the external Chrome's pid + a teardown hook (close the
+  // CDP socket, kill the browser). See src/browser-controller.ts.
+  cdpPid?: number;
+  cleanup?: () => void;
 }
 
 export interface Agent {
@@ -820,6 +824,13 @@ export function disposeLayer(layer: Layer) {
   if (layer.pty) layer.pty.kill();
   if (layer.term) layer.term.dispose();
   if (layer.editorView) layer.editorView.destroy();
+  if (layer.cleanup) {
+    try {
+      layer.cleanup();
+    } catch {
+      /* best-effort teardown */
+    }
+  }
   layer.el.remove();
 }
 

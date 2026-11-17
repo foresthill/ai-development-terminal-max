@@ -1,3 +1,4 @@
+mod browser;
 mod claude_sessions;
 mod claude_skills;
 mod files;
@@ -57,6 +58,9 @@ pub fn run() {
             memory::memory_write_all,
             claude_sessions::claude_sessions,
             claude_skills::claude_skills,
+            browser::browser_detect,
+            browser::browser_launch,
+            browser::browser_close,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

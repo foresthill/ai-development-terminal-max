@@ -129,7 +129,7 @@ const HELP_JA = `
 <ul>
   <li><code>Alt+T</code> 追加 ・ <code>Alt+←/→</code>(H/L) エージェント移動 ・ <code>Alt+↑/↓</code>(J/K) 奥行き</li>
   <li><code>Alt+Z</code> 拡大 ・ <code>Alt+1–9</code> 番号でフォーカス ・ <code>Alt+P</code> プロジェクト切替 ・ <code>Alt+M</code> 俯瞰</li>
-  <li><code>Alt+N</code> 端末追加 ・ <code>Alt+B</code> ブラウザ追加 ・ <code>Alt+W</code> レイヤー閉 ・ <code>Alt+X</code> エージェント閉</li>
+  <li><code>Alt+N</code> 端末追加 ・ <code>Alt+B</code> ブラウザ追加 ・ <code>Alt+Shift+B</code> Chrome(CDP)ブラウザ ・ <code>Alt+W</code> レイヤー閉 ・ <code>Alt+X</code> エージェント閉</li>
   <li><code>Alt+R</code> このエージェントを起動 ・ <code>Alt+Shift+R</code> 全起動 ・ <code>Alt+Enter</code> 送信バー</li>
   <li><code>Alt+G</code> Claudeセッション（記憶）・ <code>Alt+C</code> コマンドパレット ・ <code>Alt+S</code> スキル一覧（クリックで端末に入力）</li>
   <li><code>Shift+Enter</code> 端末内で改行（Claude Codeの改行）・ <code>⌘C/⌘V</code> コピー/貼付</li>
@@ -168,7 +168,7 @@ const HELP_EN = `
 <ul>
   <li><code>Alt+T</code> new ・ <code>Alt+←/→</code>(H/L) move focus ・ <code>Alt+↑/↓</code>(J/K) depth</li>
   <li><code>Alt+Z</code> zoom ・ <code>Alt+1–9</code> focus by number ・ <code>Alt+P</code> switch project ・ <code>Alt+M</code> macro</li>
-  <li><code>Alt+N</code> terminal ・ <code>Alt+B</code> browser ・ <code>Alt+W</code> close layer ・ <code>Alt+X</code> close agent</li>
+  <li><code>Alt+N</code> terminal ・ <code>Alt+B</code> browser ・ <code>Alt+Shift+B</code> Chrome (CDP) browser ・ <code>Alt+W</code> close layer ・ <code>Alt+X</code> close agent</li>
   <li><code>Alt+R</code> launch this agent ・ <code>Alt+Shift+R</code> launch all ・ <code>Alt+Enter</code> send bar</li>
   <li><code>Alt+G</code> Claude sessions (memory) ・ <code>Alt+C</code> command palette ・ <code>Alt+S</code> skills browser (click → type into the terminal)</li>
   <li><code>Shift+Enter</code> newline in terminal (Claude Code) ・ <code>⌘C/⌘V</code> copy/paste</li>

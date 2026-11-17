@@ -1692,6 +1692,84 @@ body {
   min-height: 0;
   overflow: hidden;
 }
+/* CDP browser layer (方式A/C1): control + AX inspector panel */
+.layer-cdp {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--text);
+}
+.cdp-bar,
+.cdp-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+.cdp-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border);
+}
+.cdp-dot.on {
+  background: var(--accent);
+}
+.cdp-url,
+.cdp-type {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 2px 6px;
+  font-size: 11px;
+}
+.cdp-btn {
+  flex: 0 0 auto;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 2px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.cdp-btn:hover {
+  background: var(--bg);
+}
+.cdp-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  font-family: Menlo, "SF Mono", "JetBrains Mono", monospace;
+  font-size: 11px;
+}
+.cdp-node {
+  padding: 2px 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+}
+.cdp-node:hover {
+  background: var(--panel);
+}
+.cdp-node.sel {
+  background: var(--accent-dim);
+}
+.cdp-status {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  font-size: 10px;
+  opacity: 0.8;
+  border-top: 1px solid var(--border);
+}
 /* CodeMirror follows the app theme tokens */
 .editor-host .cm-editor {
   height: 100%;

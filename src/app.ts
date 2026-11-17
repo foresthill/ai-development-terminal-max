@@ -22,6 +22,7 @@ import {
 } from "./agent";
 import { Project } from "./project";
 import { createEditorLayer } from "./editor";
+import { createCdpBrowserLayer } from "./browser-controller";
 import { pickFile } from "./files";
 import { checkForUpdates } from "./updater";
 import { handleSubagentEvent, clearSubagentLayers } from "./subagent";
@@ -735,6 +736,18 @@ export class App {
     layer.editorView?.focus();
   }
 
+  /// Add a CDP browser layer (方式A/C1, Alt+Shift+B): launches the user's own Chrome for
+  /// a URL in its own window and shows an in-app control/inspector panel wired over CDP.
+  /// Heavy logic lives in browser-controller.ts; this is just the layer-lifecycle wiring.
+  private addCdpBrowserLayer(agent: Agent | undefined) {
+    if (!agent) return;
+    const layer = createCdpBrowserLayer("https://example.com");
+    agent.layers.push(layer);
+    agent.active = agent.layers.length - 1;
+    agent.stackEl.appendChild(layer.el);
+    this.render();
+  }
+
   private closeLayerAt(agent: Agent | undefined, li: number) {
     if (!agent || agent.layers.length <= 1) return;
     const [removed] = agent.layers.splice(li, 1);
@@ -1055,7 +1068,10 @@ export class App {
       ArrowUp: () => this.cycleDepth(-1),
       KeyZ: () => this.toggleZoom(),
       KeyN: () => this.addLayerTo(this.agents[this.focused], "terminal"),
-      KeyB: () => this.addLayerTo(this.agents[this.focused], "browser"),
+      KeyB: () =>
+        e.shiftKey
+          ? this.addCdpBrowserLayer(this.agents[this.focused])
+          : this.addLayerTo(this.agents[this.focused], "browser"),
       KeyE: () => this.addLayerTo(this.agents[this.focused], "editor"),
       KeyU: () => void checkForUpdates({ silent: false }), // manual "check for updates"
       KeyG: () => this.openMemoryDialog(), // project memory (personal unconscious)
