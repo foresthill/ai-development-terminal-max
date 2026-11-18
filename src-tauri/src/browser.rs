@@ -131,6 +131,11 @@ pub fn browser_launch(url: String) -> Result<LaunchInfo, String> {
         .arg(format!("--user-data-dir={}", profile.display()))
         .arg("--no-first-run")
         .arg("--no-default-browser-check")
+        // Don't touch the OS keychain/secret store for this throwaway automation profile
+        // (avoids the macOS "Chromium Safe Storage" keychain prompt). Standard for
+        // CDP-driven browsers (Playwright/Puppeteer use the same).
+        .arg("--password-store=basic")
+        .arg("--use-mock-keychain")
         .arg("--new-window")
         .arg(&url)
         .spawn()
