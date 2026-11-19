@@ -1723,6 +1723,20 @@ body {
   background: var(--accent-dim);
   border-color: var(--accent);
 }
+.editor-act {
+  flex: 0 0 auto;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 2px 7px;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+.editor-act:hover {
+  background: var(--panel);
+}
 .editor-host {
   flex: 1;
   min-height: 0;

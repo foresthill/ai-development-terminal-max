@@ -11,6 +11,8 @@
 import { EditorView, keymap } from "@codemirror/view";
 import { EditorState, Compartment, type Extension } from "@codemirror/state";
 import { basicSetup } from "codemirror";
+import { undo, redo } from "@codemirror/commands";
+import { openSearchPanel } from "@codemirror/search";
 import { vim } from "@replit/codemirror-vim";
 import { javascript } from "@codemirror/lang-javascript";
 import { markdown } from "@codemirror/lang-markdown";
@@ -112,6 +114,19 @@ export function createEditorLayer(path: string | null): Layer {
   const nameEl = document.createElement("span");
   nameEl.className = "editor-name";
 
+  const undoBtn = document.createElement("button");
+  undoBtn.className = "editor-act";
+  undoBtn.textContent = "↶";
+  undoBtn.title = t("editor.undo");
+  const redoBtn = document.createElement("button");
+  redoBtn.className = "editor-act";
+  redoBtn.textContent = "↷";
+  redoBtn.title = t("editor.redo");
+  const findBtn = document.createElement("button");
+  findBtn.className = "editor-act";
+  findBtn.textContent = "⌕";
+  findBtn.title = t("editor.find");
+
   const langSel = document.createElement("select");
   langSel.className = "editor-lang";
   langSel.title = t("editor.lang");
@@ -140,7 +155,7 @@ export function createEditorLayer(path: string | null): Layer {
   posEl.className = "editor-pos";
   posEl.textContent = "1:1";
 
-  bar.append(nameEl, posEl, langSel, vimBtn, openBtn, saveBtn);
+  bar.append(nameEl, posEl, undoBtn, redoBtn, findBtn, langSel, vimBtn, openBtn, saveBtn);
 
   const host = document.createElement("div");
   host.className = "editor-host";
@@ -233,9 +248,21 @@ export function createEditorLayer(path: string | null): Layer {
   };
 
   // Keep clicks on the toolbar from bubbling into the layer's drag/focus handling.
-  for (const node of [langSel, vimBtn, openBtn, saveBtn]) {
+  for (const node of [undoBtn, redoBtn, findBtn, langSel, vimBtn, openBtn, saveBtn]) {
     node.addEventListener("mousedown", (e) => e.stopPropagation());
   }
+
+  undoBtn.addEventListener("click", () => {
+    undo(view);
+    view.focus();
+  });
+  redoBtn.addEventListener("click", () => {
+    redo(view);
+    view.focus();
+  });
+  findBtn.addEventListener("click", () => {
+    openSearchPanel(view);
+  });
 
   langSel.addEventListener("change", () => {
     const id = langSel.value;
