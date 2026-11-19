@@ -201,7 +201,7 @@ export class App {
     this.shellArgs = await shellLoginArgs();
     this.home = await homeDir();
     this.saved = loadProjects();
-    this.restore(); // start empty if nothing saved — the empty state guides setup
+    await this.restore(); // start empty if nothing saved — the empty state guides setup
     this.render();
     window.setInterval(() => this.pollStats(), 2000);
     listen<Record<string, unknown>>("subagent", (e) => {
@@ -1210,7 +1210,34 @@ export class App {
 
   private persist() {
     clearTimeout(this.saveTimer);
-    this.saveTimer = window.setTimeout(() => saveSnap(this.snapshot()), 400);
+    this.saveTimer = window.setTimeout(() => {
+      const snap = this.snapshot();
+      saveSnap(snap); // fast per-viewer copy (localStorage)
+      void this.saveSnapFile(snap); // durable on-disk mirror (survives storage/engine changes)
+    }, 400);
+  }
+
+  /// Stable on-disk mirror of the workspace, independent of the webview's storage engine.
+  /// localStorage moved when the engine switched (WKWebView→CEF), silently losing the
+  /// workspace; this file lives in the user's home and survives engine/storage changes and
+  /// reinstalls, and startup falls back to it when localStorage is empty.
+  private workspaceFile(): string {
+    return `${this.home.replace(/\/$/, "")}/.aidt/workspace.json`;
+  }
+  private async saveSnapFile(snap: WorkspaceSnap) {
+    try {
+      await writeFile(this.workspaceFile(), JSON.stringify(snap));
+    } catch {
+      /* non-fatal: the localStorage copy still holds it */
+    }
+  }
+  private async loadSnapFile(): Promise<WorkspaceSnap | null> {
+    try {
+      const snap = JSON.parse(await readFile(this.workspaceFile())) as WorkspaceSnap;
+      return snap?.projects?.length ? snap : null;
+    } catch {
+      return null;
+    }
   }
 
   /// Apply a snapshot's settings + rebuild its projects into this app.
@@ -1246,11 +1273,22 @@ export class App {
     for (const p of this.projects) sortByPriority(p.agents);
   }
 
-  private restore(): boolean {
+  /// Restore on launch: prefer localStorage (fast), else fall back to the on-disk mirror
+  /// (e.g. right after a storage-engine change wiped localStorage), re-seeding localStorage
+  /// from the file so later saves stay consistent.
+  private async restore(): Promise<boolean> {
     const snap = loadSnap();
-    if (!snap?.projects?.length) return false;
-    this.applySnapshot(snap);
-    return true;
+    if (snap?.projects?.length) {
+      this.applySnapshot(snap);
+      return true;
+    }
+    const fileSnap = await this.loadSnapFile();
+    if (fileSnap?.projects?.length) {
+      this.applySnapshot(fileSnap);
+      saveSnap(fileSnap); // re-seed the fast copy from the durable one
+      return true;
+    }
+    return false;
   }
 
   // --- named save slots (game-save style) ----------------------------------
