@@ -411,6 +411,8 @@ export interface SavesController {
   saveAs(name: string): void;
   load(name: string): Promise<boolean>; // resolves true if the slot was loaded
   remove(name: string): void;
+  exportFile(): void; // write the current workspace to a .json file (portable backup)
+  importFile(): void; // replace the workspace from a .json file
 }
 
 /// Named save-slots dialog: save the current workspace under a name, or load /
@@ -423,6 +425,9 @@ export function openSavesDialog(c: SavesController) {
   box.innerHTML = `
     <div class="modal-title">${t("saves.title")}</div>
     <div class="modal-body">${t("saves.intro")}</div>
+    <div class="set-section">${t("saves.fileSection")}</div>
+    <div class="set-row"><button id="save-export">⤓ ${t("saves.exportBtn")}</button><button id="save-import">⤒ ${t("saves.importBtn")}</button></div>
+    <div class="set-hint">${t("saves.fileHint")}</div>
     <div class="set-section">${t("saves.saveSection")}</div>
     <div class="set-row"><input class="modal-input" id="save-name" spellcheck="false"
         placeholder="${t("saves.placeholder")}"><button class="primary" id="save-go">💾 ${t("saves.saveAs")}</button></div>
@@ -513,6 +518,11 @@ export function openSavesDialog(c: SavesController) {
     if (e.key === "Enter") doSave();
   });
   box.querySelector("#save-close")!.addEventListener("click", close);
+  box.querySelector("#save-export")!.addEventListener("click", () => c.exportFile());
+  box.querySelector("#save-import")!.addEventListener("click", () => {
+    c.importFile();
+    close();
+  });
   back.addEventListener("click", (e) => {
     if (e.target === back) close();
   });

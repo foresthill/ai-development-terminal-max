@@ -23,6 +23,7 @@ import {
 import { Project } from "./project";
 import { createEditorLayer } from "./editor";
 import { createCdpBrowserLayer } from "./browser-controller";
+import { pickFile, pickSavePath, readFile, writeFile } from "./files";
 import { checkForUpdates } from "./updater";
 import { handleSubagentEvent, clearSubagentLayers } from "./subagent";
 import { defaultShell, shellLoginArgs, homeDir, agentStats } from "./pty";
@@ -1263,7 +1264,58 @@ export class App {
       },
       load: (name) => this.loadSlot(name),
       remove: (name) => removeSave(name),
+      exportFile: () => void this.exportWorkspace(),
+      importFile: () => void this.importWorkspace(),
     });
+  }
+
+  /// Export the whole workspace (projects/agents/cwd/layout/toggles) to a portable .json
+  /// file — a backup that survives storage-engine changes (e.g. the WKWebView→CEF move),
+  /// reinstalls and new machines, independent of the in-app save slots (localStorage).
+  private async exportWorkspace() {
+    const name = `aidt-workspace-${new Date().toISOString().slice(0, 10)}.json`;
+    const p = await pickSavePath(name);
+    if (!p) return;
+    try {
+      await writeFile(p, JSON.stringify(this.snapshot(), null, 2));
+      toast(t("saves.exported", basename(p)));
+    } catch (e) {
+      toast(t("saves.exportFail", String(e)), "error");
+    }
+  }
+
+  /// Replace the workspace from a .json file written by exportWorkspace. Confirms first
+  /// (it wipes the current workspace) and stashes an undo auto-backup, like loadSlot.
+  private async importWorkspace() {
+    const p = await pickFile();
+    if (!p) return;
+    let snap: WorkspaceSnap;
+    try {
+      snap = JSON.parse(await readFile(p)) as WorkspaceSnap;
+    } catch (e) {
+      toast(t("saves.importFail", String(e)), "error");
+      return;
+    }
+    if (!snap || typeof snap !== "object" || !Array.isArray(snap.projects)) {
+      toast(t("saves.importInvalid"), "error");
+      return;
+    }
+    const ok = await confirmModal({
+      title: t("saves.confirmImport"),
+      body: t("saves.confirmBody"),
+      confirm: t("saves.confirmBtn"),
+      danger: true,
+    });
+    if (!ok) return;
+    upsertSave(t("saves.autoBackup"), this.snapshot());
+    for (const pr of this.projects) for (const a of pr.agents) a.layers.forEach(disposeLayer);
+    this.projects.length = 0;
+    this.grid.replaceChildren();
+    this.focused = 0;
+    this.view = "project";
+    this.applySnapshot(snap);
+    this.render();
+    toast(t("saves.imported"));
   }
 
   private async loadSlot(name: string): Promise<boolean> {
