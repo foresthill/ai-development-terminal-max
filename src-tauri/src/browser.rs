@@ -107,11 +107,13 @@ fn find_page_ws(port: u16) -> Result<String, String> {
     Err("no page target found".into())
 }
 
-/// Launch the user's Chrome headed in a NEW window with a remote-debugging port, in a
-/// throwaway profile (so it won't clash with the user's running Chrome and never touches
-/// their real profile). Returns the page's CDP WebSocket URL for the frontend to attach to.
+/// Launch the user's Chrome with a remote-debugging port in a throwaway profile (so it
+/// won't clash with the user's running Chrome and never touches their real profile), and
+/// return the page's CDP WebSocket URL for the frontend to attach to. `headless` picks the
+/// mode: false = headed in its own window (C1, separate-window PoC); true = headless, so
+/// the page is shown only via Page.startScreencast inside the app (C2, embedded).
 #[tauri::command]
-pub fn browser_launch(url: String) -> Result<LaunchInfo, String> {
+pub fn browser_launch(url: String, headless: bool) -> Result<LaunchInfo, String> {
     let exe = detect_chrome().ok_or("no Chrome/Chromium/Edge/Brave found")?;
 
     // Throwaway profile under the OS temp dir, unique per launch.
@@ -124,8 +126,8 @@ pub fn browser_launch(url: String) -> Result<LaunchInfo, String> {
     ));
     std::fs::create_dir_all(&profile).map_err(|e| e.to_string())?;
 
-    let child = Command::new(&exe)
-        .arg("--remote-debugging-port=0")
+    let mut cmd = Command::new(&exe);
+    cmd.arg("--remote-debugging-port=0")
         // Allow the webview origin to open the DevTools WebSocket (required since Chrome 111).
         .arg("--remote-allow-origins=*")
         .arg(format!("--user-data-dir={}", profile.display()))
@@ -135,8 +137,13 @@ pub fn browser_launch(url: String) -> Result<LaunchInfo, String> {
         // (avoids the macOS "Chromium Safe Storage" keychain prompt). Standard for
         // CDP-driven browsers (Playwright/Puppeteer use the same).
         .arg("--password-store=basic")
-        .arg("--use-mock-keychain")
-        .arg("--new-window")
+        .arg("--use-mock-keychain");
+    if headless {
+        cmd.arg("--headless=new");
+    } else {
+        cmd.arg("--new-window");
+    }
+    let child = cmd
         .arg(&url)
         .spawn()
         .map_err(|e| format!("{exe}: {e}"))?;
