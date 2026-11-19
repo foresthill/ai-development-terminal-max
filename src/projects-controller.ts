@@ -56,13 +56,16 @@ export class ProjectsController {
   }
 
   /// Create + activate a project, record it as a saved bookmark, add first agent.
+  /// Opening always lands the first agent at the REPO ROOT (never auto-creates a
+  /// worktree): the agent runs `claude --continue` there, so the same conversation
+  /// resumes every time and the folder is trusted once. Git worktrees are opt-in — add
+  /// a parallel agent (Alt+T / fill) to spin one up on its own branch deliberately.
   async openProject(label: string, path: string, isGit: boolean) {
     const p = createProject(label, path, isGit);
     this.ctx.projects().push(p);
     this.ctx.activate(p);
     this.recordSaved(label, path, isGit);
-    if (isGit) await this.ctx.addAgentToActive();
-    else await this.ctx.addAgentWithCwd(p, path);
+    await this.ctx.addAgentWithCwd(p, path);
   }
 
   recordSaved(label: string, path: string, isGit: boolean) {
