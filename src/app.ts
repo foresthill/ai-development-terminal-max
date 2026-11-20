@@ -48,6 +48,7 @@ import { installAppMenu } from "./menu";
 import { openMemoryPanel } from "./memory-panel";
 import { openCommandPalette } from "./commands-palette";
 import { openSkillsPanel } from "./skills-panel";
+import { openFilesPanel } from "./files-panel";
 import { sessionTag } from "./session";
 import { memory, SHORT_TERM_TTL_MS } from "./memory";
 import { applyWindowStyle, getWindowStyle } from "./window-style";
@@ -1016,6 +1017,17 @@ export class App {
     });
   }
 
+  /// Browse the focused agent's working directory (Alt+O) and open a file in the editor —
+  /// a quick way to reach files the app or a Claude agent just created (e.g. generated .md).
+  private openFilesDialog() {
+    const a = this.agents[this.focused];
+    openFilesPanel({
+      cwd: a?.liveCwd || a?.cwd || this.home,
+      home: this.home,
+      openInEditor: (path) => this.addEditorLayer(this.agents[this.focused], path),
+    });
+  }
+
   /// Type text into the focused agent's terminal WITHOUT submitting (no CR), so the
   /// person reviews and sends it. Returns false when there's no terminal to type to.
   private typeIntoFocusedAgent(text: string): boolean {
@@ -1080,6 +1092,7 @@ export class App {
       KeyG: () => this.openMemoryDialog(), // project memory (personal unconscious)
       KeyC: () => this.openCommandDialog(), // Claude Code command palette
       KeyS: () => this.openSkillsDialog(), // Claude Code skills browser
+      KeyO: () => this.openFilesDialog(), // in-app file browser → open in editor
       KeyW: () => this.closeLayerAt(this.agents[this.focused], this.agents[this.focused]?.active ?? 0),
       KeyX: () => this.closeAgentObj(this.agents[this.focused]),
       KeyP: () => this.switchProject(1),

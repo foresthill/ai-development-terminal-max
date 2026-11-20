@@ -54,6 +54,7 @@ pub fn run() {
             sys::platform_os,
             files::read_file,
             files::write_file,
+            files::list_dir,
             memory::memory_read_all,
             memory::memory_write_all,
             claude_sessions::claude_sessions,

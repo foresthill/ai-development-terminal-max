@@ -8,6 +8,14 @@ export const readFile = (path: string): Promise<string> => invoke("read_file", {
 export const writeFile = (path: string, contents: string): Promise<void> =>
   invoke("write_file", { path, contents });
 
+/// One directory entry for the in-app file browser (files-panel.ts).
+export interface DirEntry {
+  name: string;
+  is_dir: boolean;
+}
+/// List a directory (read-only), dirs first then files, case-insensitively sorted.
+export const listDir = (path: string): Promise<DirEntry[]> => invoke("list_dir", { path });
+
 /// Native "open file" dialog → absolute path, or null if cancelled.
 export async function pickFile(defaultPath?: string): Promise<string | null> {
   const res = await open({ directory: false, multiple: false, defaultPath });
