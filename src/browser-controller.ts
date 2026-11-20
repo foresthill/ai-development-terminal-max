@@ -1,12 +1,12 @@
-// CDP browser layer, stage C1 (方式A): the frontend half of the "drive the user's real
-// Chrome over CDP" feature. src-tauri/src/browser.rs detects + launches an external Chrome
-// (headed, separate OS window, throwaway profile) and returns the page's CDP WebSocket URL;
-// here we attach to it and expose navigate + accessibility tree + click/type, shown in an
-// in-app control/inspector panel. The page itself renders in its own window (C1); C2 will
-// embed it via Page.startScreencast → <canvas>.
+// CDP browser layer, stage C2 (方式A, embedded): drive the user's real Chrome over CDP and
+// show the page INSIDE the app — Chrome runs headless (no separate window), its frames stream
+// via Page.startScreencast into a <canvas>, and the canvas forwards mouse/keyboard back over
+// Input.*. src-tauri/src/browser.rs launches + detects Chrome; the mechanism was proven in
+// spike/browser-cdp (C1: connect/AX/actions; C2: screencast frames + CDP input). See
+// docs/2026-11-16-editor-and-browser-cdp.md.
 //
-// The real app can't use Playwright (Node-only), so this speaks raw CDP over a WebSocket.
-// The mechanism was proven first in spike/browser-cdp. See docs/2026-11-16-editor-and-browser-cdp.md.
+// The webview can't use Playwright (Node-only), so this speaks raw CDP over a WebSocket.
+// Input-coordinate scaling and the key map are a first pass — expect on-device tuning.
 import { invoke } from "@tauri-apps/api/core";
 import type { Layer } from "./agent";
 import { toast } from "./ui";
@@ -19,13 +19,15 @@ export interface LaunchInfo {
   ws_url: string;
 }
 export const browserDetect = (): Promise<string | null> => invoke("browser_detect");
-export const browserLaunch = (url: string): Promise<LaunchInfo> => invoke("browser_launch", { url });
+export const browserLaunch = (url: string, headless: boolean): Promise<LaunchInfo> =>
+  invoke("browser_launch", { url, headless });
 export const browserClose = (pid: number): Promise<void> => invoke("browser_close", { pid });
 
-// --- Minimal CDP client over a WebSocket --------------------------------------------
-interface CdpResponse {
+// --- Minimal CDP client over a WebSocket (commands + events) ------------------------
+interface CdpMessage {
   id?: number;
   method?: string;
+  params?: unknown;
   result?: unknown;
   error?: { message?: string };
 }
@@ -41,13 +43,14 @@ class Cdp {
   private ws: WebSocket;
   private seq = 0;
   private pending = new Map<number, { resolve: (v: Json) => void; reject: (e: Error) => void }>();
+  private listeners = new Map<string, ((p: Json) => void)[]>();
 
   private constructor(ws: WebSocket) {
     this.ws = ws;
     ws.onmessage = (ev: MessageEvent) => {
-      let msg: CdpResponse;
+      let msg: CdpMessage;
       try {
-        msg = JSON.parse(String(ev.data)) as CdpResponse;
+        msg = JSON.parse(String(ev.data)) as CdpMessage;
       } catch {
         return;
       }
@@ -56,8 +59,9 @@ class Cdp {
         this.pending.delete(msg.id);
         if (msg.error) p.reject(new Error(msg.error.message ?? "CDP error"));
         else p.resolve((msg.result ?? {}) as Json);
+      } else if (msg.method) {
+        for (const cb of this.listeners.get(msg.method) ?? []) cb((msg.params ?? {}) as Json);
       }
-      // events (no id) are ignored in C1
     };
   }
 
@@ -67,6 +71,12 @@ class Cdp {
       ws.onopen = () => resolve(new Cdp(ws));
       ws.onerror = () => reject(new Error("CDP WebSocket failed to open"));
     });
+  }
+
+  on(method: string, cb: (p: Json) => void): void {
+    const arr = this.listeners.get(method) ?? [];
+    arr.push(cb);
+    this.listeners.set(method, arr);
   }
 
   send(method: string, params: Json = {}): Promise<Json> {
@@ -82,19 +92,6 @@ class Cdp {
     });
   }
 
-  async enableDomains(): Promise<void> {
-    await this.send("Page.enable");
-    await this.send("DOM.enable");
-    await this.send("Runtime.enable");
-    await this.send("Accessibility.enable");
-  }
-
-  navigate(url: string): Promise<Json> {
-    return this.send("Page.navigate", { url });
-  }
-
-  /// Full accessibility tree flattened to the compact {role, name, backendNodeId} rows an
-  /// AI (or a human) acts on — coordinate-free and token-light.
   async axTree(): Promise<AxNode[]> {
     const res = await this.send("Accessibility.getFullAXTree");
     const nodes = (res.nodes as Json[] | undefined) ?? [];
@@ -104,36 +101,12 @@ class Cdp {
       const role = ((n.role as Json | undefined)?.value as string | undefined) ?? "";
       const name = (((n.name as Json | undefined)?.value as string | undefined) ?? "").trim();
       const backend = n.backendDOMNodeId as number | undefined;
-      if (backend == null) continue;
-      if (!role || role === "none" || role === "generic" || role === "InlineTextBox") continue;
-      if (!name && !/^(text|image|img)$/i.test(role)) {
-        // keep interactive roles even when unnamed; drop nameless decorative nodes
-        if (!/(button|link|textbox|checkbox|radio|combobox|menuitem|tab|option|searchbox|switch|slider)/i.test(role))
-          continue;
-      }
+      if (backend == null || !role || role === "none" || role === "generic" || role === "InlineTextBox") continue;
+      if (!name && !/(button|link|textbox|checkbox|radio|combobox|menuitem|tab|option|searchbox|switch|slider)/i.test(role))
+        continue;
       out.push({ backendNodeId: backend, role, name });
     }
     return out;
-  }
-
-  private async centerOf(backendNodeId: number): Promise<{ x: number; y: number }> {
-    const res = await this.send("DOM.getBoxModel", { backendNodeId });
-    const model = res.model as Json | undefined;
-    const q = (model?.content as number[] | undefined) ?? [];
-    if (q.length < 8) throw new Error("element has no box");
-    return { x: (q[0] + q[2] + q[4] + q[6]) / 4, y: (q[1] + q[3] + q[5] + q[7]) / 4 };
-  }
-
-  async clickNode(backendNodeId: number): Promise<void> {
-    const { x, y } = await this.centerOf(backendNodeId);
-    const base = { x, y, button: "left", clickCount: 1 };
-    await this.send("Input.dispatchMouseEvent", { type: "mousePressed", ...base });
-    await this.send("Input.dispatchMouseEvent", { type: "mouseReleased", ...base });
-  }
-
-  async typeInNode(backendNodeId: number, text: string): Promise<void> {
-    await this.send("DOM.focus", { backendNodeId });
-    await this.send("Input.insertText", { text });
   }
 
   close(): void {
@@ -144,10 +117,27 @@ class Cdp {
     }
     for (const p of this.pending.values()) p.reject(new Error("CDP closed"));
     this.pending.clear();
+    this.listeners.clear();
   }
 }
 
-// --- The in-app control/inspector panel (the browser layer body) --------------------
+// Special (non-printable) keys → Chromium virtual key codes for Input.dispatchKeyEvent.
+const VKEY: Record<string, number> = {
+  Enter: 13,
+  Backspace: 8,
+  Tab: 9,
+  Escape: 27,
+  Delete: 46,
+  Home: 36,
+  End: 35,
+  PageUp: 33,
+  PageDown: 34,
+  ArrowLeft: 37,
+  ArrowUp: 38,
+  ArrowRight: 39,
+  ArrowDown: 40,
+};
+
 function mkBtn(label: string, title?: string): HTMLButtonElement {
   const b = document.createElement("button");
   b.className = "cdp-btn";
@@ -157,8 +147,9 @@ function mkBtn(label: string, title?: string): HTMLButtonElement {
   return b;
 }
 
-/// Build a CDP browser layer: launches the user's Chrome for `url` in its own window and
-/// shows a control panel (URL bar · AX inspector · click/type) wired to it over CDP.
+/// Build an embedded CDP browser layer (C2): launches the user's Chrome headless for `url`
+/// and renders its live screencast into a canvas, forwarding mouse/keyboard over CDP. A small
+/// AX button toggles an accessibility-tree overlay (role · name) for inspection.
 export function createCdpBrowserLayer(url: string): Layer {
   const el = document.createElement("div");
   el.className = "layer layer-cdp";
@@ -171,25 +162,23 @@ export function createCdpBrowserLayer(url: string): Layer {
   urlInput.className = "cdp-url";
   urlInput.value = url;
   const goBtn = mkBtn(t("cdp.go"));
-  bar.append(dot, urlInput, goBtn);
-
-  const tools = document.createElement("div");
-  tools.className = "cdp-tools";
   const axBtn = mkBtn(t("cdp.ax"), t("cdp.axTip"));
-  const clickBtn = mkBtn(t("cdp.click"));
-  const typeInput = document.createElement("input");
-  typeInput.className = "cdp-type";
-  typeInput.placeholder = t("cdp.typePlaceholder");
-  const typeBtn = mkBtn(t("cdp.typeBtn"));
-  tools.append(axBtn, clickBtn, typeInput, typeBtn);
+  bar.append(dot, urlInput, goBtn, axBtn);
 
-  const list = document.createElement("div");
-  list.className = "cdp-list";
+  const canvas = document.createElement("canvas");
+  canvas.className = "cdp-canvas";
+  canvas.tabIndex = 0;
+  const ctx = canvas.getContext("2d");
+
+  const axOverlay = document.createElement("div");
+  axOverlay.className = "cdp-ax-overlay";
+  axOverlay.style.display = "none";
+
   const status = document.createElement("div");
   status.className = "cdp-status";
   status.textContent = t("cdp.launching");
 
-  el.append(bar, tools, list, status);
+  el.append(bar, canvas, axOverlay, status);
 
   const layer: Layer = {
     id: "cdp-" + Math.random().toString(36).slice(2, 10),
@@ -200,62 +189,98 @@ export function createCdpBrowserLayer(url: string): Layer {
   };
 
   let cdp: Cdp | null = null;
-  let selected: number | null = null;
-
   const setStatus = (msg: string, ok = true) => {
     status.textContent = msg;
     dot.classList.toggle("on", ok);
   };
 
+  // --- screencast → canvas ----------------------------------------------------------
+  const paint = (b64: string) => {
+    const img = new Image();
+    img.onload = () => {
+      if (canvas.width !== img.naturalWidth || canvas.height !== img.naturalHeight) {
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+      }
+      ctx?.drawImage(img, 0, 0);
+    };
+    img.src = "data:image/jpeg;base64," + b64;
+  };
+
+  // --- input → CDP (coords scaled from the canvas's displayed size to frame pixels) --
+  const toPage = (e: MouseEvent): { x: number; y: number } => {
+    const r = canvas.getBoundingClientRect();
+    const sx = canvas.width / (r.width || 1);
+    const sy = canvas.height / (r.height || 1);
+    return { x: (e.clientX - r.left) * sx, y: (e.clientY - r.top) * sy };
+  };
+  const mouse = (type: string, e: MouseEvent, extra: Json = {}) => {
+    if (!cdp) return;
+    const { x, y } = toPage(e);
+    void cdp.send("Input.dispatchMouseEvent", { type, x, y, button: "left", clickCount: 1, ...extra });
+  };
+  canvas.addEventListener("mousedown", (e) => {
+    canvas.focus();
+    mouse("mousePressed", e);
+  });
+  canvas.addEventListener("mouseup", (e) => mouse("mouseReleased", e));
+  canvas.addEventListener("mousemove", (e) => {
+    if (e.buttons & 1) mouse("mouseMoved", e, { button: "left" });
+  });
+  canvas.addEventListener("wheel", (e) => {
+    if (!cdp) return;
+    e.preventDefault();
+    const { x, y } = toPage(e);
+    void cdp.send("Input.dispatchMouseEvent", { type: "mouseWheel", x, y, deltaX: -e.deltaX, deltaY: -e.deltaY });
+  });
+  canvas.addEventListener("keydown", (e) => {
+    if (!cdp) return;
+    e.preventDefault();
+    if (e.key.length === 1 && !e.metaKey && !e.ctrlKey) {
+      void cdp.send("Input.insertText", { text: e.key });
+      return;
+    }
+    const vk = VKEY[e.key];
+    if (vk != null) {
+      const base = { key: e.key, code: e.code, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk };
+      void cdp.send("Input.dispatchKeyEvent", { type: "rawKeyDown", ...base });
+      void cdp.send("Input.dispatchKeyEvent", { type: "keyUp", ...base });
+    }
+  });
+
+  // --- AX inspector overlay ---------------------------------------------------------
   const renderAx = (nodes: AxNode[]) => {
-    list.textContent = "";
+    axOverlay.textContent = "";
     for (const n of nodes) {
       const row = document.createElement("div");
       row.className = "cdp-node";
       row.textContent = `${n.role}  ${n.name}`;
-      row.title = `backendNodeId ${n.backendNodeId}`;
-      row.addEventListener("mousedown", (e) => e.stopPropagation());
-      row.addEventListener("click", () => {
-        selected = n.backendNodeId;
-        for (const c of Array.from(list.children)) c.classList.remove("sel");
-        row.classList.add("sel");
-      });
-      list.append(row);
-    }
-    setStatus(t("cdp.axCount", String(nodes.length)));
-  };
-
-  const refreshAx = async () => {
-    if (!cdp) return;
-    try {
-      renderAx(await cdp.axTree());
-    } catch (e) {
-      toast(t("cdp.axFail", String(e)), "error");
+      axOverlay.append(row);
     }
   };
-
-  goBtn.addEventListener("click", () => void cdp?.navigate(urlInput.value));
-  axBtn.addEventListener("click", () => void refreshAx());
-  clickBtn.addEventListener("click", async () => {
-    if (!cdp || selected == null) return;
-    try {
-      await cdp.clickNode(selected);
-      setStatus(t("cdp.clicked"));
-    } catch (e) {
-      toast(t("cdp.actionFail", String(e)), "error");
-    }
-  });
-  typeBtn.addEventListener("click", async () => {
-    if (!cdp || selected == null) return;
-    try {
-      await cdp.typeInNode(selected, typeInput.value);
-      setStatus(t("cdp.typed"));
-    } catch (e) {
-      toast(t("cdp.actionFail", String(e)), "error");
+  axBtn.addEventListener("click", async () => {
+    if (axOverlay.style.display === "none") {
+      axOverlay.style.display = "";
+      try {
+        if (cdp) renderAx(await cdp.axTree());
+      } catch {
+        /* ignore */
+      }
+    } else {
+      axOverlay.style.display = "none";
     }
   });
 
-  // Kick off the launch + attach. Builds synchronously above so the layer can render now.
+  const navigate = () => {
+    if (cdp) void cdp.send("Page.navigate", { url: urlInput.value });
+  };
+  goBtn.addEventListener("click", navigate);
+  urlInput.addEventListener("keydown", (e) => {
+    e.stopPropagation();
+    if (e.key === "Enter") navigate();
+  });
+
+  // Launch headless + attach + start the screencast.
   void (async () => {
     const chrome = await browserDetect().catch(() => null);
     if (!chrome) {
@@ -263,16 +288,24 @@ export function createCdpBrowserLayer(url: string): Layer {
       return;
     }
     try {
-      const info = await browserLaunch(url);
+      const info = await browserLaunch(url, true);
       layer.cdpPid = info.pid;
       cdp = await Cdp.connect(info.ws_url);
-      await cdp.enableDomains();
       layer.cleanup = () => {
         cdp?.close();
         void browserClose(info.pid);
       };
-      setStatus(t("cdp.attached"));
-      await refreshAx();
+      await cdp.send("Page.enable");
+      await cdp.send("DOM.enable");
+      await cdp.send("Runtime.enable");
+      cdp.on("Page.screencastFrame", (p) => {
+        const data = p.data as string | undefined;
+        const sessionId = p.sessionId as number | undefined;
+        if (data) paint(data);
+        if (cdp && sessionId != null) void cdp.send("Page.screencastFrameAck", { sessionId });
+      });
+      await cdp.send("Page.startScreencast", { format: "jpeg", quality: 60, maxWidth: 1600, maxHeight: 1200 });
+      setStatus(t("cdp.embedded"));
     } catch (e) {
       setStatus(t("cdp.attachFail", String(e)), false);
       toast(t("cdp.attachFail", String(e)), "error");

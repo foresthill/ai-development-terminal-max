@@ -1744,6 +1744,7 @@ body {
 }
 /* CDP browser layer (方式A/C1): control + AX inspector panel */
 .layer-cdp {
+  position: relative;
   display: flex;
   flex-direction: column;
   background: var(--bg);
@@ -1791,6 +1792,30 @@ body {
 }
 .cdp-btn:hover {
   background: var(--bg);
+}
+.cdp-canvas {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  object-fit: contain;
+  background: #000;
+  outline: none;
+  cursor: default;
+}
+.cdp-ax-overlay {
+  position: absolute;
+  right: 8px;
+  top: 40px;
+  max-height: 60%;
+  width: 280px;
+  overflow: auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px;
+  font-family: Menlo, "SF Mono", "JetBrains Mono", monospace;
+  font-size: 11px;
+  z-index: 5;
 }
 .cdp-list {
   flex: 1;
