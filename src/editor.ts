@@ -199,6 +199,7 @@ export function createEditorLayer(path: string | null, startDir?: string): Layer
 
   const doSave = async () => {
     let p = layer.filePath ?? null;
+    const wasUntitled = !p;
     if (!p) {
       p = await pickSavePath(startDir);
       if (!p) return;
@@ -208,6 +209,11 @@ export function createEditorLayer(path: string | null, startDir?: string): Layer
       await writeFile(p, view.state.doc.toString());
       layer.dirty = false;
       refreshName();
+      // An untitled buffer just got a name → apply syntax highlighting for its extension
+      // (unless the user already picked a language manually in the toolbar).
+      if (wasUntitled && langSel.value === "auto") {
+        view.dispatch({ effects: langComp.reconfigure(langForPath(p)) });
+      }
       toast(t("editor.saved", basename(p)));
     } catch (e) {
       toast(t("editor.saveFail", String(e)), "error");
