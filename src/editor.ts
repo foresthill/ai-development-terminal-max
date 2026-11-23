@@ -103,8 +103,10 @@ const appTheme = EditorView.theme({
 });
 
 /// Build an editor layer bound to `path` (null = untitled, saved via a dialog). The
-/// file is read asynchronously after the view is created.
-export function createEditorLayer(path: string | null): Layer {
+/// file is read asynchronously after the view is created. `startDir` is where the Open/Save
+/// pickers start for an untitled buffer — pass the agent's live shell cwd so "Open" lands
+/// where the terminal currently is (after a `cd`), not the agent's original folder.
+export function createEditorLayer(path: string | null, startDir?: string): Layer {
   const el = document.createElement("div");
   el.className = "layer layer-editor";
 
@@ -198,7 +200,7 @@ export function createEditorLayer(path: string | null): Layer {
   const doSave = async () => {
     let p = layer.filePath ?? null;
     if (!p) {
-      p = await pickSavePath();
+      p = await pickSavePath(startDir);
       if (!p) return;
       layer.filePath = p;
     }
@@ -286,7 +288,7 @@ export function createEditorLayer(path: string | null): Layer {
       toast(t("editor.saveFirst"), "error");
       return;
     }
-    const p = await pickFile(layer.filePath ? layer.filePath.replace(/\/[^/]*$/, "") : undefined);
+    const p = await pickFile(layer.filePath ? layer.filePath.replace(/\/[^/]*$/, "") : startDir);
     if (p) await loadPath(p);
     view.focus();
   });

@@ -732,7 +732,10 @@ export class App {
   /// launching a heavyweight external editor.
   private addEditorLayer(agent: Agent | undefined, path?: string) {
     if (!agent) return;
-    const layer = createEditorLayer(path ?? null);
+    // Start the Open/Save pickers where the shell actually is (after a `cd`), falling back
+    // to the agent's set dir — so opening a file lands "here", not the original folder.
+    const startDir = agent.liveCwd || agent.cwd || undefined;
+    const layer = createEditorLayer(path ?? null, startDir);
     agent.layers.push(layer);
     agent.active = agent.layers.length - 1;
     agent.stackEl.appendChild(layer.el);
