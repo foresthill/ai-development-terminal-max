@@ -90,6 +90,70 @@ pub fn claude_sessions(only_cwd: String) -> Result<Vec<SessionDigest>, String> {
     Ok(out)
 }
 
+/// Does any Claude session on disk belong to `cwd`? A cheap existence check used to
+/// decide whether to pass `--continue` when launching claude there: a directory with
+/// no prior conversation starts clean instead of printing the noisy
+/// "No conversation found to continue". Reads each jsonl only until its `cwd` line
+/// (claude writes it on the early meta/turn lines), short-circuits on the first match,
+/// and never errors on a missing `~/.claude` — returns false.
+#[tauri::command]
+pub fn claude_has_history(cwd: String) -> bool {
+    if cwd.is_empty() {
+        return false;
+    }
+    let root = match claude_projects_dir() {
+        Some(d) => d,
+        None => return false,
+    };
+    let projects = match std::fs::read_dir(&root) {
+        Ok(e) => e,
+        Err(_) => return false,
+    };
+    for proj in projects.flatten() {
+        let pdir = proj.path();
+        if !pdir.is_dir() {
+            continue;
+        }
+        let files = match std::fs::read_dir(&pdir) {
+            Ok(f) => f,
+            Err(_) => continue,
+        };
+        for file in files.flatten() {
+            let fpath = file.path();
+            if fpath.extension().and_then(|e| e.to_str()) != Some("jsonl") {
+                continue;
+            }
+            if file_cwd_matches(&fpath, &cwd) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// Read the first lines of a jsonl looking for its `cwd` field (one file = one cwd).
+/// Returns true only when that cwd equals `want`. Bounded to the first lines so a
+/// has-history check stays cheap even with large transcripts.
+fn file_cwd_matches(path: &Path, want: &str) -> bool {
+    let f = match std::fs::File::open(path) {
+        Ok(f) => f,
+        Err(_) => return false,
+    };
+    let reader = BufReader::new(f);
+    for line in reader.lines().map_while(Result::ok).take(40) {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        if let Ok(v) = serde_json::from_str::<serde_json::Value>(line) {
+            if let Some(s) = v.get("cwd").and_then(|x| x.as_str()) {
+                return s == want;
+            }
+        }
+    }
+    false
+}
+
 /// Stream one jsonl file into a digest. Returns None when it carries no `sessionId`
 /// (not a real session file).
 fn digest_file(path: &Path) -> Option<SessionDigest> {

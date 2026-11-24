@@ -28,6 +28,7 @@ import { checkForUpdates } from "./updater";
 import { handleSubagentEvent, clearSubagentLayers } from "./subagent";
 import { defaultShell, shellLoginArgs, homeDir, agentStats } from "./pty";
 import { createWorktree, writeAidtSettings, currentBranch } from "./git";
+import { claudeHasHistory } from "./claude-sessions";
 import { listen } from "@tauri-apps/api/event";
 import { openPath, revealItemsInDir, openUrl as openExternalUrl } from "@tauri-apps/plugin-opener";
 import {
@@ -287,9 +288,16 @@ export class App {
         // subtle "drift" marker on the path field when it differs from the set cwd.
         if (s.cwd) {
           x.agent.liveCwd = s.cwd;
+          // Address bar follows the shell: show where it actually is now. DISPLAY
+          // ONLY — we never touch agent.cwd (the spawn source for new shell layers +
+          // restore) and we assign .value directly (no 'change' event), so this can
+          // never respawn the agent. Skip while the user is editing the field.
+          if (document.activeElement !== x.agent.pathEl) x.agent.pathEl.value = s.cwd;
           const drift = !!x.agent.cwd && s.cwd !== x.agent.cwd;
           x.agent.pathEl.classList.toggle("drift", drift);
-          x.agent.pathEl.title = drift ? t("agent.liveCwd", s.cwd) : "";
+          // When the live dir differs, the field shows the live dir; the tooltip
+          // names the set/spawn dir so it's clear where new shells will start.
+          x.agent.pathEl.title = drift ? t("agent.setDir", x.agent.cwd!) : "";
         }
       });
       // Running total across every live agent (all projects). CPU% is summed
@@ -309,24 +317,33 @@ export class App {
 
   // --- agent command (per-agent, configurable) -----------------------------
 
-  /// Apply claude-specific permission flags only when the command is claude.
-  private buildCmd(cmd: string): string {
+  /// Apply claude-specific flags only when the command is claude. `--continue`
+  /// (resume) is added only when `resume` is true — the caller passes false for a
+  /// directory with no prior conversation, so a fresh dir doesn't print the noisy
+  /// "No conversation found to continue". Permission mode is independent of resume.
+  private buildCmd(cmd: string, resume = true): string {
     let base = cmd.trim() || "claude";
     if (base.startsWith("claude")) {
-      // Resume this directory's most recent conversation (starts fresh if none).
-      // Each agent is its own worktree, so resume is naturally per-window.
-      base += " --continue";
+      if (resume) base += " --continue";
       if (this.permMode === "auto") base += " --permission-mode auto";
       else if (this.permMode === "bypass") base += " --dangerously-skip-permissions";
     }
     return base;
+  }
+
+  /// Whether launching claude in `cwd` should resume (--continue): only for a claude
+  /// command, and only when that directory already has a conversation on disk. Any
+  /// error (or non-Tauri context) → false, i.e. start clean.
+  private async claudeResume(cwd: string | null, cmd: string): Promise<boolean> {
+    if (!cwd || !(cmd.trim() || "claude").startsWith("claude")) return false;
+    return claudeHasHistory(cwd);
   }
   /// Short label for a command's binary (e.g. "aider --model x" -> "aider").
   private agentLabel(cmd: string): string {
     const base = cmd.trim().split(/\s+/)[0] || "agent";
     return base.split("/").pop() || base;
   }
-  private primaryLayer(cwd: string | null, cmd: string, autoRun = true): Layer {
+  private primaryLayer(cwd: string | null, cmd: string, autoRun = true, resume = true): Layer {
     // Interactive login shell (sources .zshrc → correct PATH), then type the
     // agent command — robust against "command not found" and leaves you at a
     // working shell when the agent exits.
@@ -335,7 +352,7 @@ export class App {
       shell: this.shell,
       args: this.shellArgs,
       cwd,
-      autoRun: autoRun ? this.buildCmd(cmd) : undefined,
+      autoRun: autoRun ? this.buildCmd(cmd, resume) : undefined,
       onOpenUrl: (url, mod) => this.openUrl(url, mod),
       onOpenPath: (raw, cwd, mode) => this.openPathLink(raw, cwd, mode),
     });
@@ -346,10 +363,11 @@ export class App {
   /// to be front — so pressing ▶ while a secondary shell layer is focused can't
   /// start a second claude there (the "claude running in both the claude and shell
   /// windows" duplicate). Re-pressing ▶ just lands in the same primary layer.
-  private launchAgent(agent: Agent) {
+  private async launchAgent(agent: Agent) {
     const layer = agent.layers.find((l) => l.kind === "terminal" && l.pty);
     if (!layer?.pty) return;
-    layer.pty.write(this.buildCmd(agent.agentCmd) + "\r");
+    const resume = await this.claudeResume(agent.cwd, agent.agentCmd);
+    layer.pty.write(this.buildCmd(agent.agentCmd, resume) + "\r");
     agent.running = true; // remember so a restore resumes this one
     this.remember(`▶ ${agent.agentCmd}`, agent);
     this.persist();
@@ -591,7 +609,10 @@ export class App {
     // focused Alt+T opens an idle shell (▶ / Alt+R to launch).
     const autoRun = focus && this.autoStart;
     agent.running = autoRun;
-    const layer = this.primaryLayer(cwd, agent.agentCmd, autoRun);
+    // Resume (--continue) only when auto-launching into a dir that already has a
+    // conversation — a fresh dir starts clean (no "No conversation found").
+    const resume = autoRun ? await this.claudeResume(cwd, agent.agentCmd) : true;
+    const layer = this.primaryLayer(cwd, agent.agentCmd, autoRun, resume);
     agent.layers.push(layer);
     this.observeLayer(layer);
     if (focus) {
@@ -617,42 +638,48 @@ export class App {
     }
   }
 
+  /// Add a plain window (Alt+T / ＋). Opens at the repo root (or home) — it does NOT
+  /// create a git worktree. Surprise worktrees-on-add broke claude --continue
+  /// continuity and confused the folder you land in; a worktree is now a deliberate
+  /// choice via addWorktreeAgent (Alt+Shift+T), not a side effect of adding a window.
   private async addAgentToActive() {
     const p = this.curProject;
     if (!p) {
       toast(t("toast.noProject"), "error");
       return;
     }
-    if (p.isGit) {
-      const branch = `feature/${ymd()}-${p.agents.length + 1}`;
-      try {
-        const wt = await createWorktree(p.root, branch);
-        await this.addAgentWithCwd(p, wt);
-        toast(t("toast.worktree", branch));
-      } catch (e) {
-        toast(t("toast.worktreeFail", String(e)), "error");
-      }
-    } else {
+    await this.addAgentWithCwd(p, p.root || this.home);
+  }
+
+  /// Deliberately create a NEW git worktree (isolated branch feature/<ymd>-N) and open
+  /// an agent in it — the opt-in counterpart to addAgentToActive (Alt+Shift+T). On a
+  /// non-git project it just adds a plain window.
+  private async addWorktreeAgent() {
+    const p = this.curProject;
+    if (!p) {
+      toast(t("toast.noProject"), "error");
+      return;
+    }
+    if (!p.isGit) {
       await this.addAgentWithCwd(p, p.root || this.home);
+      return;
+    }
+    const branch = `feature/${ymd()}-${p.agents.length + 1}`;
+    try {
+      const wt = await createWorktree(p.root, branch);
+      await this.addAgentWithCwd(p, wt);
+      toast(t("toast.worktree", branch));
+    } catch (e) {
+      toast(t("toast.worktreeFail", String(e)), "error");
     }
   }
 
   private async fill() {
     const p = this.curProject;
     if (!p) return;
+    // Fill with plain windows at the repo root — no worktrees (see addAgentToActive).
     while (p.agents.length < 9) {
-      if (p.isGit) {
-        const branch = `feature/${ymd()}-${p.agents.length + 1}`;
-        try {
-          const wt = await createWorktree(p.root, branch);
-          await this.addAgentWithCwd(p, wt, false);
-        } catch (e) {
-          toast(t("toast.worktreeFail", String(e)), "error");
-          break;
-        }
-      } else {
-        await this.addAgentWithCwd(p, p.root || this.home, false);
-      }
+      await this.addAgentWithCwd(p, p.root || this.home, false);
     }
     this.render();
   }
@@ -701,8 +728,9 @@ export class App {
     agent.running = true; // respawns and runs the agent in the new dir
     if (!agent.manualTitle) agent.title = basename(path);
     if (this.guardrails || this.subagentNest) await this.applyAidtSettings(path);
+    const resume = await this.claudeResume(path, agent.agentCmd);
     const old = agent.layers[0];
-    const fresh = this.primaryLayer(path, agent.agentCmd);
+    const fresh = this.primaryLayer(path, agent.agentCmd, true, resume);
     disposeLayer(old);
     agent.layers[0] = fresh;
     agent.active = 0;
@@ -1072,7 +1100,8 @@ export class App {
       return;
     }
     const handlers: Record<string, () => void> = {
-      KeyT: () => this.addAgentToActive(),
+      // Alt+T: plain window. Alt+Shift+T: deliberately create a git worktree.
+      KeyT: () => (e.shiftKey ? this.addWorktreeAgent() : this.addAgentToActive()),
       // Focus/depth on H/J/K/L and the arrows. (Trade-off: Alt+arrow is the app
       // shortcut, so it doesn't reach the terminal — use Ctrl+arrow / Esc+f/b for
       // word nav in claude/shell.)

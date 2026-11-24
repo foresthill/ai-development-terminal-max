@@ -138,7 +138,7 @@ const HELP_JA = `
 </ul>
 <h4>ツールバー</h4>
 <ul>
-  <li><b>+ エージェント / ⊞ fill</b>：メインエージェント（worktree）を追加 ・ <b>▶ 全起動</b>：未起動を一括起動</li>
+  <li><b>+ エージェント / ⊞ fill</b>：窓をリポ直下に追加（worktreeは作らない） ・ <b>Alt+Shift+T</b>：意図的にworktreeを作って追加 ・ <b>▶ 全起動</b>：未起動を一括起動</li>
   <li><b>⤢ 拡大 / ▦ グリッド / ✦ 俯瞰</b>：表示切替 ・ <b>↗ 送信</b>：別エージェントへ1行注入</li>
   <li><b>perm</b>：claudeのパーミッション ・ <b>🛡 guard</b>：deny-list ・ <b>🪆 nest</b>：サブエージェント検知</li>
   <li><b>📁/⎇</b>：プロジェクト追加 ・ <b>💾 セーブ</b>：名前付き保存/読込 ・ <b>⚙ 設定</b></li>
@@ -177,7 +177,7 @@ const HELP_EN = `
 </ul>
 <h4>Toolbar</h4>
 <ul>
-  <li><b>+ agent / ⊞ fill</b>: add main agents (worktrees) ・ <b>▶ all</b>: launch all idle windows</li>
+  <li><b>+ agent / ⊞ fill</b>: add windows at the repo root (no worktree) ・ <b>Alt+Shift+T</b>: deliberately add a worktree ・ <b>▶ all</b>: launch all idle windows</li>
   <li><b>⤢ zoom / ▦ grid / ✦ macro</b>: views ・ <b>↗ send</b>: inject a line into another agent</li>
   <li><b>perm</b>: claude permission ・ <b>🛡 guard</b>: deny-list ・ <b>🪆 nest</b>: subagent detection</li>
   <li><b>📁/⎇</b>: add project ・ <b>💾 saves</b>: named save/load ・ <b>⚙ settings</b></li>

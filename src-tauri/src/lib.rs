@@ -58,6 +58,7 @@ pub fn run() {
             memory::memory_read_all,
             memory::memory_write_all,
             claude_sessions::claude_sessions,
+            claude_sessions::claude_has_history,
             claude_skills::claude_skills,
             browser::browser_detect,
             browser::browser_launch,

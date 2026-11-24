@@ -56,6 +56,18 @@ export async function claudeSessions(onlyCwd = ""): Promise<SessionDigest[]> {
   }
 }
 
+/// Does this directory already have a Claude conversation on disk? Used to decide
+/// whether launching claude should pass `--continue` (resume) or start clean — a
+/// fresh dir shouldn't print "No conversation found to continue". false in a
+/// non-Tauri context or on any error (→ start clean).
+export async function claudeHasHistory(cwd: string): Promise<boolean> {
+  try {
+    return await invoke<boolean>("claude_has_history", { cwd });
+  } catch {
+    return false;
+  }
+}
+
 /// Harvest: persist every live session digest into our durable store, keyed by
 /// sessionId (so a growing session updates in place). THIS is the long-term memory —
 /// once harvested, a session survives even if Claude later loses its jsonl. Returns the
