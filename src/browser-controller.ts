@@ -42,6 +42,7 @@ export interface AxNode {
 class Cdp {
   private ws: WebSocket;
   private seq = 0;
+  private sessionId: string | null = null; // page session after attachPage()
   private pending = new Map<number, { resolve: (v: Json) => void; reject: (e: Error) => void }>();
   private listeners = new Map<string, ((p: Json) => void)[]>();
 
@@ -79,17 +80,39 @@ class Cdp {
     this.listeners.set(method, arr);
   }
 
-  send(method: string, params: Json = {}): Promise<Json> {
+  private sendRaw(method: string, params: Json = {}, sess?: string): Promise<Json> {
     const id = ++this.seq;
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
       try {
-        this.ws.send(JSON.stringify({ id, method, params }));
+        this.ws.send(JSON.stringify(sess ? { id, method, params, sessionId: sess } : { id, method, params }));
       } catch (e) {
         this.pending.delete(id);
         reject(e instanceof Error ? e : new Error(String(e)));
       }
     });
+  }
+
+  /// Page-level command: routed to the attached page session (after attachPage()).
+  send(method: string, params: Json = {}): Promise<Json> {
+    return this.sendRaw(method, params, this.sessionId ?? undefined);
+  }
+
+  /// Attach to a page target via the Target domain (browser-level), so page commands work
+  /// regardless of how /json/list types the target (newer Chrome reports "tab"). Creates a
+  /// page if none exists. Must be called once, right after connect().
+  async attachPage(): Promise<void> {
+    const res = await this.sendRaw("Target.getTargets");
+    const infos = (res.targetInfos as Json[] | undefined) ?? [];
+    let targetId = infos.find((t) => t.type === "page")?.targetId as string | undefined;
+    if (!targetId) {
+      const created = await this.sendRaw("Target.createTarget", { url: "about:blank" });
+      targetId = created.targetId as string | undefined;
+    }
+    if (!targetId) throw new Error("no page target available");
+    const att = await this.sendRaw("Target.attachToTarget", { targetId, flatten: true });
+    this.sessionId = (att.sessionId as string | undefined) ?? null;
+    if (!this.sessionId) throw new Error("could not attach to the page");
   }
 
   async axTree(): Promise<AxNode[]> {
@@ -288,16 +311,19 @@ export function createCdpBrowserLayer(url: string): Layer {
       return;
     }
     try {
-      const info = await browserLaunch(url, true);
+      const info = await browserLaunch("about:blank", true); // attach first, then navigate to `url`
       layer.cdpPid = info.pid;
       cdp = await Cdp.connect(info.ws_url);
       layer.cleanup = () => {
         cdp?.close();
         void browserClose(info.pid);
       };
+      await cdp.attachPage(); // browser ws → attach to a page target (robust across Chrome versions)
       await cdp.send("Page.enable");
       await cdp.send("DOM.enable");
       await cdp.send("Runtime.enable");
+      await cdp.send("Page.navigate", { url }); // the headless browser starts blank; load the URL
+
       cdp.on("Page.screencastFrame", (p) => {
         const data = p.data as string | undefined;
         const sessionId = p.sessionId as number | undefined;

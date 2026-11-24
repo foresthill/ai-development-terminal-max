@@ -63,7 +63,8 @@ pub fn browser_detect() -> Option<String> {
 pub struct LaunchInfo {
     pub pid: u32,
     pub port: u16,
-    /// The page target's CDP WebSocket URL — the frontend connects to this directly.
+    /// The BROWSER-level CDP WebSocket URL — the frontend connects here and attaches to a
+    /// page via the Target domain (robust across Chrome versions).
     pub ws_url: String,
 }
 
@@ -92,19 +93,16 @@ fn read_active_port(dir: &PathBuf) -> Option<u16> {
     txt.lines().next()?.trim().parse().ok()
 }
 
-/// Find the first "page" target's webSocketDebuggerUrl from /json/list.
-fn find_page_ws(port: u16) -> Result<String, String> {
-    let body = http_get(port, "/json/list")?;
-    let targets: serde_json::Value = serde_json::from_str(&body).map_err(|e| e.to_string())?;
-    let arr = targets.as_array().ok_or("unexpected /json/list shape")?;
-    for t in arr {
-        if t.get("type").and_then(|v| v.as_str()) == Some("page") {
-            if let Some(ws) = t.get("webSocketDebuggerUrl").and_then(|v| v.as_str()) {
-                return Ok(ws.to_string());
-            }
-        }
-    }
-    Err("no page target found".into())
+/// The BROWSER-level CDP WebSocket URL from /json/version. Always present, and version-robust
+/// — the frontend attaches to a page via the Target domain (newer Chrome may report the page
+/// as type "tab" in /json/list, so scanning for type "page" there is unreliable).
+fn find_browser_ws(port: u16) -> Result<String, String> {
+    let body = http_get(port, "/json/version")?;
+    let v: serde_json::Value = serde_json::from_str(&body).map_err(|e| e.to_string())?;
+    v.get("webSocketDebuggerUrl")
+        .and_then(|x| x.as_str())
+        .map(|s| s.to_string())
+        .ok_or_else(|| "no browser WebSocket in /json/version".into())
 }
 
 /// Launch the user's Chrome with a remote-debugging port in a throwaway profile (so it
@@ -161,9 +159,9 @@ pub fn browser_launch(url: String, headless: bool) -> Result<LaunchInfo, String>
     }
     let port = port.ok_or("browser did not expose a debugging port in time")?;
 
-    let mut ws_url = Err("no page target".to_string());
+    let mut ws_url = Err("no browser WebSocket".to_string());
     while Instant::now() < deadline {
-        match find_page_ws(port) {
+        match find_browser_ws(port) {
             Ok(ws) => {
                 ws_url = Ok(ws);
                 break;
