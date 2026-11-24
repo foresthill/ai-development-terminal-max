@@ -1,0 +1,6 @@
+/* English localization marker.
+   Its real job is to make `en` a declared bundle localization so macOS/AppKit
+   renders the standard app-menu items (About / Services / Hide / Quit …) in the
+   user's language. The app name itself is not translated. */
+"CFBundleDisplayName" = "AI Dev Terminal MAX";
+"CFBundleName" = "AI Dev Terminal MAX";

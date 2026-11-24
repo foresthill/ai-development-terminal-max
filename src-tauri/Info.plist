@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Merged into the Tauri-generated macOS Info.plist (Tauri picks up an Info.plist
+  sitting next to tauri.conf.json automatically). Its only purpose is to declare
+  the bundle's supported localizations so AppKit renders the OS-provided standard
+  menu items (About / Services / Hide / Show All / Quit) in the user's language:
+  Japanese on a Japanese system, English elsewhere. The matching en.lproj/ and
+  ja.lproj/ dirs are shipped via bundle.resources in tauri.conf.json.
+-->
+<plist version="1.0">
+  <dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleLocalizations</key>
+    <array>
+      <string>en</string>
+      <string>ja</string>
+    </array>
+  </dict>
+</plist>

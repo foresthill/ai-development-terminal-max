@@ -1,0 +1,7 @@
+/* Japanese localization marker.
+   Declaring `ja` as a bundle localization lets macOS/AppKit render the standard
+   app-menu items (About / Services / Hide / Quit …) in Japanese on a Japanese
+   system — e.g. "AI Dev Terminal MAX について", "AI Dev Terminal MAX を終了".
+   The app name itself is kept in Latin script, so it is not translated here. */
+"CFBundleDisplayName" = "AI Dev Terminal MAX";
+"CFBundleName" = "AI Dev Terminal MAX";
