@@ -725,15 +725,15 @@ export class App {
   private async setAgentCwd(agent: Agent, path: string) {
     agent.cwd = path;
     agent.pathEl.value = path;
-    agent.running = true; // respawns and runs the agent in the new dir
+    agent.running = false; // navigation, not launch — a plain shell; ▶ runs the agent
     if (!agent.manualTitle) agent.title = basename(path);
     if (this.guardrails || this.subagentNest) await this.applyAidtSettings(path);
-    // A path change starts CLEAN: no --continue. Resuming this dir's "most recent"
-    // conversation here is ambiguous — you can't tell which session it is — so resume
-    // is a deliberate choice (▶, or the session list), never a side effect of
-    // navigating to a new directory.
+    // Changing the path is NAVIGATION, not a launch: open a plain shell at the new dir.
+    // It must not auto-start claude — that surprised people, and resuming the dir's
+    // "most recent" conversation is ambiguous (you can't tell which session). Press ▶
+    // (or pick a session from Alt+G) to run the agent here.
     const old = agent.layers[0];
-    const fresh = this.primaryLayer(path, agent.agentCmd, true, false);
+    const fresh = this.shellLayer(path);
     disposeLayer(old);
     agent.layers[0] = fresh;
     agent.active = 0;
@@ -749,7 +749,7 @@ export class App {
     const layer =
       kind === "browser"
         ? createBrowserLayer(url ?? "http://localhost:3000", (u) => void openExternalUrl(u))
-        : this.shellLayer(agent.cwd);
+        : this.shellLayer(agent.liveCwd || agent.cwd); // new shell opens where you are (after cd)
     agent.layers.push(layer);
     agent.active = agent.layers.length - 1;
     agent.stackEl.appendChild(layer.el);
@@ -807,7 +807,7 @@ export class App {
       toast(t("toast.resetNonTerm"), "error");
       return;
     }
-    const fresh = this.shellLayer(agent.cwd);
+    const fresh = this.shellLayer(agent.liveCwd || agent.cwd); // reset where you are (after cd)
     disposeLayer(old);
     agent.layers[li] = fresh;
     agent.stackEl.appendChild(fresh.el);
