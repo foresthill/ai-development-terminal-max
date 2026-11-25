@@ -1,9 +1,11 @@
 name: release
 
 # Cut a cross-platform release. Push a version tag (e.g. `v0.1.0`) and this
-# builds macOS (universal), Windows and Linux installers on their own runners
-# (Tauri can't cross-compile), then attaches them to a DRAFT GitHub Release for
-# you to review and publish. `workflow_dispatch` lets you dry-run it by hand.
+# builds macOS (arm64), Windows and Linux installers on their own runners
+# (Tauri can't cross-compile), then PUBLISHES a GitHub Release with them attached
+# — no manual "Publish" step, so clean tags auto-ship via the updater. A `-suffix`
+# tag publishes as a pre-release (manual install only). `workflow_dispatch` runs by
+# hand produce a harmless DRAFT instead, for dry-runs.
 on:
   push:
     tags:
@@ -215,9 +217,15 @@ jobs:
             **Known limitations**
             - Full-screen TUIs like vim: this macOS build renders with the **Chromium (CEF) engine**, so the macOS 26 (Tahoe) display freeze that affected the old WKWebView build ([wry#1848](https://github.com/tauri-apps/wry/issues/1848)) is resolved — **vim and other TUIs display and work on macOS 26**. The trade-off is a larger download, since Chromium is bundled (~+170MB).
             - The browser layer is iframe-based (sites sending `X-Frame-Options` can't embed)
-          releaseDraft: true
+          # Auto-PUBLISH on a tag push (no manual "Publish" step, no token needed): a
+          # pushed tag goes straight to a published release → the updater ships it. A
+          # manual workflow_dispatch run still produces a DRAFT (harmless, deletable),
+          # so dry-runs never go live.
+          releaseDraft: ${{ github.event_name != 'push' }}
           # A tag with a pre-release suffix (e.g. v0.1.12-beta.1) is marked
           # pre-release, so `releases/latest` (what the updater reads) skips it and it
           # is NOT auto-shipped — install it manually to test. Clean tags ship normally.
+          # So: clean tag = auto-published to everyone; `-suffix` tag = published but
+          # pre-release (manual install only).
           prerelease: ${{ contains(github.ref_name, '-') }}
           args: ${{ matrix.args }}
