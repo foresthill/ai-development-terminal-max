@@ -728,9 +728,12 @@ export class App {
     agent.running = true; // respawns and runs the agent in the new dir
     if (!agent.manualTitle) agent.title = basename(path);
     if (this.guardrails || this.subagentNest) await this.applyAidtSettings(path);
-    const resume = await this.claudeResume(path, agent.agentCmd);
+    // A path change starts CLEAN: no --continue. Resuming this dir's "most recent"
+    // conversation here is ambiguous — you can't tell which session it is — so resume
+    // is a deliberate choice (▶, or the session list), never a side effect of
+    // navigating to a new directory.
     const old = agent.layers[0];
-    const fresh = this.primaryLayer(path, agent.agentCmd, true, resume);
+    const fresh = this.primaryLayer(path, agent.agentCmd, true, false);
     disposeLayer(old);
     agent.layers[0] = fresh;
     agent.active = 0;
