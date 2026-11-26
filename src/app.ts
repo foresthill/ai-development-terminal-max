@@ -78,6 +78,22 @@ const ymd = () => {
 const fmtMem = (bytes: number): string =>
   bytes >= 1e9 ? `${(bytes / 1e9).toFixed(1)}G` : `${Math.round(bytes / 1e6)}M`;
 
+/// Show a cwd in the (left-aligned, ltr) path field so its TAIL — the current folder,
+/// which is what matters since roots repeat — stays visible. The real path is kept on
+/// dataset.full (focus restores it for editing); when it overflows, the value is
+/// LEFT-elided to "…/<tail segments that fit>". No-ops safely before layout
+/// (clientWidth 0) — the next stats tick re-fits it.
+const fitPathTail = (el: HTMLInputElement, full: string): void => {
+  el.dataset.full = full;
+  el.value = full;
+  if (!full || el.clientWidth === 0 || el.scrollWidth <= el.clientWidth + 1) return;
+  const segs = full.split("/").filter(Boolean);
+  for (let start = 1; start < segs.length; start++) {
+    el.value = "…/" + segs.slice(start).join("/");
+    if (el.scrollWidth <= el.clientWidth + 1) return;
+  }
+};
+
 // Default CLI agents selectable per window. Editable in Settings; persisted.
 export interface AgentPreset {
   label: string;
@@ -292,7 +308,7 @@ export class App {
           // ONLY — we never touch agent.cwd (the spawn source for new shell layers +
           // restore) and we assign .value directly (no 'change' event), so this can
           // never respawn the agent. Skip while the user is editing the field.
-          if (document.activeElement !== x.agent.pathEl) x.agent.pathEl.value = s.cwd;
+          if (document.activeElement !== x.agent.pathEl) fitPathTail(x.agent.pathEl, s.cwd);
           const drift = !!x.agent.cwd && s.cwd !== x.agent.cwd;
           x.agent.pathEl.classList.toggle("drift", drift);
           // When the live dir differs, the field shows the live dir; the tooltip
@@ -492,7 +508,7 @@ export class App {
     const agent = createAgent(this.agentSeq++);
     agent.cwd = cwd;
     agent.agentCmd = this.agentCmd; // global default; per-agent override via the select
-    agent.pathEl.value = cwd ?? "";
+    fitPathTail(agent.pathEl, cwd ?? "");
     this.fillAgentSelect(agent);
     project.agents.push(agent);
 
@@ -544,6 +560,15 @@ export class App {
     agent.pathEl.addEventListener("change", () => {
       const v = agent.pathEl.value.trim();
       if (v && v !== agent.cwd) this.setAgentCwd(agent, v);
+    });
+    // Editing needs the REAL path, not the elided "…/tail": restore it on focus, and
+    // re-elide on blur. ('change' fires before 'blur' when the value changed, so a
+    // committed edit still reaches setAgentCwd with the typed path.)
+    agent.pathEl.addEventListener("focus", () => {
+      if (agent.pathEl.dataset.full) agent.pathEl.value = agent.pathEl.dataset.full;
+    });
+    agent.pathEl.addEventListener("blur", () => {
+      fitPathTail(agent.pathEl, agent.pathEl.dataset.full ?? agent.pathEl.value);
     });
     agent.pickEl.addEventListener("mousedown", (e) => e.stopPropagation());
     agent.pickEl.addEventListener("click", async (e) => {
@@ -724,7 +749,7 @@ export class App {
 
   private async setAgentCwd(agent: Agent, path: string) {
     agent.cwd = path;
-    agent.pathEl.value = path;
+    fitPathTail(agent.pathEl, path);
     agent.running = false; // navigation, not launch — a plain shell; ▶ runs the agent
     if (!agent.manualTitle) agent.title = basename(path);
     if (this.guardrails || this.subagentNest) await this.applyAidtSettings(path);

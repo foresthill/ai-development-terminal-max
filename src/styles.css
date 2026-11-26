@@ -1302,11 +1302,11 @@ body {
   outline: none;
   font-family: Menlo, monospace;
   text-overflow: ellipsis;
-  /* Show the END of the cwd (roots repeat, tails differ): rtl right-aligns it and
-     puts the ellipsis on the LEFT, keeping the tail in view. Edit flips to ltr. */
-  direction: rtl;
-}
-.agent-path:focus {
+  /* Left-aligned, always. The cwd roots repeat and the tail (current folder) is what
+     matters, so when it's too long the value is LEFT-elided in JS (fitPathTail) to
+     "…/<tail>" — the tail stays in view AND short paths sit flush left (no rtl gap).
+     Focus restores the full path for editing. */
+  text-align: left;
   direction: ltr;
 }
 .agent-path:hover {
