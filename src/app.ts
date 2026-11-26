@@ -27,8 +27,8 @@ import { pickFile, pickSavePath, readFile, writeFile } from "./files";
 import { checkForUpdates } from "./updater";
 import { handleSubagentEvent, clearSubagentLayers } from "./subagent";
 import { defaultShell, shellLoginArgs, homeDir, agentStats } from "./pty";
-import { createWorktree, writeAidtSettings, currentBranch } from "./git";
-import { claudeHasHistory } from "./claude-sessions";
+import { createWorktree, writeAidtSettings, currentBranch, gitRoot } from "./git";
+import { claudeHasHistory, type MergedSession } from "./claude-sessions";
 import { listen } from "@tauri-apps/api/event";
 import { openPath, revealItemsInDir, openUrl as openExternalUrl } from "@tauri-apps/plugin-opener";
 import {
@@ -340,7 +340,10 @@ export class App {
   private buildCmd(cmd: string, resume = true): string {
     let base = cmd.trim() || "claude";
     if (base.startsWith("claude")) {
-      if (resume) base += " --continue";
+      // Don't add --continue if the command already resumes/continues (e.g. the orca
+      // "open in worktree" launch is `claude --resume <id>`): two resume flags conflict.
+      const alreadyResumes = /(^|\s)(--continue|-c|--resume|-r)(\s|$)/.test(base);
+      if (resume && !alreadyResumes) base += " --continue";
       if (this.permMode === "auto") base += " --permission-mode auto";
       else if (this.permMode === "bypass") base += " --dangerously-skip-permissions";
     }
@@ -624,19 +627,22 @@ export class App {
     if (cur) this.focused = Math.max(0, agents.indexOf(cur));
   }
 
-  private async addAgentWithCwd(project: Project, cwd: string | null, focus = true) {
+  private async addAgentWithCwd(project: Project, cwd: string | null, focus = true, launchCmd?: string) {
     const agent = this.newAgent(project, cwd);
+    if (launchCmd) agent.agentCmd = launchCmd; // e.g. orca "open in worktree": claude --resume <id>
     agent.title = cwd && cwd !== this.home ? basename(cwd) : `agent ${this.agentSeq - 1}`;
     if (this.guardrails || this.subagentNest) await this.applyAidtSettings(cwd);
     // Auto-run the agent only for a single focused add, and only when auto-start
     // is on (Settings). Bulk (fill, focus=false) always comes up as a shell to
     // avoid launching many heavy claudes at once; with auto-start off, even a
-    // focused Alt+T opens an idle shell (▶ / Alt+R to launch).
-    const autoRun = focus && this.autoStart;
+    // focused Alt+T opens an idle shell (▶ / Alt+R to launch). An explicit launchCmd
+    // (orca resume) always runs — the user asked for it by name.
+    const autoRun = launchCmd ? true : focus && this.autoStart;
     agent.running = autoRun;
     // Resume (--continue) only when auto-launching into a dir that already has a
-    // conversation — a fresh dir starts clean (no "No conversation found").
-    const resume = autoRun ? await this.claudeResume(cwd, agent.agentCmd) : true;
+    // conversation — a fresh dir starts clean (no "No conversation found"). A launchCmd
+    // carries its own resume (--resume <id>), so buildCmd must not add --continue.
+    const resume = launchCmd ? false : autoRun ? await this.claudeResume(cwd, agent.agentCmd) : true;
     const layer = this.primaryLayer(cwd, agent.agentCmd, autoRun, resume);
     agent.layers.push(layer);
     this.observeLayer(layer);
@@ -693,6 +699,39 @@ export class App {
     try {
       const wt = await createWorktree(p.root, branch);
       await this.addAgentWithCwd(p, wt);
+      toast(t("toast.worktree", branch));
+    } catch (e) {
+      toast(t("toast.worktreeFail", String(e)), "error");
+    }
+  }
+
+  /// orca workflow: from the Claude-session list (Alt+G), open a chosen past
+  /// conversation in its OWN new git worktree and resume it there. A worktree of the
+  /// session's repo is searched first by `claude --resume <id>`, so the exact
+  /// conversation resumes in place (verified against code.claude.com/docs/en/sessions:
+  /// the ID is found in "the current project directory and its git worktrees" first).
+  /// Intent → isolated worktree → that conversation, in one click.
+  private async openSessionInWorktree(s: MergedSession) {
+    const root = await gitRoot(s.cwd).catch(() => "");
+    if (!root) {
+      toast(t("sess.notRepo"), "error");
+      return;
+    }
+    // Reuse the open project for this repo, or open it (adds a root agent) so the
+    // worktree agent has a home. Dedupe by root — openProject itself does not.
+    let project = this.projects.find((p) => p.root === root);
+    if (!project) {
+      await this.projectsCtrl.openProject(basename(root) || root, root, true);
+      project = this.projects.find((p) => p.root === root);
+    }
+    if (!project) {
+      toast(t("toast.noProject"), "error");
+      return;
+    }
+    const branch = `feature/${ymd()}-${project.agents.length + 1}`;
+    try {
+      const wt = await createWorktree(root, branch);
+      await this.addAgentWithCwd(project, wt, true, `claude --resume ${s.sessionId}`);
       toast(t("toast.worktree", branch));
     } catch (e) {
       toast(t("toast.worktreeFail", String(e)), "error");
@@ -1034,6 +1073,7 @@ export class App {
       projectId: p?.root ?? null,
       projectLabel: p?.name ?? null,
       sendToAgent: (text) => this.typeIntoFocusedAgent(text),
+      openInWorktree: (s) => void this.openSessionInWorktree(s),
     });
   }
 

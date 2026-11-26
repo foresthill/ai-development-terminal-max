@@ -38,6 +38,14 @@ pub fn current_branch(dir: String) -> String {
     run_git(&["-C", &dir, "rev-parse", "--abbrev-ref", "HEAD"]).unwrap_or_default()
 }
 
+/// Absolute path of the git top-level (repo root) that contains `dir`, or "" if `dir`
+/// is not in a work tree. Lets a worktree be anchored at the repo root even when a
+/// session ran in a subdirectory or a sibling worktree of the same repo.
+#[tauri::command]
+pub fn git_root(dir: String) -> String {
+    run_git(&["-C", &dir, "rev-parse", "--show-toplevel"]).unwrap_or_default()
+}
+
 /// Clone `url` into ~/aidt-workspaces/<repo> and return the local path.
 #[tauri::command]
 pub fn git_clone(url: String) -> Result<String, String> {

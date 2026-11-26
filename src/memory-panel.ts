@@ -33,6 +33,8 @@ export interface MemoryPanelCtx {
   projectLabel?: string | null;
   /** Type text into the focused agent's terminal (no auto-submit). */
   sendToAgent: (text: string) => boolean;
+  /** orca: open this session in its own NEW git worktree and resume it there. */
+  openInWorktree?: (s: MergedSession) => void;
 }
 
 export function openMemoryPanel(ctx: MemoryPanelCtx): void {
@@ -166,6 +168,14 @@ export function openMemoryPanel(ctx: MemoryPanelCtx): void {
       else toast(t("mem.noAgent"), "error");
     });
     acts.append(resume);
+    if (ctx.openInWorktree) {
+      const wt = mkBtn(t("sess.worktree"), () => {
+        ctx.openInWorktree!(s);
+        close();
+      });
+      wt.title = t("sess.worktreeTip");
+      acts.append(wt);
+    }
     el.append(acts);
     return el;
   };
