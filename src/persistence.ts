@@ -105,6 +105,8 @@ export interface WorkspaceSnap {
   urlExternal?: boolean; // open clicked URLs in the external browser by default
   autoResume?: boolean; // re-run the agent command on restore (else idle, click ▶)
   autoStart?: boolean; // Alt+T / new window auto-launches the agent CLI (else idle)
+  newWindowAnchor?: "focused" | "root" | "fixed"; // where ＋/Alt+T opens a new window
+  newWindowPath?: string; // the fixed path when newWindowAnchor === "fixed"
   projects: ProjectSnap[];
 }
 
@@ -121,6 +123,8 @@ export interface Settings {
   urlExternal: boolean;
   autoResume: boolean;
   autoStart: boolean;
+  newWindowAnchor: "focused" | "root" | "fixed";
+  newWindowPath: string;
 }
 
 export function buildSnapshot(projects: Project[], s: Settings): WorkspaceSnap {
@@ -137,6 +141,8 @@ export function buildSnapshot(projects: Project[], s: Settings): WorkspaceSnap {
     urlExternal: s.urlExternal,
     autoResume: s.autoResume,
     autoStart: s.autoStart,
+    newWindowAnchor: s.newWindowAnchor,
+    newWindowPath: s.newWindowPath,
     projects: projects.map((p) => ({
       name: p.name,
       root: p.root,

@@ -124,6 +124,11 @@ export class App {
   private urlExternal = false; // false ⇒ clicked URLs open in the in-app browser
   private autoResume = false; // false ⇒ restored agents come up idle (click ▶ to run)
   private autoStart = true; // false ⇒ Alt+T opens an idle shell (click ▶ to launch the CLI)
+  // Where ＋/Alt+T opens a new window: "focused" = the focused window's live dir (default,
+  // so a new window spawns from where you are, not a clone of the top-left one), "root" =
+  // repo root, "fixed" = newWindowPath. Configurable in Settings.
+  private newWindowAnchor: "focused" | "root" | "fixed" = "focused";
+  private newWindowPath = "";
   private shell = "/bin/zsh";
   private shellArgs: string[] = ["-l"]; // login-shell args per platform (set in init)
   private home = "";
@@ -679,7 +684,22 @@ export class App {
       toast(t("toast.noProject"), "error");
       return;
     }
-    await this.addAgentWithCwd(p, p.root || this.home);
+    await this.addAgentWithCwd(p, this.newWindowCwd(p));
+  }
+
+  /// Where a new ＋/Alt+T window opens, per the Settings "new window" anchor:
+  /// "focused" → the focused window's live dir (spawn from where you are), "fixed" →
+  /// the configured path, else the repo root. Always falls back to the repo root/home.
+  private newWindowCwd(p: Project): string {
+    if (this.newWindowAnchor === "fixed" && this.newWindowPath.trim()) {
+      return this.newWindowPath.trim();
+    }
+    if (this.newWindowAnchor === "focused") {
+      const f = this.agents[this.focused];
+      const dir = f?.liveCwd || f?.cwd;
+      if (dir) return dir;
+    }
+    return p.root || this.home;
   }
 
   /// Deliberately create a NEW git worktree (isolated branch feature/<ymd>-N) and open
@@ -956,6 +976,8 @@ export class App {
       urlExternal: this.urlExternal,
       autoResume: this.autoResume,
       autoStart: this.autoStart,
+      newWindowAnchor: this.newWindowAnchor,
+      newWindowPath: this.newWindowPath,
     }, () => void checkForUpdates({ silent: false }));
     if (!res) return;
     if (res.lang !== getLang()) setLang(res.lang); // re-applies static labels
@@ -968,6 +990,8 @@ export class App {
     this.urlExternal = res.urlExternal;
     this.autoResume = res.autoResume;
     this.autoStart = res.autoStart;
+    this.newWindowAnchor = res.newWindowAnchor;
+    this.newWindowPath = res.newWindowPath;
     this.agentPresets = res.agentPresets.length ? res.agentPresets : [...DEFAULT_AGENT_PRESETS];
     for (const p of this.projects) for (const a of p.agents) this.fillAgentSelect(a);
     if (this.guardrails) {
@@ -1318,6 +1342,8 @@ export class App {
       urlExternal: this.urlExternal,
       autoResume: this.autoResume,
       autoStart: this.autoStart,
+      newWindowAnchor: this.newWindowAnchor,
+      newWindowPath: this.newWindowPath,
     });
   }
 
@@ -1366,6 +1392,8 @@ export class App {
     this.urlExternal = !!snap.urlExternal;
     this.autoResume = !!snap.autoResume;
     this.autoStart = snap.autoStart ?? true; // default on (preserve prior behavior)
+    this.newWindowAnchor = snap.newWindowAnchor ?? "focused";
+    this.newWindowPath = snap.newWindowPath ?? "";
     if (snap.presets) this.presets = new Set(snap.presets);
     if (snap.agentPresets?.length) this.agentPresets = snap.agentPresets;
 

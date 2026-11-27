@@ -234,6 +234,8 @@ export interface SettingsValues {
   urlExternal: boolean;
   autoResume: boolean;
   autoStart: boolean;
+  newWindowAnchor: "focused" | "root" | "fixed";
+  newWindowPath: string;
 }
 
 function parsePresets(text: string): { label: string; cmd: string }[] {
@@ -307,6 +309,15 @@ export function openSettings(
           <option value="off">${t("set.autoStartOff")}</option>
         </select></label>
         <div class="set-hint">${t("set.autoStartHint")}</div></div>
+      <div class="set-field"><label class="set-row"><span>${t("set.newWin")}</span>
+        <select class="modal-input" id="set-newwin">
+          <option value="focused">${t("set.newWinFocused")}</option>
+          <option value="root">${t("set.newWinRoot")}</option>
+          <option value="fixed">${t("set.newWinFixed")}</option>
+        </select></label>
+        <input class="modal-input" id="set-newwin-path" spellcheck="false"
+          placeholder="${t("set.newWinPathPh")}" style="margin-top:4px">
+        <div class="set-hint">${t("set.newWinHint")}</div></div>
       <label class="set-row col set-span"><span>${t("set.presets")}</span>
         <textarea class="modal-input" id="set-agents" rows="4" spellcheck="false"
           placeholder="claude = claude"></textarea></label>
@@ -335,6 +346,8 @@ export function openSettings(
     const urlSel = box.querySelector<HTMLSelectElement>("#set-url")!;
     const resumeSel = box.querySelector<HTMLSelectElement>("#set-resume")!;
     const autoStartSel = box.querySelector<HTMLSelectElement>("#set-autostart")!;
+    const newWinSel = box.querySelector<HTMLSelectElement>("#set-newwin")!;
+    const newWinPath = box.querySelector<HTMLInputElement>("#set-newwin-path")!;
     const custom = box.querySelector<HTMLTextAreaElement>("#set-custom")!;
     const presetsEl = box.querySelector<HTMLElement>("#set-presets")!;
     langSel.value = cur.lang;
@@ -346,6 +359,8 @@ export function openSettings(
     urlSel.value = cur.urlExternal ? "external" : "inapp";
     resumeSel.value = cur.autoResume ? "auto" : "manual";
     autoStartSel.value = cur.autoStart ? "on" : "off";
+    newWinSel.value = cur.newWindowAnchor;
+    newWinPath.value = cur.newWindowPath;
     custom.value = cur.customDeny;
     const boxes: Record<string, HTMLInputElement> = {};
     for (const p of GUARD_PRESETS) {
@@ -397,6 +412,8 @@ export function openSettings(
         urlExternal: urlSel.value === "external",
         autoResume: resumeSel.value === "auto",
         autoStart: autoStartSel.value === "on",
+        newWindowAnchor: newWinSel.value as SettingsValues["newWindowAnchor"],
+        newWindowPath: newWinPath.value.trim(),
       });
     });
     back.addEventListener("click", (e) => {
