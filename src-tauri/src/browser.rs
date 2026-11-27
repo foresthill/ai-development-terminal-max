@@ -147,29 +147,35 @@ pub fn browser_launch(url: String, headless: bool) -> Result<LaunchInfo, String>
         .map_err(|e| format!("{exe}: {e}"))?;
     let pid = child.id();
 
-    // Wait for the profile's DevToolsActivePort, then resolve the page target's ws URL.
-    let deadline = Instant::now() + Duration::from_secs(15);
+    // Two SEPARATE wait windows (they used to share one 15s deadline — a slow port file
+    // could starve the ws step and wrongly report "no browser WebSocket"). First: wait for
+    // the profile's DevToolsActivePort file.
+    let port_deadline = Instant::now() + Duration::from_secs(15);
     let mut port = None;
-    while Instant::now() < deadline {
+    while Instant::now() < port_deadline {
         if let Some(p) = read_active_port(&profile) {
             port = Some(p);
             break;
         }
         std::thread::sleep(Duration::from_millis(150));
     }
-    let port = port.ok_or("browser did not expose a debugging port in time")?;
+    let port = port.ok_or("browser did not expose a debugging port in time (did Chrome start?)")?;
 
-    let mut ws_url = Err("no browser WebSocket".to_string());
-    while Instant::now() < deadline {
+    // Second: resolve the browser-level ws URL from /json/version. Keep the LAST real error
+    // (connection refused, malformed response, …) and surface it — the old code discarded it
+    // and always reported the generic "no browser WebSocket", which hid the actual cause.
+    let ws_deadline = Instant::now() + Duration::from_secs(15);
+    let ws_url = loop {
         match find_browser_ws(port) {
-            Ok(ws) => {
-                ws_url = Ok(ws);
-                break;
+            Ok(ws) => break ws,
+            Err(e) => {
+                if Instant::now() >= ws_deadline {
+                    return Err(format!("no browser WebSocket on port {port}: {e}"));
+                }
+                std::thread::sleep(Duration::from_millis(150));
             }
-            Err(_) => std::thread::sleep(Duration::from_millis(150)),
         }
-    }
-    let ws_url = ws_url?;
+    };
 
     Ok(LaunchInfo { pid, port, ws_url })
 }
