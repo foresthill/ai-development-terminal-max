@@ -70,19 +70,69 @@ pub struct LaunchInfo {
 
 /// Minimal HTTP GET to the local DevTools HTTP endpoint (no dependency on an HTTP crate —
 /// it's plain localhost HTTP/1.1). Returns the response body.
+///
+/// Reads the body by Content-Length and stops as soon as it's complete. It must NOT wait
+/// for EOF (the old `read_to_string` did): Chrome's DevTools HTTP server keeps the socket
+/// alive and ignores our `Connection: close`, so there is no EOF — the read just blocks
+/// until the timeout and fails with EAGAIN ("Resource temporarily unavailable", os error
+/// 35), which looked like "no browser WebSocket".
 fn http_get(port: u16, path: &str) -> Result<String, String> {
     let mut stream = TcpStream::connect(("127.0.0.1", port)).map_err(|e| e.to_string())?;
-    stream
-        .set_read_timeout(Some(Duration::from_secs(5)))
-        .ok();
+    stream.set_read_timeout(Some(Duration::from_secs(5))).ok();
+    stream.set_write_timeout(Some(Duration::from_secs(5))).ok();
     let req = format!("GET {path} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n");
     stream.write_all(req.as_bytes()).map_err(|e| e.to_string())?;
-    let mut buf = String::new();
-    stream.read_to_string(&mut buf).map_err(|e| e.to_string())?;
-    // Split headers from body at the blank line.
-    match buf.split_once("\r\n\r\n") {
-        Some((_, body)) => Ok(body.to_string()),
-        None => Err("malformed HTTP response from DevTools endpoint".into()),
+
+    let mut buf: Vec<u8> = Vec::with_capacity(4096);
+    let mut chunk = [0u8; 4096];
+    loop {
+        if let Some(body) = complete_body(&buf) {
+            return Ok(body);
+        }
+        match stream.read(&mut chunk) {
+            Ok(0) => break, // EOF (server did close)
+            Ok(n) => buf.extend_from_slice(&chunk[..n]),
+            // Timed out / would block: stop and use whatever we have below.
+            Err(ref e)
+                if e.kind() == std::io::ErrorKind::WouldBlock
+                    || e.kind() == std::io::ErrorKind::TimedOut =>
+            {
+                break
+            }
+            Err(e) => return Err(e.to_string()),
+        }
+    }
+    // EOF or a read timeout with data already in hand: return the full-length body if we
+    // have it, else whatever followed the header break (covers a close-delimited body).
+    complete_body(&buf)
+        .or_else(|| {
+            let sep = b"\r\n\r\n";
+            buf.windows(sep.len())
+                .position(|w| w == sep)
+                .map(|p| String::from_utf8_lossy(&buf[p + sep.len()..]).into_owned())
+        })
+        .ok_or_else(|| "malformed/empty HTTP response from DevTools endpoint".into())
+}
+
+/// If `buf` holds complete headers plus a Content-Length worth of body, return the body.
+/// None means "not all here yet" — keep reading.
+fn complete_body(buf: &[u8]) -> Option<String> {
+    let sep = b"\r\n\r\n";
+    let pos = buf.windows(sep.len()).position(|w| w == sep)?;
+    let head = std::str::from_utf8(&buf[..pos]).ok()?;
+    let clen: usize = head.lines().find_map(|l| {
+        let (k, v) = l.split_once(':')?;
+        if k.trim().eq_ignore_ascii_case("content-length") {
+            v.trim().parse::<usize>().ok()
+        } else {
+            None
+        }
+    })?;
+    let body = &buf[pos + sep.len()..];
+    if body.len() >= clen {
+        Some(String::from_utf8_lossy(&body[..clen]).into_owned())
+    } else {
+        None
     }
 }
 
