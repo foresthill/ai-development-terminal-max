@@ -956,6 +956,54 @@ body {
     0 0 22px rgba(224, 175, 104, 0.55);
 }
 
+/* "Working" beacon: while an agent is actively running (claude is producing output),
+   a neon light travels around its frame — so a busy window reads as alive at a glance,
+   and a stopped one simply sits still ("stopped looks stopped"). A rotating conic arc
+   masked to just the border ring (standard gradient-border trick). Uses the theme
+   accent with a green leading tip (active = go); the amber "waiting" border is a
+   separate, static cue. */
+@property --neon-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+.agent.working {
+  position: relative;
+}
+.agent.working::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  padding: 2px;
+  background: conic-gradient(
+    from var(--neon-angle),
+    transparent 0deg 285deg,
+    color-mix(in srgb, var(--accent) 45%, transparent) 318deg,
+    var(--accent) 342deg,
+    #9ece6a 352deg,
+    transparent 360deg
+  );
+  /* Show only the 2px border ring (XOR the content-box out of the border-box). */
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: 3;
+  animation: neon-rotate 1.8s linear infinite;
+}
+@keyframes neon-rotate {
+  to {
+    --neon-angle: 360deg;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .agent.working::after {
+    animation: none;
+  }
+}
+
 /* ---- window priority (● flag in the header cycles none→low→mid→high) ---- */
 .agent-prio {
   border: 0;

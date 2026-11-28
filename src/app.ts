@@ -275,7 +275,7 @@ export class App {
           const quiet = !term?.lastOutput || now - term.lastOutput > 1500;
           items.push({ agent: a, pid, quiet });
         } else {
-          a.cardEl.classList.remove("waiting");
+          a.cardEl.classList.remove("waiting", "working");
         }
       }
     if (!items.length) {
@@ -300,6 +300,11 @@ export class App {
         // you exit claude back to an idle shell (procs == 1), the tint clears.
         const waiting = x.agent.running && x.quiet && s.procs > 1;
         x.agent.cardEl.classList.toggle("waiting", waiting);
+        // "working" (neon frame): running with its command alive AND producing output
+        // (not quiet) — so an actively-working window reads as alive, while a stopped
+        // one sits still. Mutually exclusive with "waiting" (quiet vs not).
+        const working = x.agent.running && !x.quiet && s.procs > 1;
+        x.agent.cardEl.classList.toggle("working", working);
         // Show where the shell has `cd`'d to — DISPLAY ONLY. We must NOT touch
         // agent.cwd (the user-set working dir, which is the spawn source for new
         // shell layers + restore, and the persisted value): overwriting it here made
